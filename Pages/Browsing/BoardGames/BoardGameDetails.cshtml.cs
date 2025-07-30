@@ -1,17 +1,14 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
+using System;
 using System.Threading.Tasks;
 
-namespace Board_Game_Software.Pages.Admin.BoardGames
+namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
-    [Authorize(Roles = "Admin")]
     public class BoardGameDetailsModel : PageModel
     {
         private readonly BoardGameDbContext _context;
@@ -23,7 +20,6 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
 
-            // Your Mongo collection name (update if different)
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
@@ -38,6 +34,8 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
                 .Include(bg => bg.FkBgdPublisherNavigation)
                 .Include(bg => bg.BoardGameMarkers)
                     .ThenInclude(marker => marker.FkBgdBoardGameMarkerTypeNavigation)
+                .Include(bg => bg.BoardGameShelfSections)
+                    .ThenInclude(ss => ss.FkBgdShelfSectionNavigation)
                 .FirstOrDefaultAsync(bg => bg.Id == id);
 
             if (BoardGame == null)
@@ -48,19 +46,16 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
             var frontImageType = await _context.BoardGameImageTypes
                 .FirstOrDefaultAsync(bgit => bgit.TypeDesc == "Board Game Front");
 
-            if (frontImageType != null && BoardGame.Gid != null)
+            if (frontImageType != null && BoardGame.Gid != Guid.Empty)
             {
                 var image = await _boardGameImages.Find(img =>
                     img.GID == BoardGame.Gid && img.ImageTypeGID == frontImageType.Gid)
                     .FirstOrDefaultAsync();
 
-                if (image != null)
+                if (image?.ImageBytes != null)
                 {
-                    if (image.ImageBytes != null)
-                    {
-                        var base64 = Convert.ToBase64String(image.ImageBytes);
-                        BoardGameFrontImageUrl = $"data:{image.ContentType};base64,{base64}";
-                    }
+                    var base64 = Convert.ToBase64String(image.ImageBytes);
+                    BoardGameFrontImageUrl = $"data:{image.ContentType};base64,{base64}";
                 }
             }
 

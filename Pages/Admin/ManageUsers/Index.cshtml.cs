@@ -6,15 +6,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Board_Game_Software.Pages
+namespace Board_Game_Software.Pages.Admin.ManageUsers
 {
     [Authorize(Roles = "Admin")]
-    public class ManageUsersModel : PageModel
+    public class IndexModel : PageModel
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
 
-        public ManageUsersModel(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager)
+        public IndexModel(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager)
         {
             _userManager = userManager;
             _roleManager = roleManager;

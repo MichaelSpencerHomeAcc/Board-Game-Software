@@ -8,9 +8,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Board_Game_Software.Pages.Admin.BoardGames
+namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
-    [Authorize(Roles = "Admin")]
     public class IndexModel : PageModel
     {
         private readonly BoardGameDbContext _context;

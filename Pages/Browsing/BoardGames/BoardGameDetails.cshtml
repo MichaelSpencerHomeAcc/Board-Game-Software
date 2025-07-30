@@ -1,14 +1,33 @@
-﻿@page
-@model Board_Game_Software.Pages.Admin.BoardGames.BoardGameDetailsModel
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.Browsing.BoardGames.BoardGameDetailsModel
 @{
     ViewData["Title"] = Model.BoardGame?.BoardGameName ?? "Board Game Details";
+}
+@inject Microsoft.AspNetCore.Identity.UserManager<Microsoft.AspNetCore.Identity.IdentityUser> UserManager
+@inject Microsoft.AspNetCore.Identity.SignInManager<Microsoft.AspNetCore.Identity.IdentityUser> SignInManager
+
+@{
+    var isAdmin = false;
+    if (SignInManager.IsSignedIn(User))
+    {
+        var currentUser = await UserManager.GetUserAsync(User);
+        if (currentUser != null)
+        {
+            isAdmin = await UserManager.IsInRoleAsync(currentUser, "Admin");
+        }
+    }
 }
 
 <div class="container mt-4">
     <div class="row">
-        <!-- Left Column: Board Game Details -->
         <div class="col-md-7">
             <h1 class="mb-3">@Model.BoardGame.BoardGameName</h1>
+
+            @if (isAdmin)
+            {
+                <a asp-page="/Browsing/BoardGames/Edit" asp-route-id="@Model.BoardGame.Id" class="btn btn-primary mb-3">Edit</a>
+            }
+
             <dl class="row">
                 <dt class="col-sm-4 fw-bold">Type</dt>
                 <dd class="col-sm-8">@(Model.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc ?? "-")</dd>
@@ -81,8 +100,22 @@
             <a asp-page="./Index" class="btn btn-secondary mt-3">Back to List</a>
         </div>
 
-        <!-- Right Column: Image + Markers -->
         <div class="col-md-5 d-flex flex-column align-items-center">
+            @if (Model.BoardGame.BoardGameShelfSections != null && Model.BoardGame.BoardGameShelfSections.Any())
+            {
+                <h3 class="mt-4">Shelf Section</h3>
+                <ul>
+                    @foreach (var shelfSectionLink in Model.BoardGame.BoardGameShelfSections)
+                    {
+                        var shelfSection = shelfSectionLink.FkBgdShelfSectionNavigation;
+                        if (shelfSection != null)
+                        {
+                            <li>@shelfSection.SectionName</li>
+                        }
+                    }
+                </ul>
+            }
+
             @if (!string.IsNullOrWhiteSpace(Model.BoardGameFrontImageUrl))
             {
                 <img src="@Model.BoardGameFrontImageUrl" alt="@Model.BoardGame.BoardGameName"
@@ -95,7 +128,7 @@
                     No image available
                 </div>
             }
-            
+
             @if (Model.BoardGame.BoardGameMarkers != null && Model.BoardGame.BoardGameMarkers.Any())
             {
                 <h3 class="mt-4 w-100 text-center">Markers Included</h3>
@@ -112,7 +145,6 @@
                     </div>
                 </div>
             }
-
         </div>
     </div>
 </div>
