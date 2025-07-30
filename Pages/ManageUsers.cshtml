@@ -1,0 +1,27 @@
+﻿@page
+@model Board_Game_Software.Pages.ManageUsersModel
+@using Microsoft.AspNetCore.Identity
+
+<h2>User Role Management</h2>
+
+@foreach (var user in Model.Users)
+{
+    <form method="post">
+        <input type="hidden" name="UserId" value="@user.Id" />
+        <div class="mb-3 border rounded p-3">
+            <strong>@user.Email</strong>
+
+            <div class="mt-2">
+                @foreach (var role in Model.AllRoles)
+                {
+                    var isInRole = await Model.IsUserInRoleAsync(user, role);
+                    <input type="checkbox" name="SelectedRoles" value="@role" @(isInRole ? "checked" : "") />
+                    <label>@role</label>
+                }
+
+            </div>
+
+            <button type="submit" class="btn btn-sm btn-primary mt-2">Update Roles</button>
+        </div>
+    </form>
+}

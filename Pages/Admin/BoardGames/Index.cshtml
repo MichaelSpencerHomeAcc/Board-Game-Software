@@ -1,0 +1,93 @@
+﻿@page
+@model Board_Game_Software.Pages.Admin.BoardGames.IndexModel
+@{
+    ViewData["Title"] = "Board Games";
+}
+
+<div class="row">
+    <div class="col-12">
+        <h2>Board Game Search</h2>
+
+        <form method="get" id="searchForm" autocomplete="off">
+            <div class="input-group mb-3">
+                <div class="position-relative w-100">
+                    <input id="searchBox" name="search" class="form-control" placeholder="Search by name, type, or player count..." value="@Model.SearchTerm" />
+                    <ul id="autocomplete-results" class="list-group position-absolute w-100 bg-white border rounded" style="z-index: 1000; top: 100%; left: 0; max-height: 300px; overflow-y: auto;"></ul>
+                </div>
+                <button class="btn btn-primary" type="submit">Search</button>
+            </div>
+        </form>
+
+        @if (Model.BoardGames.Any())
+        {
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Players</th>
+                        <th>Release Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var game in Model.BoardGames)
+                    {
+                        <tr>
+                            <td>@game.BoardGameName</td>
+                            <td>@game.FkBgdBoardGameTypeNavigation?.TypeDesc</td>
+                            <td>@game.PlayerCountMin @(game.PlayerCountMax != game.PlayerCountMin ? " – " + game.PlayerCountMax : "")</td>
+                            <td>@(game.ReleaseDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p>No board games found.</p>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const input = document.getElementById('searchBox');
+        const resultsBox = document.getElementById('autocomplete-results');
+        const form = document.getElementById('searchForm');
+
+        input.addEventListener('input', async () => {
+            const term = input.value.trim();
+            if (term.length < 1) {
+                resultsBox.innerHTML = '';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/Admin/BoardGames?handler=Search&term=${encodeURIComponent(term)}`);
+                const data = await res.json();
+
+                resultsBox.innerHTML = '';
+                data.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item list-group-item-action';
+                    li.style.cursor = 'pointer';
+                    li.innerHTML = `<strong>${item.name}</strong> <small class="text-muted">(${item.type})</small>`;
+                    li.onclick = () => {
+                        input.value = item.name;
+                        resultsBox.innerHTML = '';
+                        form.submit();
+                    };
+                    resultsBox.appendChild(li);
+                });
+            } catch (err) {
+                console.error('Autocomplete fetch failed', err);
+            }
+        });
+
+        document.addEventListener('click', e => {
+            if (!resultsBox.contains(e.target) && e.target !== input) {
+                resultsBox.innerHTML = '';
+            }
+        });
+    </script>
+}
