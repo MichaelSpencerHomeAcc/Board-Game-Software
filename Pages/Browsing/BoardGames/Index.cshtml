@@ -1,5 +1,5 @@
 ﻿@page
-@model Board_Game_Software.Pages.Admin.BoardGames.IndexModel
+@model Board_Game_Software.Pages.Browsing.BoardGames.IndexModel
 @{
     ViewData["Title"] = "Board Games";
 }
@@ -33,7 +33,7 @@
                     @foreach (var game in Model.BoardGames)
                     {
                         <tr>
-                            <td>@game.BoardGameName</td>
+                            <td><a asp-page="./BoardGameDetails" asp-route-id="@game.Id">@game.BoardGameName</a></td>
                             <td>@game.FkBgdBoardGameTypeNavigation?.TypeDesc</td>
                             <td>@game.PlayerCountMin @(game.PlayerCountMax != game.PlayerCountMin ? " – " + game.PlayerCountMax : "")</td>
                             <td>@(game.ReleaseDate?.ToString("yyyy-MM-dd") ?? "-")</td>

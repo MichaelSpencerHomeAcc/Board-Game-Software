@@ -1,0 +1,168 @@
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.Browsing.BoardGames.BoardGameDetailsModel
+@{
+    ViewData["Title"] = Model.BoardGame?.BoardGameName ?? "Board Game Details";
+}
+@inject Microsoft.AspNetCore.Identity.UserManager<Microsoft.AspNetCore.Identity.IdentityUser> UserManager
+@inject Microsoft.AspNetCore.Identity.SignInManager<Microsoft.AspNetCore.Identity.IdentityUser> SignInManager
+
+@{
+    var isAdmin = false;
+    if (SignInManager.IsSignedIn(User))
+    {
+        var currentUser = await UserManager.GetUserAsync(User);
+        if (currentUser != null)
+        {
+            isAdmin = await UserManager.IsInRoleAsync(currentUser, "Admin");
+        }
+    }
+}
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-7">
+            <h1 class="mb-3">@Model.BoardGame.BoardGameName</h1>
+
+            @if (isAdmin)
+            {
+                <a asp-page="/Browsing/BoardGames/Edit" asp-route-id="@Model.BoardGame.Id" class="btn btn-primary mb-3">Edit</a>
+            }
+
+            <dl class="row">
+                <dt class="col-sm-4 fw-bold">Type</dt>
+                <dd class="col-sm-8">@(Model.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc ?? "-")</dd>
+
+                <dt class="col-sm-4 fw-bold">Players</dt>
+                <dd class="col-sm-8">
+                    @Model.BoardGame.PlayerCountMin
+                    @(Model.BoardGame.PlayerCountMax != Model.BoardGame.PlayerCountMin ? " – " + Model.BoardGame.PlayerCountMax : "")
+                </dd>
+
+                <dt class="col-sm-4 fw-bold">Playing Time</dt>
+                <dd class="col-sm-8">
+                    @(
+                                        Model.BoardGame.PlayingTimeMinInMinutes.HasValue
+                                        ? Model.BoardGame.PlayingTimeMinInMinutes.Value + " min"
+                                        : "-"
+                                        )
+                    @if (Model.BoardGame.PlayingTimeMaxInMinutes.HasValue &&
+                                        Model.BoardGame.PlayingTimeMaxInMinutes != Model.BoardGame.PlayingTimeMinInMinutes)
+                    {
+                        <text> – @Model.BoardGame.PlayingTimeMaxInMinutes.Value min</text>
+                    }
+                </dd>
+
+                <dt class="col-sm-4 fw-bold">Complexity</dt>
+                <dd class="col-sm-8">
+                    @(Model.BoardGame.ComplexityRating.HasValue
+                                        ? Model.BoardGame.ComplexityRating.Value.ToString("0.0")
+                                        : "-")
+                </dd>
+
+                <dt class="col-sm-4 fw-bold">Victory Condition</dt>
+                <dd class="col-sm-8">
+                    @(Model.BoardGame.FkBgdBoardGameVictoryConditionTypeNavigation?.TypeDesc ?? "-")
+                </dd>
+
+                <dt class="col-sm-4 fw-bold">Publisher</dt>
+                <dd class="col-sm-8">
+                    @(Model.BoardGame.FkBgdPublisherNavigation?.PublisherName ?? "-")
+                </dd>
+
+                <dt class="col-sm-4 fw-bold">Release Date</dt>
+                <dd class="col-sm-8">@(Model.BoardGame.ReleaseDate?.ToString("yyyy-MM-dd") ?? "-")</dd>
+
+                <dt class="col-sm-4 fw-bold">Summary</dt>
+                <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(Model.BoardGame.BoardGameSummary) ? Model.BoardGame.BoardGameSummary : "-")</dd>
+
+                <dt class="col-sm-4 fw-bold">Dimensions (cm)</dt>
+                <dd class="col-sm-8">
+                    @(
+                                        Model.BoardGame.HeightCm.HasValue
+                                        ? Model.BoardGame.HeightCm.Value.ToString("0.##")
+                                        : "-"
+                                        )
+                    @if (Model.BoardGame.WidthCm.HasValue)
+                    {
+                        <text> (H) x @Model.BoardGame.WidthCm.Value.ToString("0.##") (W)</text>
+                    }
+                </dd>
+
+                @if (!string.IsNullOrWhiteSpace(Model.BoardGame.HowToPlayHyperlink) && Model.BoardGame.HowToPlayHyperlink.ToLower() != "null")
+                {
+                    <dt class="col-sm-4 fw-bold">How to Play</dt>
+                    <dd class="col-sm-8">
+                        <a href="@Model.BoardGame.HowToPlayHyperlink" target="_blank" rel="noopener noreferrer">Instructions / Video</a>
+                    </dd>
+                }
+            </dl>
+
+            <a asp-page="./Index" class="btn btn-secondary mt-3">Back to List</a>
+        </div>
+
+        <div class="col-md-5 d-flex flex-column align-items-center">
+            @if (Model.BoardGame.BoardGameShelfSections != null && Model.BoardGame.BoardGameShelfSections.Any())
+            {
+                <h3 class="mt-4">Shelf Section</h3>
+                <ul>
+                    @foreach (var shelfSectionLink in Model.BoardGame.BoardGameShelfSections)
+                    {
+                        var shelfSection = shelfSectionLink.FkBgdShelfSectionNavigation;
+                        if (shelfSection != null)
+                        {
+                            <li>@shelfSection.SectionName</li>
+                        }
+                    }
+                </ul>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.BoardGameFrontImageUrl))
+            {
+                <img src="@Model.BoardGameFrontImageUrl" alt="@Model.BoardGame.BoardGameName"
+                     style="max-width: 300px; max-height: 300px; width: auto; height: auto; object-fit: contain; border-radius: 0.25rem; box-shadow: 0 0 15px rgba(0,0,0,0.2);" />
+            }
+            else
+            {
+                <div class="border border-secondary rounded d-flex align-items-center justify-content-center"
+                     style="width: 300px; height: 300px; color: #999;">
+                    No image available
+                </div>
+            }
+
+            @if (Model.BoardGame.BoardGameMarkers != null && Model.BoardGame.BoardGameMarkers.Any())
+            {
+                <h3 class="mt-4 w-100 text-center">Markers Included</h3>
+                <div class="markers-scroll-container w-100">
+                    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+                        @foreach (var marker in Model.BoardGame.BoardGameMarkers)
+                        {
+                            <div class="col">
+                                <div class="card h-100 shadow-sm text-center p-2">
+                                    <h5 class="card-title mb-0">@(marker.FkBgdBoardGameMarkerTypeNavigation?.TypeDesc ?? "Unnamed Marker")</h5>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    dl dt {
+        font-weight: 600;
+        color: #333;
+    }
+
+    dl dd {
+        margin-bottom: 1rem;
+    }
+
+    .markers-scroll-container {
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 10px;
+        margin-left: 40px;
+    }
+</style>

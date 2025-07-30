@@ -1,0 +1,250 @@
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.Admin.BoardGames.EditModel
+@{
+    ViewData["Title"] = "Edit Board Game";
+}
+
+<h2>Edit Board Game - @Model.BoardGame.BoardGameName</h2>
+
+<form method="post" enctype="multipart/form-data" id="editForm">
+    <!-- Hidden fields for ID and audit -->
+    <input type="hidden" asp-for="BoardGame.Id" />
+    <input type="hidden" asp-for="BoardGame.CreatedBy" />
+    <input type="hidden" asp-for="BoardGame.TimeCreated" />
+    <input type="hidden" asp-for="BoardGame.ModifiedBy" />
+    <input type="hidden" asp-for="BoardGame.TimeModified" />
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.BoardGameName" class="form-label"></label>
+        <input asp-for="BoardGame.BoardGameName" class="form-control" />
+        <span asp-validation-for="BoardGame.BoardGameName" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.FkBgdBoardGameType" class="form-label">Game Type</label>
+        <select asp-for="BoardGame.FkBgdBoardGameType" asp-items="Model.BoardGameTypes" class="form-select">
+            <option value="">-- Select Type --</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.PlayerCountMin" class="form-label"></label>
+        <input asp-for="BoardGame.PlayerCountMin" type="number" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.PlayerCountMax" class="form-label"></label>
+        <input asp-for="BoardGame.PlayerCountMax" type="number" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.PlayingTimeMinInMinutes" class="form-label"></label>
+        <input asp-for="BoardGame.PlayingTimeMinInMinutes" type="number" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.PlayingTimeMaxInMinutes" class="form-label"></label>
+        <input asp-for="BoardGame.PlayingTimeMaxInMinutes" type="number" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.HeightCm" class="form-label"></label>
+        <input asp-for="BoardGame.HeightCm" type="number" step="0.01" class="form-control" />
+        <span asp-validation-for="BoardGame.HeightCm" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.WidthCm" class="form-label"></label>
+        <input asp-for="BoardGame.WidthCm" type="number" step="0.01" class="form-control" />
+        <span asp-validation-for="BoardGame.WidthCm" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.ComplexityRating" class="form-label"></label>
+        <input asp-for="BoardGame.ComplexityRating" type="text" class="form-control" />
+        <span asp-validation-for="BoardGame.ComplexityRating" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.FkBgdBoardGameVictoryConditionType" class="form-label">Victory Condition</label>
+        <select asp-for="BoardGame.FkBgdBoardGameVictoryConditionType" asp-items="Model.VictoryConditions" class="form-select">
+            <option value="">-- Select Victory Condition --</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.FkBgdPublisher" class="form-label">Publisher</label>
+        <select asp-for="BoardGame.FkBgdPublisher" asp-items="Model.Publishers" class="form-select">
+            <option value="">-- Select Publisher --</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.ReleaseDate" class="form-label"></label>
+        <input asp-for="BoardGame.ReleaseDate" type="date" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.BoardGameSummary" class="form-label"></label>
+        <textarea asp-for="BoardGame.BoardGameSummary" class="form-control"></textarea>
+    </div>
+
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" id="HasMarkersCheckbox" name="BoardGame.HasMarkers" value="true" @(Model.HasMarkers ? "checked" : "") />
+        <label class="form-check-label" for="HasMarkersCheckbox">
+            Has Markers
+        </label>
+    </div>
+
+    <div id="markers-section" style="display:@(Model.HasMarkers ? "block" : "none")">
+        <div class="mb-3">
+            <label>Markers</label>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Marker Type</th>
+                        <th>Remove</th>
+                    </tr>
+                </thead>
+                <tbody id="markers-table-body">
+                    @for (int i = 0; i < Model.ExistingMarkers.Count; i++)
+                    {
+                        var marker = Model.ExistingMarkers[i];
+                        <tr>
+                            <td>@marker.FkBgdBoardGameMarkerTypeNavigation?.TypeDesc</td>
+                            <td>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="removeMarkerRow(this)">Remove</button>
+                                <input type="hidden" name="MarkerTypeIds" value="@marker.FkBgdBoardGameMarkerType" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <div class="input-group mb-3">
+                <select id="new-marker-select" class="form-select">
+                    <option value="">-- Select Marker to Add --</option>
+                    @foreach (var markerType in Model.MarkerTypes)
+                    {
+                        <option value="@markerType.Value">@markerType.Text</option>
+                    }
+                </select>
+                <button type="button" class="btn btn-primary" onclick="addMarker()">Add Marker</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label>Current Front Image:</label><br />
+        @if (!string.IsNullOrEmpty(Model.CurrentImageUrl))
+        {
+            <img src="@Model.CurrentImageUrl" alt="Board Game Front" style="max-width: 200px; max-height: 200px; object-fit: contain; border: 1px solid #ddd; padding: 5px;" />
+        }
+        else
+        {
+            <p>No image available</p>
+        }
+    </div>
+
+    <button type="submit" class="btn btn-success">Save</button>
+    <a asp-page="./BoardGameDetails" asp-route-id="@Model.BoardGame.Id" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        const hasMarkersCheckbox = document.getElementById('HasMarkersCheckbox');
+        const markersSection = document.getElementById('markers-section');
+        const newMarkerSelect = document.getElementById('new-marker-select');
+        const markersTableBody = document.getElementById('markers-table-body');
+
+        hasMarkersCheckbox.addEventListener('change', function () {
+            if (!this.checked) {
+                if (markersTableBody.children.length > 0) {
+                    if (!confirm('Unchecking "Has Markers" will delete all existing markers for this game. Continue?')) {
+                        this.checked = true;
+                        return;
+                    }
+                }
+            }
+            markersSection.style.display = this.checked ? 'block' : 'none';
+        });
+
+                function removeMarkerRow(button) {
+            const row = button.closest('tr');
+            const input = row.querySelector('input[name="MarkerTypeIds"]');
+            const removedValue = input.value;
+
+            // Get marker text from the first <td> in the row
+            const markerText = row.querySelector('td').textContent.trim();
+
+            // Remove the row
+            row.remove();
+
+            // Add back to dropdown if not already there
+            const optionExists = Array.from(newMarkerSelect.options).some(o => o.value === removedValue);
+            if (!optionExists) {
+                const option = document.createElement('option');
+                option.value = removedValue;
+                option.text = markerText;
+                newMarkerSelect.appendChild(option);
+                sortDropdownOptions(newMarkerSelect);
+            }
+        }
+
+
+        function addMarker() {
+            const selectedValue = newMarkerSelect.value;
+            const selectedText = newMarkerSelect.options[newMarkerSelect.selectedIndex]?.text || "";
+
+            if (!selectedValue) {
+                alert('Please select a marker to add.');
+                return;
+            }
+
+            // Check if already exists in table
+            const existingValues = Array.from(document.querySelectorAll('input[name="MarkerTypeIds"]')).map(input => input.value);
+            if (existingValues.includes(selectedValue)) {
+                alert('This marker is already added. Please select a different marker.');
+                return;
+            }
+
+            // Add new row
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td>${selectedText}</td>
+                <td>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeMarkerRow(this)">Remove</button>
+                    <input type="hidden" name="MarkerTypeIds" value="${selectedValue}" />
+                </td>`;
+
+            markersTableBody.appendChild(newRow);
+
+            // Remove from dropdown
+            newMarkerSelect.remove(newMarkerSelect.selectedIndex);
+        }
+
+        // Helper to sort dropdown options alphabetically
+        function sortDropdownOptions(selectElement) {
+            let options = Array.from(selectElement.options);
+            options = options.filter(o => o.value !== "");
+            options.sort((a, b) => a.text.localeCompare(b.text));
+            // Remove all options except placeholder
+            while (selectElement.options.length > 1) {
+                selectElement.remove(1);
+            }
+            options.forEach(o => selectElement.add(o));
+        }
+
+        // Initialize dropdown to exclude already added markers on page load
+        (function initializeDropdown() {
+            const existingValues = Array.from(document.querySelectorAll('input[name="MarkerTypeIds"]')).map(input => input.value);
+            for (let i = newMarkerSelect.options.length - 1; i >= 0; i--) {
+                if (existingValues.includes(newMarkerSelect.options[i].value)) {
+                    newMarkerSelect.remove(i);
+                }
+            }
+        })();
+    </script>
+}
