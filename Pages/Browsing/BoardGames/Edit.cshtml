@@ -89,6 +89,13 @@
         <textarea asp-for="BoardGame.BoardGameSummary" class="form-control"></textarea>
     </div>
 
+    <div class="mb-3">
+        <label asp-for="BoardGame.HowToPlayHyperlink" class="form-label"></label>
+        <input asp-for="BoardGame.HowToPlayHyperlink" class="form-control" />
+        <span asp-validation-for="BoardGame.HowToPlayHyperlink" class="text-danger"></span>
+    </div>
+
+
     <div class="form-check mb-3">
         <input class="form-check-input" type="checkbox" id="HasMarkersCheckbox" name="BoardGame.HasMarkers" value="true" @(Model.HasMarkers ? "checked" : "") />
         <label class="form-check-label" for="HasMarkersCheckbox">
@@ -132,6 +139,11 @@
                 <button type="button" class="btn btn-primary" onclick="addMarker()">Add Marker</button>
             </div>
         </div>
+    </div>
+
+    <div class="mb-3">
+        <label for="ImageUpload" class="form-label">Upload New Front Image</label>
+        <input type="file" id="ImageUpload" name="ImageUpload" accept="image/*" class="form-control" />
     </div>
 
     <div class="mb-3">
