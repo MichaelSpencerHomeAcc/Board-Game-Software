@@ -26,6 +26,9 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContextMain>();
 
+builder.Services.AddScoped<IUserClaimsPrincipalFactory<IdentityUser>,
+    UserClaimsPrincipalFactory<IdentityUser, IdentityRole>>();
+
 // Razor Pages
 builder.Services.AddRazorPages();
 
