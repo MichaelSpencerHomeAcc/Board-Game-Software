@@ -1,0 +1,96 @@
+﻿@page
+@model Board_Game_Software.Pages.Browsing.BoardGames.AddModel
+@{
+    ViewData["Title"] = "Add New Board Game";
+}
+
+<h2>Add New Board Game</h2>
+
+<form method="post" enctype="multipart/form-data" id="addForm">
+    <div class="mb-3">
+        <label asp-for="BoardGame.BoardGameName" class="form-label"></label>
+        <input asp-for="BoardGame.BoardGameName" class="form-control" />
+        <span asp-validation-for="BoardGame.BoardGameName" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.FkBgdBoardGameType" class="form-label">Game Type</label>
+        <select asp-for="BoardGame.FkBgdBoardGameType" asp-items="Model.BoardGameTypes" class="form-select">
+            <option value="">-- Select Type --</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.PlayerCountMin" class="form-label"></label>
+        <input asp-for="BoardGame.PlayerCountMin" type="number" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.PlayerCountMax" class="form-label"></label>
+        <input asp-for="BoardGame.PlayerCountMax" type="number" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.PlayingTimeMinInMinutes" class="form-label"></label>
+        <input asp-for="BoardGame.PlayingTimeMinInMinutes" type="number" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.PlayingTimeMaxInMinutes" class="form-label"></label>
+        <input asp-for="BoardGame.PlayingTimeMaxInMinutes" type="number" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.HeightCm" class="form-label"></label>
+        <input asp-for="BoardGame.HeightCm" type="number" step="0.01" class="form-control" />
+        <span asp-validation-for="BoardGame.HeightCm" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.WidthCm" class="form-label"></label>
+        <input asp-for="BoardGame.WidthCm" type="number" step="0.01" class="form-control" />
+        <span asp-validation-for="BoardGame.WidthCm" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.ComplexityRating" class="form-label"></label>
+        <input asp-for="BoardGame.ComplexityRating" type="text" class="form-control" />
+        <span asp-validation-for="BoardGame.ComplexityRating" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.FkBgdBoardGameVictoryConditionType" class="form-label">Victory Condition</label>
+        <select asp-for="BoardGame.FkBgdBoardGameVictoryConditionType" asp-items="Model.VictoryConditions" class="form-select">
+            <option value="">-- Select Victory Condition --</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.FkBgdPublisher" class="form-label">Publisher</label>
+        <select asp-for="BoardGame.FkBgdPublisher" asp-items="Model.Publishers" class="form-select">
+            <option value="">-- Select Publisher --</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.ReleaseDate" class="form-label"></label>
+        <input asp-for="BoardGame.ReleaseDate" type="date" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BoardGame.BoardGameSummary" class="form-label"></label>
+        <textarea asp-for="BoardGame.BoardGameSummary" class="form-control"></textarea>
+    </div>
+
+    <div class="mb-3">
+        <label for="ImageUpload" class="form-label">Upload Front Image</label>
+        <input type="file" id="ImageUpload" name="ImageUpload" accept="image/*" class="form-control" />
+    </div>
+
+    <button type="submit" class="btn btn-success">Add Board Game</button>
+    <a asp-page="./Index" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

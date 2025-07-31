@@ -21,11 +21,28 @@
 <div class="container mt-4">
     <div class="row">
         <div class="col-md-7">
-            <h1 class="mb-3">@Model.BoardGame.BoardGameName</h1>
+            <div class="d-flex align-items-center mb-3">
+                <h1 class="mb-0">
+                    @Model.BoardGame.BoardGameName
+                    @if (Model.BoardGame.BoardGameShelfSections != null && Model.BoardGame.BoardGameShelfSections.Any())
+                    {
+                        var firstShelf = Model.BoardGame.BoardGameShelfSections.FirstOrDefault()?.FkBgdShelfSectionNavigation;
+                        if (firstShelf != null)
+                        {
+                            <span style="color: black; font-weight: 400; font-size: 1em; margin-left: 0.5rem;">
+                                - Shelf: @firstShelf.SectionName
+                            </span>
+                        }
+                    }
+                </h1>
+            </div>
+
 
             @if (isAdmin)
             {
-                <a asp-page="/Browsing/BoardGames/Edit" asp-route-id="@Model.BoardGame.Id" class="btn btn-primary mb-3">Edit</a>
+                <div class="mb-3">
+                    <a asp-page="/Browsing/BoardGames/Edit" asp-route-id="@Model.BoardGame.Id" class="btn btn-primary">Edit</a>
+                </div>
             }
 
             <dl class="row">
@@ -101,21 +118,6 @@
         </div>
 
         <div class="col-md-5 d-flex flex-column align-items-center">
-            @if (Model.BoardGame.BoardGameShelfSections != null && Model.BoardGame.BoardGameShelfSections.Any())
-            {
-                <h3 class="mt-4">Shelf Section</h3>
-                <ul>
-                    @foreach (var shelfSectionLink in Model.BoardGame.BoardGameShelfSections)
-                    {
-                        var shelfSection = shelfSectionLink.FkBgdShelfSectionNavigation;
-                        if (shelfSection != null)
-                        {
-                            <li>@shelfSection.SectionName</li>
-                        }
-                    }
-                </ul>
-            }
-
             @if (!string.IsNullOrWhiteSpace(Model.BoardGameFrontImageUrl))
             {
                 <img src="@Model.BoardGameFrontImageUrl" alt="@Model.BoardGame.BoardGameName"

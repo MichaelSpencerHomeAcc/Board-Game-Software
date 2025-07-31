@@ -9,14 +9,24 @@
         <h2>Board Game Search</h2>
 
         <form method="get" id="searchForm" autocomplete="off">
-            <div class="input-group mb-3">
-                <div class="position-relative w-100">
-                    <input id="searchBox" name="search" class="form-control" placeholder="Search by name, type, or player count..." value="@Model.SearchTerm" />
-                    <ul id="autocomplete-results" class="list-group position-absolute w-100 bg-white border rounded" style="z-index: 1000; top: 100%; left: 0; max-height: 300px; overflow-y: auto;"></ul>
-                </div>
+            <div class="input-group mb-3 position-relative">
+                <input id="searchBox" name="search" class="form-control" placeholder="Search by name, type, or player count..." value="@Model.SearchTerm" autocomplete="off" />
                 <button class="btn btn-primary" type="submit">Search</button>
+                <ul id="autocomplete-results" class="list-group position-absolute w-100 bg-white border rounded" style="z-index: 1000; top: 100%; left: 0; max-height: 300px; overflow-y: auto;"></ul>
             </div>
         </form>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            @if (User.IsInRole("Admin"))
+            {
+                <a asp-page="./Add" class="btn btn-success">+ Add New Board Game</a>
+            }
+        </div>
+
+
+        <div id="previewTooltip" style="position:absolute; display:none; border:1px solid #ccc; background:#fff; padding:5px; box-shadow:0 0 5px rgba(0,0,0,0.2); max-width:200px; z-index:2000;">
+            <img id="previewImage" src="" alt="Preview" style="max-width: 200px; max-height: 200px;" />
+        </div>
 
         @if (Model.BoardGames.Any())
         {
@@ -30,15 +40,22 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var game in Model.BoardGames)
+                    @foreach (var item in Model.BoardGames)
                     {
                         <tr>
-                            <td><a asp-page="./BoardGameDetails" asp-route-id="@game.Id">@game.BoardGameName</a></td>
-                            <td>@game.FkBgdBoardGameTypeNavigation?.TypeDesc</td>
-                            <td>@game.PlayerCountMin @(game.PlayerCountMax != game.PlayerCountMin ? " – " + game.PlayerCountMax : "")</td>
-                            <td>@(game.ReleaseDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                            <td>
+                                <a asp-page="./BoardGameDetails" asp-route-id="@item.BoardGame.Id"
+                                   class="board-game-link"
+                                   data-image="@item.Base64Image">
+                                    @item.BoardGame.BoardGameName
+                                </a>
+                            </td>
+                            <td>@item.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc</td>
+                            <td>@item.BoardGame.PlayerCountMin @(item.BoardGame.PlayerCountMax != item.BoardGame.PlayerCountMin ? " – " + item.BoardGame.PlayerCountMax : "")</td>
+                            <td>@(item.BoardGame.ReleaseDate?.ToString("yyyy-MM-dd") ?? "-")</td>
                         </tr>
                     }
+
                 </tbody>
             </table>
         }
@@ -63,7 +80,8 @@
             }
 
             try {
-                const res = await fetch(`/Admin/BoardGames?handler=Search&term=${encodeURIComponent(term)}`);
+                // Fixed URL to point to Browsing/BoardGames for handler=Search
+                const res = await fetch(`/Browsing/BoardGames?handler=Search&term=${encodeURIComponent(term)}`);
                 const data = await res.json();
 
                 resultsBox.innerHTML = '';
@@ -89,5 +107,30 @@
                 resultsBox.innerHTML = '';
             }
         });
+
+        // Tooltip preview code
+        const previewTooltip = document.getElementById('previewTooltip');
+        const previewImage = document.getElementById('previewImage');
+
+        document.querySelectorAll('.board-game-link').forEach(link => {
+            link.addEventListener('mouseenter', e => {
+                const imageUrl = e.target.getAttribute('data-image');
+                if (imageUrl) {
+                    previewImage.src = imageUrl;
+                    previewTooltip.style.display = 'block';
+                }
+            });
+
+            link.addEventListener('mousemove', e => {
+                previewTooltip.style.top = (e.pageY + 15) + 'px';
+                previewTooltip.style.left = (e.pageX + 15) + 'px';
+            });
+
+            link.addEventListener('mouseleave', () => {
+                previewTooltip.style.display = 'none';
+                previewImage.src = '';
+            });
+        });
     </script>
 }
+

@@ -1,9 +1,10 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,13 +14,18 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
     public class IndexModel : PageModel
     {
         private readonly BoardGameDbContext _context;
+        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
 
-        public IndexModel(BoardGameDbContext context)
+        public IndexModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
         {
             _context = context;
+
+            var databaseName = configuration["MongoDbSettings:Database"];
+            var database = mongoClient.GetDatabase(databaseName);
+            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
-        public List<BoardGame> BoardGames { get; set; } = new();
+        public List<BoardGameViewModel> BoardGames { get; set; } = new();
 
         public string SearchTerm { get; set; } = string.Empty;
 
@@ -38,25 +44,50 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 if (isNumber)
                 {
                     query = query.Where(bg =>
-                        bg.PlayerCountMin <= playerCount && playerCount <= bg.PlayerCountMax
-                        ||
-                        bg.BoardGameName.Contains(SearchTerm)
-                        ||
-                        bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(SearchTerm)
+                        (bg.PlayerCountMin <= playerCount && playerCount <= bg.PlayerCountMax)
+                        || bg.BoardGameName.Contains(SearchTerm)
+                        || bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(SearchTerm)
                     );
                 }
                 else
                 {
                     query = query.Where(bg =>
-                        bg.BoardGameName.Contains(SearchTerm) ||
-                        bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(SearchTerm));
+                        bg.BoardGameName.Contains(SearchTerm)
+                        || bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(SearchTerm));
                 }
             }
 
-            BoardGames = await query
+            var games = await query
                 .OrderBy(bg => bg.BoardGameName)
                 .Take(50)
                 .ToListAsync();
+
+            var frontImageType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+
+            BoardGames = new List<BoardGameViewModel>();
+
+            foreach (var game in games)
+            {
+                string? base64Image = null;
+
+                if (frontImageType != null && game.Gid != Guid.Empty)
+                {
+                    var image = await _boardGameImages.Find(img =>
+                        img.GID == game.Gid && img.ImageTypeGID == frontImageType.Gid)
+                        .FirstOrDefaultAsync();
+
+                    if (image?.ImageBytes != null)
+                    {
+                        base64Image = $"data:{image.ContentType};base64,{Convert.ToBase64String(image.ImageBytes)}";
+                    }
+                }
+
+                BoardGames.Add(new BoardGameViewModel
+                {
+                    BoardGame = game,
+                    Base64Image = base64Image
+                });
+            }
         }
 
         public async Task<JsonResult> OnGetSearchAsync(string term)
@@ -76,10 +107,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             {
                 suggestionsQuery = suggestionsQuery.Where(bg =>
                     (bg.PlayerCountMin <= playerCount && playerCount <= bg.PlayerCountMax)
-                    ||
-                    bg.BoardGameName.Contains(term)
-                    ||
-                    bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(term)
+                    || bg.BoardGameName.Contains(term)
+                    || bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(term)
                 );
             }
             else
