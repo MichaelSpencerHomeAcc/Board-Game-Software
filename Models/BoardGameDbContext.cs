@@ -121,6 +121,8 @@ public partial class BoardGameDbContext : DbContext
 
     public virtual DbSet<VwShelfSection> VwShelfSections { get; set; }
 
+    public virtual DbSet<PlayerNameResult> PlayerNameResults { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseSqlServer("Server=sql.bsite.net\\MSSQL2016;Database=tironicus_BoardGames;User Id=tironicus_BoardGames;Password=Crash454!;TrustServerCertificate=True;");
@@ -1637,7 +1639,22 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.WidthCm).HasColumnType("decimal(5, 2)");
         });
 
+        modelBuilder.Entity<PlayerNameResult>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToFunction("ReturnPlayerName", builder =>
+            {
+                builder.HasSchema("bgd");
+            });
+        });
+
         OnModelCreatingPartial(modelBuilder);
+    }
+
+    [DbFunction("ReturnPlayerName", "bgd")]
+    public IQueryable<PlayerNameResult> ReturnPlayerName(long playerId)
+    {
+        return FromExpression(() => ReturnPlayerName(playerId));
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

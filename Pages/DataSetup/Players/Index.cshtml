@@ -1,0 +1,35 @@
+﻿@page
+@model Board_Game_Software.Pages.DataSetup.Players.IndexModel
+@using Board_Game_Software.Models
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+
+<h1>Manage Players</h1>
+
+<p>
+    <a asp-page="Create" class="btn btn-primary">Add New Player</a>
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Full Name</th>
+            <th>Date of Birth</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var player in Model.Players)
+        {
+            <tr>
+                <td>@player.FullName</td>
+                <td>@player.DateOfBirth?.ToString("yyyy-MM-dd")</td>
+                <td>
+                    <a asp-page="Edit" asp-route-id="@player.Id">Edit</a> |
+                    <a asp-page="Details" asp-route-id="@player.Id">Details</a> |
+                    <a asp-page="Delete" asp-route-id="@player.Id">Delete</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

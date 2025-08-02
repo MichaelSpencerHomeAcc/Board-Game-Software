@@ -1,0 +1,56 @@
+﻿@page
+@model EditModel
+@using Microsoft.AspNetCore.Http
+
+<h1>Edit Player</h1>
+
+<form method="post" enctype="multipart/form-data">
+    <input type="hidden" asp-for="Player.Id" />
+
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+    <div class="mb-3">
+        <label asp-for="Player.FirstName" class="form-label"></label>
+        <input asp-for="Player.FirstName" class="form-control" />
+        <span asp-validation-for="Player.FirstName" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Player.MiddleName" class="form-label"></label>
+        <input asp-for="Player.MiddleName" class="form-control" />
+        <span asp-validation-for="Player.MiddleName" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Player.LastName" class="form-label"></label>
+        <input asp-for="Player.LastName" class="form-control" />
+        <span asp-validation-for="Player.LastName" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Player.DateOfBirth" class="form-label"></label>
+        <input asp-for="Player.DateOfBirth" type="date" class="form-control" />
+        <span asp-validation-for="Player.DateOfBirth" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label>Current Profile Picture:</label><br />
+        @if (Model.ProfileImageBase64 != null)
+        {
+            <img src="@Model.ProfileImageBase64" alt="Profile Picture" style="max-width: 150px; max-height: 150px;" />
+        }
+        else
+        {
+            <span>No profile picture uploaded.</span>
+        }
+    </div>
+
+    <div class="mb-3">
+        <label for="Upload" class="form-label">Upload New Profile Picture</label>
+        <input type="file" asp-for="Upload" class="form-control" accept="image/*" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a asp-page="./Index" class="btn btn-secondary">Cancel</a>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
