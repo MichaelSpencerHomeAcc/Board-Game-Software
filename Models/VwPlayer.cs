@@ -29,5 +29,7 @@ public partial class VwPlayer
 
     public DateOnly? DateOfBirth { get; set; }
 
+    public string? FKdboAspNetUsers { get; set; }
+
     public string? FullName { get; set; }
 }

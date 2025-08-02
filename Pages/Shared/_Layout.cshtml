@@ -3,6 +3,21 @@
 @inject SignInManager<IdentityUser> SignInManager
 @inject UserManager<IdentityUser> UserManager
 
+@{
+    var isSignedIn = SignInManager.IsSignedIn(User);
+    IdentityUser? currentUser = null;
+    bool isAdmin = false;
+
+    if (isSignedIn)
+    {
+        currentUser = await UserManager.GetUserAsync(User);
+        if (currentUser != null)
+        {
+            isAdmin = await UserManager.IsInRoleAsync(currentUser, "Admin");
+        }
+    }
+}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,17 +57,19 @@
                         <a class="nav-link text-dark" asp-page="/Privacy">Privacy</a>
                     </li>
 
-                    @if (SignInManager.IsSignedIn(User))
+                    @* Show Data Setup links for any signed in user *@
+                    @if (isSignedIn)
                     {
-                        var currentUser = await UserManager.GetUserAsync(User);
-                        if (await UserManager.IsInRoleAsync(currentUser, "Admin"))
+                        <li class="nav-item mt-3">
+                            <strong>Data Setup</strong>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-page="/DataSetup/Players/Index">Players</a>
+                        </li>
+
+                        @if (isAdmin)
                         {
-                            <li class="nav-item mt-3">
-                                <strong>Data Setup</strong>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-page="/DataSetup/Players/Index">Players</a>
-                            </li>
                             <li class="nav-item">
                                 <a class="nav-link text-dark" asp-page="/DataSetup/Shelves/Index">Shelves</a>
                             </li>
@@ -68,24 +85,23 @@
                     <li class="nav-item">
                         <a class="nav-link text-dark" asp-page="/Browsing/BoardGames/Index">Board Games</a>
                     </li>
+
                     <li class="nav-item mt-3">
                         <strong>Game Night</strong>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link text-dark" href="#">Coming Soon</a>
                     </li>
-                    @if (SignInManager.IsSignedIn(User))
+
+                    @* Show Admin Functions only for admins *@
+                    @if (isAdmin)
                     {
-                        var currentUser = await UserManager.GetUserAsync(User);
-                        if (await UserManager.IsInRoleAsync(currentUser, "Admin"))
-                        {
-                            <li class="nav-item mt-3">
-                                <strong>Admin Functions</strong>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-page="/Admin/ManageUsers/Index">Manage Users</a>
-                            </li>
-                        }
+                        <li class="nav-item mt-3">
+                            <strong>Admin Functions</strong>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-page="/Admin/ManageUsers/Index">Manage Users</a>
+                        </li>
                     }
                 </ul>
             </div>

@@ -1,0 +1,83 @@
+﻿@page "{id:long}"
+@model DetailsModel
+@using System.Globalization
+@using Microsoft.AspNetCore.Identity
+@using System.Security.Claims
+@inject UserManager<IdentityUser> UserManager
+@inject SignInManager<IdentityUser> SignInManager
+
+<h1>Player Details</h1>
+
+<div class="row">
+    <div class="col-md-8">
+        <dl class="row">
+            <dt class="col-sm-4">Full Name:</dt>
+            <dd class="col-sm-8">@($"{Model.Player.FirstName} {Model.Player.MiddleName} {Model.Player.LastName}".Trim())</dd>
+
+            <dt class="col-sm-4">Date of Birth:</dt>
+            <dd class="col-sm-8">@Model.Player.DateOfBirth?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</dd>
+        </dl>
+
+        <p>
+            @{
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var isAdmin = false;
+
+                if (SignInManager.IsSignedIn(User))
+                {
+                    var currentUser = await UserManager.GetUserAsync(User);
+                    if (currentUser != null)
+                    {
+                        isAdmin = await UserManager.IsInRoleAsync(currentUser, "Admin");
+                    }
+                }
+            }
+
+            @* Show Edit if admin OR claimed player *@
+            @if (isAdmin || Model.Player.FkdboAspNetUsers == userId)
+            {
+                <a asp-page="./Edit" asp-route-id="@Model.Player.Id" class="btn btn-primary">Edit</a>
+            }
+
+            <a asp-page="./Index" class="btn btn-secondary">Back to List</a>
+
+            @* Existing claim button logic below *@
+            @if (SignInManager.IsSignedIn(User))
+            {
+                if (Model.Player.FkdboAspNetUsers == null)
+                {
+                    if (Model.CurrentUserClaimedPlayerId == null)
+                    {
+                        <form method="post" asp-page-handler="Claim" asp-route-id="@Model.Player.Id" class="d-inline">
+                            <button type="submit" class="btn btn-success">Claim</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <button class="btn btn-secondary" disabled>
+                            You have already claimed another Player
+                        </button>
+                    }
+                }
+                else if (Model.Player.FkdboAspNetUsers == userId)
+                {
+                    <button class="btn btn-info" disabled>
+                        You have claimed this Player
+                    </button>
+                }
+            }
+        </p>
+    </div>
+
+    <div class="col-md-4 text-center">
+        <label>Profile Picture:</label><br />
+        @if (Model.ProfileImageBase64 != null)
+        {
+            <img src="@Model.ProfileImageBase64" alt="Profile Picture" class="img-fluid rounded" style="max-height: 250px;" />
+        }
+        else
+        {
+            <span>No profile picture available.</span>
+        }
+    </div>
+</div>

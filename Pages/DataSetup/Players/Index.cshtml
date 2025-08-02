@@ -1,13 +1,18 @@
 ﻿@page
 @model Board_Game_Software.Pages.DataSetup.Players.IndexModel
 @using Board_Game_Software.Models
-@using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Identity
+@using System.Security.Claims
+@inject UserManager<IdentityUser> UserManager
+@inject SignInManager<IdentityUser> SignInManager
 
 <h1>Manage Players</h1>
 
 <p>
-    <a asp-page="Create" class="btn btn-primary">Add New Player</a>
+    @if (SignInManager.IsSignedIn(User))
+    {
+        <a asp-page="Create" class="btn btn-primary">Add New Player</a>
+    }
 </p>
 
 <table class="table table-striped">
@@ -22,12 +27,30 @@
         @foreach (var player in Model.Players)
         {
             <tr>
-                <td>@player.FullName</td>
+                <td>@($"{player.FullName}")</td>
                 <td>@player.DateOfBirth?.ToString("yyyy-MM-dd")</td>
                 <td>
-                    <a asp-page="Edit" asp-route-id="@player.Id">Edit</a> |
-                    <a asp-page="Details" asp-route-id="@player.Id">Details</a> |
-                    <a asp-page="Delete" asp-route-id="@player.Id">Delete</a>
+                    <a asp-page="Details" asp-route-id="@player.Id">Details</a>
+
+                    @if (SignInManager.IsSignedIn(User))
+                    {
+                        var currentUserId = UserManager.GetUserId(User);
+                        var isAdmin = User.IsInRole("Admin");
+                        var isOwner = player.FKdboAspNetUsers == currentUserId;
+
+                        if (isAdmin)
+                        {
+                            <text> | <a asp-page="Edit" asp-route-id="@player.Id">Edit</a> | <a asp-page="Delete" asp-route-id="@player.Id">Delete</a></text>
+                        }
+                        else if (isOwner)
+                        {
+                            <text> | <a asp-page="Edit" asp-route-id="@player.Id">Edit</a></text>
+                        }
+                        else
+                        {
+                            <text> | <span class="text-muted" title="You do not have permission to edit or delete this player">Edit</span></text>
+                        }
+                    }
                 </td>
             </tr>
         }

@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Board_Game_Software.Models;
@@ -14,13 +13,11 @@ public partial class BoardGame
 
     public byte[]? VersionStamp { get; set; }
 
-    [BindNever]
-    public string CreatedBy { get; set; } = string.Empty;
+    public string CreatedBy { get; set; } = null!;
 
     public DateTime TimeCreated { get; set; }
 
-    [BindNever]
-    public string ModifiedBy { get; set; } = string.Empty;
+    public string ModifiedBy { get; set; } = null!;
 
     public DateTime TimeModified { get; set; }
 
