@@ -42,6 +42,26 @@
                         <a class="nav-link text-dark" asp-page="/Privacy">Privacy</a>
                     </li>
 
+                    @if (SignInManager.IsSignedIn(User))
+                    {
+                        var currentUser = await UserManager.GetUserAsync(User);
+                        if (await UserManager.IsInRoleAsync(currentUser, "Admin"))
+                        {
+                            <li class="nav-item mt-3">
+                                <strong>Data Setup</strong>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-page="/DataSetup/Players/Index">Players</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-page="/DataSetup/Shelves/Index">Shelves</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-page="/DataSetup/Markers/Index">Markers</a>
+                            </li>
+                        }
+                    }
+
                     <li class="nav-item mt-3">
                         <strong>Browsing</strong>
                     </li>
