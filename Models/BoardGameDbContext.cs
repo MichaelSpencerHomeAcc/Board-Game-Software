@@ -762,9 +762,16 @@ public partial class BoardGameDbContext : DbContext
                 });
 
             entity.HasIndex(e => e.Gid, "AK_bgd_Player_GID").IsUnique();
-
+            entity.HasOne(d => d.User)
+                .WithMany()
+                .HasForeignKey(d => d.FkdboAspNetUsers)
+                .HasConstraintName("FK_Player_AspNetUsers");
             entity.Property(e => e.Id).HasColumnName("ID");
             entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.FkdboAspNetUsers)
+                .HasColumnName("FKdboAspNetUsers")
+                .HasMaxLength(450)
+                .IsUnicode(false);
             entity.Property(e => e.FirstName)
                 .HasMaxLength(40)
                 .IsUnicode(false);
