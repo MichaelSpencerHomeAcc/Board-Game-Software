@@ -1,4 +1,100 @@
 ﻿@page
-@model Board_Game_Software.Pages.DataSetup.Markers.IndexModel
+@model Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes.IndexModel
 @{
+    ViewData["Title"] = "Board Game Marker Types";
+}
+
+<h1>Marker Types</h1>
+
+@if (Model.ShowDeleteError)
+{
+    <div class="alert alert-warning" role="alert">
+        This marker is linked to @Model.DeleteLinkedCount @((Model.DeleteLinkedCount == 1) ? "game" : "games"), it cannot be deleted.
+    </div>
+}
+
+<p>
+    <a asp-page="Add" class="btn btn-primary">Add New Marker Type</a>
+    <a asp-page="AddAdditionalType" class="btn btn-primary">Add Additional Type</a>
+</p>
+
+<style>
+    .marker-image-tooltip {
+        display: none;
+        position: absolute;
+        z-index: 1000;
+        border: 1px solid #ccc;
+        background: #fff;
+        max-width: 315px;
+        max-height: 315px;
+        padding: 5px;
+    }
+    td.marker-desc {
+        position: relative;
+        cursor: pointer;
+    }
+
+    a.marker-link {
+        color: blue;
+        text-decoration: underline;
+    }
+
+</style>
+
+<table class="table table-striped position-relative">
+    <thead>
+        <tr>
+            <th>Description</th>
+            <th>Marker Alignment</th>
+            <th>Marker Additional Typing</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model.MarkerTypes)
+        {
+            var imgSrc = Model.MarkerImagesBase64.ContainsKey(item.Id) ? Model.MarkerImagesBase64[item.Id] : null;
+            <tr>
+                <td class="marker-desc" style="position: relative;">
+                    <a asp-page="Details" asp-route-id="@item.Id" class="marker-link">
+                        @item.TypeDesc
+                    </a>
+
+                    @if (!string.IsNullOrEmpty(imgSrc))
+                    {
+                        <div class="marker-image-tooltip">
+                            <img src="@imgSrc" alt="Marker Image" style="max-width: 300px; max-height: 300px;" />
+                        </div>
+                    }
+                </td>
+                <td>@(item.FkBgdMarkerAlignmentTypeNavigation?.TypeDesc ?? "N/A")</td>
+                <td>@(item.FkBgdMarkerAdditionalTypeNavigation?.TypeDesc ?? "N/A")</td>
+                <td>
+                    <a asp-page="Edit" asp-route-id="@item.Id">Edit</a> |
+                    <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this marker type?');">
+                        <button type="submit" class="btn btn-link p-0 m-0 align-baseline">Delete</button>
+                    </form> |
+                    <a asp-page="Details" asp-route-id="@item.Id">Details</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@section Scripts {
+<script>
+    document.querySelectorAll('td.marker-desc').forEach(cell => {
+        const tooltip = cell.querySelector('.marker-image-tooltip');
+        cell.addEventListener('mouseenter', () => {
+            if (tooltip) {
+                tooltip.style.display = 'block';
+            }
+        });
+        cell.addEventListener('mouseleave', () => {
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        });
+    });
+</script>
 }

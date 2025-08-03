@@ -1,0 +1,47 @@
+﻿@page
+@model Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes.EditModel
+@{
+    ViewData["Title"] = "Edit Marker Type";
+}
+
+<h1>Edit Marker Type</h1>
+
+<form method="post" enctype="multipart/form-data">
+    <input type="hidden" asp-for="MarkerType.Id" />
+
+    <div class="mb-3">
+        <label asp-for="MarkerType.TypeDesc" class="form-label"></label>
+        <input asp-for="MarkerType.TypeDesc" class="form-control" />
+        <span asp-validation-for="MarkerType.TypeDesc" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="MarkerType.FkBgdMarkerAlignmentType" class="form-label">Alignment Type</label>
+        <select asp-for="MarkerType.FkBgdMarkerAlignmentType" class="form-select" asp-items="Model.AlignmentTypes">
+            <option value="">-- Select Alignment Type --</option>
+        </select>
+        <span asp-validation-for="MarkerType.FkBgdMarkerAlignmentType" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="MarkerType.FkBgdMarkerAdditionalType" class="form-label">Additional Type</label>
+        <select id="AdditionalTypeSelect" asp-for="MarkerType.FkBgdMarkerAdditionalType" class="form-control" asp-items="Model.AdditionalTypes">
+            <option value="">-- Select Additional Type --</option>
+        </select>
+        <span asp-validation-for="MarkerType.FkBgdMarkerAdditionalType" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label>Upload Image</label>
+        <input type="file" asp-for="Upload" class="form-control" />
+        @if (!string.IsNullOrEmpty(Model.MarkerImageBase64))
+        {
+            <img src="@Model.MarkerImageBase64" alt="Marker Type Image" style="max-width:200px; max-height:200px; margin-top:10px;" />
+        }
+    </div>
+
+    <button type="submit" class="btn btn-primary mt-3">Save</button>
+    <a asp-page="Index" class="btn btn-secondary mt-3 ms-2">Cancel</a>
+</form>
+
+

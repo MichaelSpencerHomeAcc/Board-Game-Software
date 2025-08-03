@@ -26,6 +26,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         public BoardGame BoardGame { get; set; }
         public string BoardGameFrontImageUrl { get; set; } = string.Empty;
 
+        public Dictionary<long, string?> MarkerImagesBase64 { get; set; } = new();
+
         public async Task<IActionResult> OnGetAsync(int id)
         {
             BoardGame = await _context.BoardGames
@@ -56,6 +58,29 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 {
                     var base64 = Convert.ToBase64String(image.ImageBytes);
                     BoardGameFrontImageUrl = $"data:{image.ContentType};base64,{base64}";
+                }
+            }
+
+            foreach (var marker in BoardGame.BoardGameMarkers)
+            {
+                var markerType = marker.FkBgdBoardGameMarkerTypeNavigation;
+                if (markerType != null && !MarkerImagesBase64.ContainsKey(markerType.Id))
+                {
+                    var filter = Builders<BoardGameImages>.Filter.And(
+                        Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
+                        Builders<BoardGameImages>.Filter.Eq(x => x.GID, markerType.Gid)
+                    );
+
+                    var imageDoc = await _boardGameImages.Find(filter).FirstOrDefaultAsync();
+
+                    if (imageDoc != null && imageDoc.ImageBytes != null)
+                    {
+                        MarkerImagesBase64[markerType.Id] = $"data:{imageDoc.ContentType};base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
+                    }
+                    else
+                    {
+                        MarkerImagesBase64[markerType.Id] = null;
+                    }
                 }
             }
 

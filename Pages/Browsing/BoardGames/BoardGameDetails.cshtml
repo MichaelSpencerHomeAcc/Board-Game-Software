@@ -37,7 +37,6 @@
                 </h1>
             </div>
 
-
             @if (isAdmin)
             {
                 <div class="mb-3">
@@ -133,23 +132,57 @@
 
             @if (Model.BoardGame.BoardGameMarkers != null && Model.BoardGame.BoardGameMarkers.Any())
             {
-                <h3 class="mt-4 w-100 text-center">Markers Included</h3>
-                <div class="markers-scroll-container w-100">
-                    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
-                        @foreach (var marker in Model.BoardGame.BoardGameMarkers)
+                <h3 class="mt-4 text-center">Markers Included</h3>
+
+                <div class="markers-container">
+                    @foreach (var marker in Model.BoardGame.BoardGameMarkers.OrderBy(m => m.FkBgdBoardGameMarkerTypeNavigation.TypeDesc))
+                    {
+                        var markerType = marker.FkBgdBoardGameMarkerTypeNavigation;
+                        if (markerType != null)
                         {
-                            <div class="col">
-                                <div class="card h-100 shadow-sm text-center p-2">
-                                    <h5 class="card-title mb-0">@(marker.FkBgdBoardGameMarkerTypeNavigation?.TypeDesc ?? "Unnamed Marker")</h5>
-                                </div>
-                            </div>
+                            var imgSrc = Model.MarkerImagesBase64.ContainsKey(markerType.Id)
+                            ? Model.MarkerImagesBase64[markerType.Id]
+                            : null;
+
+                            <button class="btn btn-outline-secondary marker-btn"
+                                    data-img="@imgSrc"
+                                    onmouseover="showMarkerImage(event)"
+                                    onmouseout="hideMarkerImage()"
+                                    style="margin: 3px;">
+                                @markerType.TypeDesc
+                            </button>
                         }
-                    </div>
+                    }
+                </div>
+
+                <div id="markerImagePreview" style="position:absolute; display:none; border:1px solid #ccc; padding:5px; background:#fff; z-index:1000;">
+                    <img id="markerImage" style="max-width:300px; max-height:300px;" />
                 </div>
             }
         </div>
     </div>
 </div>
+
+<script>
+    function showMarkerImage(e) {
+        const imgSrc = e.target.getAttribute('data-img');
+        const preview = document.getElementById('markerImagePreview');
+        const img = document.getElementById('markerImage');
+
+        if (imgSrc) {
+            img.src = imgSrc;
+            preview.style.display = 'block';
+            preview.style.top = (e.pageY + 10) + 'px';
+            preview.style.left = (e.pageX + 10) + 'px';
+        }
+    }
+
+    function hideMarkerImage() {
+        const preview = document.getElementById('markerImagePreview');
+        preview.style.display = 'none';
+        document.getElementById('markerImage').src = '';
+    }
+</script>
 
 <style>
     dl dt {
@@ -161,10 +194,22 @@
         margin-bottom: 1rem;
     }
 
-    .markers-scroll-container {
-        max-height: 400px;
+    .markers-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center; /* centers the buttons horizontally */
+        gap: 0.5rem; /* space between buttons */
+        max-height: 300px; /* max height for scrolling */
         overflow-y: auto;
-        padding-right: 10px;
-        margin-left: 40px;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: #fff;
+        width: 100%; /* full width inside col */
+        box-sizing: border-box;
     }
+
+        .markers-container button {
+            min-width: 90px; /* consistent button width */
+        }
 </style>

@@ -166,10 +166,11 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
                     var newImage = new BoardGameImages
                     {
                         GID = boardGameToUpdate.Gid,
+                        SQLTable = "bgd.BoardGame",
                         ImageTypeGID = frontImageType.Gid,
                         ImageBytes = imageBytes,
                         ContentType = ImageUpload.ContentType,
-                        Description = "Board Game Front Image"
+                        Description = $"{boardGameToUpdate.BoardGameName} Box"
                     };
                     await _boardGameImages.InsertOneAsync(newImage);
                 }
