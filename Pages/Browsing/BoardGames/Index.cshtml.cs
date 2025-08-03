@@ -66,27 +66,46 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
             BoardGames = new List<BoardGameViewModel>();
 
-            foreach (var game in games)
+            if (frontImageType != null && games.Any())
             {
-                string? base64Image = null;
+                // Convert GIDs to strings for Mongo query
+                var gids = games.Select(g => g.Gid.ToString()).ToList();
+                var imageTypeGidString = frontImageType.Gid.ToString();
 
-                if (frontImageType != null && game.Gid != Guid.Empty)
+                var filter = Builders<BoardGameImages>.Filter.And(
+                    Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGame"),
+                    Builders<BoardGameImages>.Filter.In("GID", gids),
+                    Builders<BoardGameImages>.Filter.Eq("ImageTypeGID", imageTypeGidString)
+                );
+
+                var imageDocs = await _boardGameImages.Find(filter).ToListAsync();
+
+                var imagesDict = imageDocs
+                    .Where(img => img.ImageBytes != null && img.GID.HasValue)
+                    .ToDictionary(img => img.GID.Value.ToString(), img => $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}");
+
+                foreach (var game in games)
                 {
-                    var image = await _boardGameImages.Find(img =>
-                        img.GID == game.Gid && img.ImageTypeGID == frontImageType.Gid)
-                        .FirstOrDefaultAsync();
+                    var gidStr = game.Gid.ToString();
 
-                    if (image?.ImageBytes != null)
+                    BoardGames.Add(new BoardGameViewModel
                     {
-                        base64Image = $"data:{image.ContentType};base64,{Convert.ToBase64String(image.ImageBytes)}";
-                    }
+                        BoardGame = game,
+                        Base64Image = imagesDict.ContainsKey(gidStr) ? imagesDict[gidStr] : null
+                    });
                 }
-
-                BoardGames.Add(new BoardGameViewModel
+            }
+            else
+            {
+                // No images or no games
+                foreach (var game in games)
                 {
-                    BoardGame = game,
-                    Base64Image = base64Image
-                });
+                    BoardGames.Add(new BoardGameViewModel
+                    {
+                        BoardGame = game,
+                        Base64Image = null
+                    });
+                }
             }
         }
 

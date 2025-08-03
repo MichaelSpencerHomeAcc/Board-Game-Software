@@ -1,0 +1,35 @@
+﻿@page
+@model Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes.AddAdditionalTypeModel
+
+<h2>Add Additional Type</h2>
+
+<form method="post" novalidate>
+    <div class="mb-3">
+        <label asp-for="TypeDesc" class="form-label">Additional Type Name</label>
+        <input asp-for="TypeDesc" class="form-control" placeholder="Additional Type Name" />
+        <span asp-validation-for="TypeDesc" class="text-danger"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Add</button>
+    <a asp-page="./Index" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+
+@if (Model.Message != null)
+{
+    <div class="alert alert-success mt-3">@Model.Message</div>
+}
+
+@if (Model.ExistingTypes?.Any() == true)
+{
+    <h4 class="mt-4">Existing Additional Types</h4>
+    <ul>
+        @foreach (var type in Model.ExistingTypes)
+        {
+            <li>@type</li>
+        }
+    </ul>
+}
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

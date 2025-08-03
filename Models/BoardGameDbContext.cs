@@ -65,6 +65,8 @@ public partial class BoardGameDbContext : DbContext
 
     public virtual DbSet<ShelfSection> ShelfSections { get; set; }
 
+    public virtual DbSet<MarkerAdditionalType> MarkerAdditionalTypes { get; set; }
+
     public virtual DbSet<VwBoardGame> VwBoardGames { get; set; }
 
     public virtual DbSet<VwBoardGameEloMethod> VwBoardGameEloMethods { get; set; }
@@ -307,6 +309,7 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("ID");
             entity.Property(e => e.CreatedBy).HasMaxLength(128);
             entity.Property(e => e.FkBgdMarkerAlignmentType).HasColumnName("FK_bgd_MarkerAlignmentType");
+            entity.Property(e => e.FkBgdMarkerAdditionalType).HasColumnName("FK_bgd_MarkerAdditionalType");
             entity.Property(e => e.Gid)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("GID");
@@ -323,6 +326,11 @@ public partial class BoardGameDbContext : DbContext
             entity.HasOne(d => d.FkBgdMarkerAlignmentTypeNavigation).WithMany(p => p.BoardGameMarkerTypes)
                 .HasForeignKey(d => d.FkBgdMarkerAlignmentType)
                 .HasConstraintName("FK_bgd_BoardGameMarketType__bgd_MarkerAlignmentType");
+            entity.HasOne(d => d.FkBgdMarkerAdditionalTypeNavigation)
+                .WithMany(p => p.BoardGameMarkerTypes)
+                .HasForeignKey(d => d.FkBgdMarkerAdditionalType)
+                .HasConstraintName("FK_bgd_BoardGameMarkerType__bgd_MarkerAdditionalType");
+
         });
 
         modelBuilder.Entity<BoardGameMatch>(entity =>
@@ -1014,6 +1022,38 @@ public partial class BoardGameDbContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_bgd_ShelfSection__bgd_Shelf");
         });
+
+        modelBuilder.Entity<MarkerAdditionalType>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_bgd_MarkerAdditionalType");
+
+            entity.ToTable("MarkerAdditionalType", "bgd", tb =>
+            {
+                tb.HasTrigger("bgdMarkerAdditionalType_DeleteInsteadOf");
+                tb.HasTrigger("bgdMarkerAdditionalType_InsertAfter");
+                tb.HasTrigger("bgdMarkerAdditionalType_UpdateInteadOf");
+            });
+
+            entity.HasIndex(e => e.Gid, "AK_bgd_MarkerAdditionalType_GID").IsUnique();
+
+            entity.HasIndex(e => e.TypeDesc, "UQ_bgd_MarkerAdditionalType_TypeDesc").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.Gid)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("GID");
+            entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.TimeCreated).HasColumnType("datetime");
+            entity.Property(e => e.TimeModified).HasColumnType("datetime");
+            entity.Property(e => e.TypeDesc)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.VersionStamp)
+                .IsRowVersion()
+                .IsConcurrencyToken();
+        });
+
 
         modelBuilder.Entity<VwBoardGame>(entity =>
         {

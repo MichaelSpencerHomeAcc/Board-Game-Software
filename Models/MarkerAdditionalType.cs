@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace Board_Game_Software.Models;
 
-public partial class BoardGameMarkerType
+public partial class MarkerAdditionalType
 {
     public long Id { get; set; }
 
@@ -24,20 +24,9 @@ public partial class BoardGameMarkerType
 
     public DateTime TimeModified { get; set; }
 
-    public string TypeDesc { get; set; } = null!;
+    public string TypeDesc { get; set; } = string.Empty;
 
     public int? CustomSort { get; set; }
 
-    public long? FkBgdMarkerAlignmentType { get; set; }
-
-    public string? ImageId { get; set; }
-
-    public long? FkBgdMarkerAdditionalType { get; set; }
-
-    public virtual MarkerAdditionalType? FkBgdMarkerAdditionalTypeNavigation { get; set; }
-
-    public virtual ICollection<BoardGameMarker> BoardGameMarkers { get; set; } = new List<BoardGameMarker>();
-
-    public virtual MarkerAlignmentType? FkBgdMarkerAlignmentTypeNavigation { get; set; }
-
+    public virtual ICollection<BoardGameMarkerType> BoardGameMarkerTypes { get; set; } = new List<BoardGameMarkerType>();
 }
