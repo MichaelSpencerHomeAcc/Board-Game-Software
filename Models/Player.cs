@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System;
 using System.Collections.Generic;
 
@@ -14,10 +15,12 @@ public partial class Player
 
     public byte[]? VersionStamp { get; set; }
 
+    [BindNever]
     public string CreatedBy { get; set; } = null!;
 
     public DateTime TimeCreated { get; set; }
 
+    [BindNever]
     public string ModifiedBy { get; set; } = null!;
 
     public DateTime TimeModified { get; set; }

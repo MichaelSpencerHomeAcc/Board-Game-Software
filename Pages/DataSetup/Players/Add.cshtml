@@ -1,0 +1,40 @@
+﻿@page
+@model Board_Game_Software.Pages.DataSetup.Players.AddModel
+@using System.Globalization
+
+<h1>Add New Player</h1>
+
+<form method="post">
+    <input type="hidden" asp-for="Player.Id" />
+
+    <div class="mb-3">
+        <label asp-for="Player.FirstName" class="form-label"></label>
+        <input asp-for="Player.FirstName" class="form-control" />
+        <span asp-validation-for="Player.FirstName" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Player.MiddleName" class="form-label"></label>
+        <input asp-for="Player.MiddleName" class="form-control" />
+        <span asp-validation-for="Player.MiddleName" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Player.LastName" class="form-label"></label>
+        <input asp-for="Player.LastName" class="form-control" />
+        <span asp-validation-for="Player.LastName" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Player.DateOfBirth" class="form-label"></label>
+        <input asp-for="Player.DateOfBirth" class="form-control" type="date" />
+        <span asp-validation-for="Player.DateOfBirth" class="text-danger"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Add</button>
+    <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
