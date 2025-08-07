@@ -57,24 +57,34 @@
                         <a class="nav-link text-dark" asp-page="/Privacy">Privacy</a>
                     </li>
 
-                    @* Show Data Setup links for any signed in user *@
+                    @{
+                        // Prepare list of Data Setup links
+                        var dataSetupLinks = new List<(string Text, string Page)>
+                                        {
+                                        ("Players", "/DataSetup/Players/Index")
+                                        };
+
+                        if (isAdmin)
+                        {
+                            dataSetupLinks.Add(("Markers", "/DataSetup/Markers/Index"));
+                            dataSetupLinks.Add(("Publishers", "/DataSetup/Publishers/Index"));
+                            dataSetupLinks.Add(("Shelves", "/DataSetup/Shelves/Index"));
+                        }
+
+                        // Sort links alphabetically by Text
+                        dataSetupLinks = dataSetupLinks.OrderBy(link => link.Text).ToList();
+                    }
+
                     @if (isSignedIn)
                     {
                         <li class="nav-item mt-3">
                             <strong>Data Setup</strong>
                         </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-page="/DataSetup/Players/Index">Players</a>
-                        </li>
-
-                        @if (isAdmin)
+                        @foreach (var link in dataSetupLinks)
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-page="/DataSetup/Shelves/Index">Shelves</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-page="/DataSetup/Markers/Index">Markers</a>
+                                <a class="nav-link text-dark" asp-page="@link.Page">@link.Text</a>
                             </li>
                         }
                     }
@@ -90,8 +100,9 @@
                         <strong>Game Night</strong>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link text-dark" href="#">Coming Soon</a>
+                        <a class="nav-link text-dark" asp-area="" asp-page="/GameNight/Index">Game Night Listing</a>
                     </li>
+
 
                     @* Show Admin Functions only for admins *@
                     @if (isAdmin)

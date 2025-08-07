@@ -1,0 +1,61 @@
+﻿@page
+@model Board_Game_Software.Pages.GameNight.IndexModel
+@{
+    ViewData["Title"] = "Board Game Nights";
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+}
+
+<h1>Board Game Nights</h1>
+
+<p>
+    <a class="btn btn-primary" asp-page="Create">Create Night</a>
+</p>
+
+<table class="table table-hover align-middle">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th class="text-center">Players</th>
+            <th class="text-center">Matches</th>
+            <th>Status</th>
+            <th class="text-end">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var n in Model.Nights)
+        {
+            var isPast = n.GameNightDate < today;
+            <tr class="@(n.Inactive ? "table-secondary" : "")">
+                <td>@n.GameNightDate.ToString("yyyy-MM-dd")</td>
+                <td class="text-center">@n.PlayerCount</td>
+                <td class="text-center">@n.MatchCount</td>
+                <td>
+                    @if (n.Inactive)
+                    {
+                        <span class="badge bg-secondary">Inactive</span>
+                    }
+                    else if (n.Finished)
+                    {
+                        <span class="badge bg-success">Finished</span>
+                    }
+                    else if (isPast)
+                    {
+                        <span class="badge bg-warning text-dark">Past (Unfinished)</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-info text-dark">Upcoming</span>
+                    }
+                </td>
+                <td class="text-end">
+                    <a asp-page="Details"
+                       asp-route-id="@n.Id"
+                       asp-route-returnUrl="@Url.Page("Index")">Details</a> |
+                    <a asp-page="Edit"
+                       asp-route-id="@n.Id"
+                       asp-route-returnUrl="@Url.Page("Index")">Edit</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

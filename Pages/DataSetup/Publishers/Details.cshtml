@@ -1,40 +1,25 @@
-﻿@page
-@model Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes.DetailsModel
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.DataSetup.Publishers.DetailsModel
 @{
-    ViewData["Title"] = "Marker Type Details";
+    ViewData["Title"] = "Publisher Details";
 }
 
-<h1>Marker Type Details</h1>
+<h1>Publisher Details</h1>
 
 <div class="row">
     <div class="col-md-8">
         <dl class="row">
-            <dt class="col-sm-3">Name</dt>
-            <dd class="col-sm-9">@Model.MarkerType.TypeDesc</dd>
+            <dt class="col-sm-3">Publisher Name</dt>
+            <dd class="col-sm-9">@Model.Publisher.PublisherName</dd>
 
-            <dt class="col-sm-3">Alignment Type</dt>
-            <dd class="col-sm-9">@(Model.MarkerType.FkBgdMarkerAlignmentTypeNavigation?.TypeDesc ?? "N/A")</dd>
-
-            <dt class="col-sm-3">Additional Typing</dt>
-            <dd class="col-sm-9">@(Model.MarkerType.FkBgdMarkerAdditionalTypeNavigation?.TypeDesc ?? "N/A")</dd>
+            <dt class="col-sm-3">Description</dt>
+            <dd class="col-sm-9">@Model.Publisher.Description</dd>
         </dl>
 
         <p>
-            <a asp-page="Edit" asp-route-id="@Model.MarkerType.Id" class="btn btn-primary">Edit</a>
-            <a asp-page="Index" class="btn btn-secondary">Back to List</a>
+            <a asp-page="Edit" asp-route-id="@Model.Publisher.Id" asp-route-returnUrl="Details?id=@Model.Publisher.Id" class="btn btn-primary">Edit</a>
+            <a asp-page="Index" class="btn btn-secondary ms-2">Return to List</a>
         </p>
-    </div>
-
-    <div class="col-md-4">
-        @if (!string.IsNullOrEmpty(Model.MarkerImageBase64))
-        {
-            <img src="@Model.MarkerImageBase64" alt="Marker Image" class="img-fluid rounded" />
-        }
-        else
-        {
-            <p><em>No image available.</em></p>
-        }
-        </div>
     </div>
 </div>
 
@@ -43,7 +28,7 @@
     bottom: 10px;
     left: 0;
     width: 100vw;
-    max-height: 300px;
+    max-height: 250px;
     background-color: white;
     border-top: 1px solid #ccc;
     padding: 0.5rem 1rem;
@@ -51,7 +36,7 @@
     overflow-y: hidden;
     z-index: 1050;
 ">
-    <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem;">Board Games Using this Marker</h3>
+    <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem;">Board Games by this Publisher</h3>
     <div style="white-space: nowrap;">
         @foreach (var (game, img) in Model.RelatedBoardGamesWithImages)
         {
@@ -75,17 +60,16 @@
                         <h5 class="card-title" style="
                                 font-size: clamp(0.7rem, 1vw, 1rem);
                                 line-height: 1.1;
-                                margin-bottom: 0.5rem;
+                                margin-bottom: 0.25rem;
                                 overflow: hidden;
                                 text-overflow: ellipsis;
-                                padding-bottom: 0.25rem;
                                 display: -webkit-box;
                                 -webkit-line-clamp: 2;
                                 -webkit-box-orient: vertical;
                             ">
                             @game.BoardGameName
                         </h5>
-                        <a asp-page="/Browsing/BoardGames/BoardGameDetails" asp-route-id="@game.Id" class="btn btn-sm btn-outline-primary mt-auto" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                        <a asp-page="/Browsing/BoardGames/Details" asp-route-id="@game.Id" class="btn btn-sm btn-outline-primary mt-auto" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
                             View Details
                         </a>
                     </div>
@@ -94,38 +78,3 @@
         }
     </div>
 </div>
-
-<style>
-    .board-game-card {
-        max-width: 140px;
-        height: 180px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-    }
-
-        .board-game-card img {
-            max-height: 100px;
-            object-fit: contain;
-        }
-
-        .board-game-card .card-body {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 0.5rem;
-            font-size: 0.85rem;
-        }
-
-    .board-games-scroll-container {
-        padding-bottom: 10px;
-        margin-bottom: 10px;
-        overflow-x: auto;
-        white-space: nowrap;
-    }
-
-        .board-games-scroll-container > .row {
-            padding-right: 20px;
-        }
-</style>

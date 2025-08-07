@@ -31,5 +31,47 @@ namespace Board_Game_Software.Services
 
         public async Task DeleteAsync(string id) =>
             await _collection.DeleteOneAsync(img => img.Id == id);
+
+        public async Task<Dictionary<Guid, string?>> GetFrontImagesAsync(
+    IEnumerable<Guid> boardGameGids,
+    Guid frontTypeGid)
+        {
+            var gids = boardGameGids.Distinct().Where(g => g != Guid.Empty).ToArray();
+            if (gids.Length == 0) return new();
+
+            var filter = Builders<BoardGameImages>.Filter.And(
+                Builders<BoardGameImages>.Filter.In(x => x.GID, gids.Select(g => (Guid?)g)),
+                Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, (Guid?)frontTypeGid)
+            );
+
+
+            var docs = await _collection.Find(filter).ToListAsync();
+
+            return gids.ToDictionary(
+                g => g,
+                g =>
+                {
+                    var doc = docs.FirstOrDefault(d => d.GID == g);
+                    return (doc?.ImageBytes != null && !string.IsNullOrWhiteSpace(doc.ContentType))
+                        ? $"data:{doc.ContentType};base64,{Convert.ToBase64String(doc.ImageBytes)}"
+                        : null;
+                });
+        }
+
+            public async Task<string?> GetFrontImageAsync(Guid boardGameGid, Guid frontTypeGid)
+        {
+            var filter = Builders<BoardGameImages>.Filter.And(
+                Builders<BoardGameImages>.Filter.Eq(x => x.GID, boardGameGid),
+                Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, frontTypeGid)
+            );
+
+            var doc = await _collection.Find(filter).FirstOrDefaultAsync();
+            return (doc?.ImageBytes != null && !string.IsNullOrWhiteSpace(doc.ContentType))
+                ? $"data:{doc.ContentType};base64,{Convert.ToBase64String(doc.ImageBytes)}"
+                : null;
+        }
+
     }
+
 }
+

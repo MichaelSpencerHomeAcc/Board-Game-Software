@@ -1,0 +1,58 @@
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.GameNight.DetailsModel
+@{
+    ViewData["Title"] = "Game Night Details";
+}
+
+<h1>Game Night @Model.Night.GameNightDate.ToString("yyyy-MM-dd")</h1>
+
+<h4>Players</h4>
+@if (!Model.Players.Any())
+{
+    <div class="text-muted mb-4">No players added yet.</div>
+}
+else
+{
+    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 mb-4">
+        @foreach (var p in Model.Players)
+        {
+            <div class="col">
+                <div class="d-flex align-items-center">
+                    <img src="@(p.AvatarDataUrl ?? Url.Content("~/images/default-avatar.png"))"
+                         alt="@(!string.IsNullOrWhiteSpace(p.Name) ? p.Name : "Player avatar")"
+                         style="width:40px;height:40px;object-fit:cover;border-radius:50%;"
+                         class="me-2" />
+                    <div class="fw-semibold">@p.Name</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<h4>Matches</h4>
+@if (!Model.Matches.Any())
+{
+    <div class="text-muted">No matches yet.</div>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+        @foreach (var m in Model.Matches)
+        {
+            <div class="col">
+                <div class="card h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <img src="@(m.CoverDataUrl ?? Url.Content("~/images/default-cover.png"))"
+                             alt="@($"{m.GameName} cover")"
+                             style="width:48px;height:48px;object-fit:cover"
+                             class="me-3 rounded" />
+                        <div>
+                            <div class="fw-semibold">@m.GameName</div>
+                            <a asp-page="/Match/Details" asp-route-id="@m.MatchId">View match</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
