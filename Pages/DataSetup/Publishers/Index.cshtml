@@ -1,0 +1,55 @@
+﻿@page
+@model Board_Game_Software.Pages.DataSetup.Publishers.IndexModel
+@{
+    ViewData["Title"] = "Publishers";
+}
+
+<h1>Publishers</h1>
+
+<p>
+    <a asp-page="Add" class="btn btn-primary">Add New Publisher</a>
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Publisher Name</th>
+            <th>Description</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var publisher in Model.Publishers)
+        {
+            <tr>
+                <td>
+                    <a asp-page="Details" asp-route-id="@publisher.Id">
+                        @publisher.PublisherName
+                    </a>
+                </td>
+                <td>
+                    @{
+                        var maxLength = 100; // Max length of description to display
+                        var description = publisher.Description ?? "";
+                        if (description.Length > maxLength)
+                        {
+                            description = description.Substring(0, maxLength) + "...";
+                        }
+                    }
+                    @description
+                </td>
+                <td>
+                    <a asp-page="Edit" asp-route-id="@publisher.Id" asp-route-returnUrl="Index">Edit</a>
+                    <form method="post" asp-route-id="@publisher.Id" class="d-inline"
+                          onsubmit="return confirm('Are you sure you want to delete this publisher?');">
+                        <button type="submit" class="btn btn-link p-0 align-baseline" style="color: #0d6efd; text-decoration: underline; cursor: pointer;">
+                            Delete
+                        </button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+
+</table>
+
