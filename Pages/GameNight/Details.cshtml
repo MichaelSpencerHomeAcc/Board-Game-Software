@@ -20,8 +20,9 @@ else
                 <div class="d-flex align-items-center">
                     <img src="@(p.AvatarDataUrl ?? Url.Content("~/images/default-avatar.png"))"
                          alt="@(!string.IsNullOrWhiteSpace(p.Name) ? p.Name : "Player avatar")"
-                         style="width:40px;height:40px;object-fit:cover;border-radius:50%;"
+                         style="width:56px;height:56px;object-fit:cover;border-radius:50%;"
                          class="me-2" />
+
                     <div class="fw-semibold">@p.Name</div>
                 </div>
             </div>
@@ -44,7 +45,7 @@ else
                     <div class="card-body d-flex align-items-center">
                         <img src="@(m.CoverDataUrl ?? Url.Content("~/images/default-cover.png"))"
                              alt="@($"{m.GameName} cover")"
-                             style="width:48px;height:48px;object-fit:cover"
+                             style="width:56px;height:56px;object-fit:cover"
                              class="me-3 rounded" />
                         <div>
                             <div class="fw-semibold">@m.GameName</div>
