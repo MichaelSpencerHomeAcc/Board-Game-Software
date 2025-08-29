@@ -127,5 +127,108 @@ namespace Board_Game_Software.Pages.GameNight
 
             return Page();
         }
+
+        // ==========================
+        // Delete handlers (Admin + unfinished only)
+        // ==========================
+
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> OnPostDeleteMatchAsync(long id, long matchId)
+        {
+            // Load night & check permissions
+            var night = await _db.BoardGameNights
+                .Include(n => n.BoardGameNightBoardGameMatches)
+                .FirstOrDefaultAsync(n => n.Id == id);
+
+            if (night == null) return NotFound();
+            if (!User.IsInRole("Admin")) return Forbid();
+            if (night.Finished) return BadRequest("Cannot delete from a finished night.");
+
+            // Ensure this match belongs to the night
+            var link = await _db.BoardGameNightBoardGameMatches
+                .FirstOrDefaultAsync(x => x.FkBgdBoardGameNight == id && x.FkBgdBoardGameMatch == matchId);
+            if (link == null) return NotFound();
+
+            await using var tx = await _db.Database.BeginTransactionAsync();
+
+            // Remove match players
+            var mPlayers = await _db.BoardGameMatchPlayers
+                .Where(p => p.FkBgdBoardGameMatch == matchId)
+                .ToListAsync();
+            _db.BoardGameMatchPlayers.RemoveRange(mPlayers);
+
+            // Remove the link from this night to the match
+            _db.BoardGameNightBoardGameMatches.Remove(link);
+
+            // If no other nights link to this match, delete the match itself
+            var stillLinked = await _db.BoardGameNightBoardGameMatches
+                .AnyAsync(x => x.FkBgdBoardGameMatch == matchId && x.FkBgdBoardGameNight != id);
+            if (!stillLinked)
+            {
+                var match = await _db.BoardGameMatches.FirstOrDefaultAsync(m => m.Id == matchId);
+                if (match != null) _db.BoardGameMatches.Remove(match);
+            }
+
+            await _db.SaveChangesAsync();
+            await tx.CommitAsync();
+
+            return RedirectToPage("/GameNight/Details", new { id });
+        }
+
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> OnPostDeleteNightAsync(long id)
+        {
+            // Load the night with its links
+            var night = await _db.BoardGameNights
+                .Include(n => n.BoardGameNightPlayers)
+                .Include(n => n.BoardGameNightBoardGameMatches)
+                .FirstOrDefaultAsync(n => n.Id == id);
+
+            if (night == null) return NotFound();
+            if (!User.IsInRole("Admin")) return Forbid();
+            if (night.Finished) return BadRequest("Cannot delete a finished night.");
+
+            await using var tx = await _db.Database.BeginTransactionAsync();
+
+            // Gather match ids linked to this night
+            var matchIds = night.BoardGameNightBoardGameMatches
+                .Select(x => x.FkBgdBoardGameMatch)
+                .Distinct()
+                .ToList();
+
+            // Remove players for those matches
+            var allMatchPlayers = await _db.BoardGameMatchPlayers
+                .Where(p => matchIds.Contains(p.FkBgdBoardGameMatch))
+                .ToListAsync();
+            _db.BoardGameMatchPlayers.RemoveRange(allMatchPlayers);
+
+            // Remove the links from this night
+            _db.BoardGameNightBoardGameMatches.RemoveRange(night.BoardGameNightBoardGameMatches);
+
+            // Remove matches that are no longer linked to any other night
+            var matches = await _db.BoardGameMatches
+                .Where(m => matchIds.Contains(m.Id))
+                .ToListAsync();
+
+            foreach (var m in matches)
+            {
+                var hasOtherNight = await _db.BoardGameNightBoardGameMatches
+                    .AnyAsync(x => x.FkBgdBoardGameMatch == m.Id && x.FkBgdBoardGameNight != id);
+                if (!hasOtherNight)
+                    _db.BoardGameMatches.Remove(m);
+            }
+
+            // Remove roster links
+            if (night.BoardGameNightPlayers?.Any() == true)
+                _db.BoardGameNightPlayers.RemoveRange(night.BoardGameNightPlayers);
+
+            // Finally remove the night itself
+            _db.BoardGameNights.Remove(night);
+
+            await _db.SaveChangesAsync();
+            await tx.CommitAsync();
+
+            return RedirectToPage("/GameNight/Index");
+        }
     }
 }

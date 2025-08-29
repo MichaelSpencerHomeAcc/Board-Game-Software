@@ -2,9 +2,20 @@
 @model Board_Game_Software.Pages.GameNight.DetailsModel
 @{
     ViewData["Title"] = "Game Night Details";
+    var canDelete = User.IsInRole("Admin") && !Model.Night.Finished;
 }
 
-<h1>Game Night @Model.Night.GameNightDate.ToString("yyyy-MM-dd")</h1>
+<h1 class="d-flex align-items-center justify-content-between">
+    <span>Game Night @Model.Night.GameNightDate.ToString("yyyy-MM-dd")</span>
+
+    @if (canDelete)
+    {
+        <form method="post" asp-page-handler="DeleteNight" asp-route-id="@Model.Night.Id" class="ms-2"
+              onsubmit="return confirm('Delete this entire game night and its matches? This cannot be undone.');">
+            <button type="submit" class="btn btn-outline-danger btn-sm">Delete Night</button>
+        </form>
+    }
+</h1>
 
 <h4>Players</h4>
 @if (!Model.Players.Any())
@@ -22,7 +33,6 @@ else
                          alt="@(!string.IsNullOrWhiteSpace(p.Name) ? p.Name : "Player avatar")"
                          style="width:56px;height:56px;object-fit:cover;border-radius:50%;"
                          class="me-2" />
-
                     <div class="fw-semibold">@p.Name</div>
                 </div>
             </div>
@@ -30,18 +40,37 @@ else
     </div>
 }
 
-<h4>Matches</h4>
+<div class="d-flex align-items-center justify-content-between">
+    <h4 class="mb-0">Matches</h4>
+    <a class="btn btn-primary btn-sm"
+       asp-page="/Match/Create"
+       asp-route-nightId="@Model.Night.Id"
+       asp-route-returnUrl="@Url.Page("/GameNight/Details", new { id = Model.Night.Id })">
+        Add Match
+    </a>
+</div>
+
 @if (!Model.Matches.Any())
 {
-    <div class="text-muted">No matches yet.</div>
+    <div class="text-muted mt-2">No matches yet.</div>
 }
 else
 {
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 mt-2">
         @foreach (var m in Model.Matches)
         {
             <div class="col">
-                <div class="card h-100">
+                <div class="card h-100 position-relative">
+                    @if (canDelete)
+                    {
+                        <form method="post" asp-page-handler="DeleteMatch"
+                              asp-route-id="@Model.Night.Id"
+                              asp-route-matchId="@m.MatchId"
+                              class="position-absolute" style="top:.5rem;right:.5rem"
+                              onsubmit="return confirm('Delete this match?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                        </form>
+                    }
                     <div class="card-body d-flex align-items-center">
                         <img src="@(m.CoverDataUrl ?? Url.Content("~/images/default-cover.png"))"
                              alt="@($"{m.GameName} cover")"
