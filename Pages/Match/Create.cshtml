@@ -1,0 +1,682 @@
+﻿@page
+@model Board_Game_Software.Pages.Match.CreateMatchModel
+@{
+    ViewData["Title"] = "Add Match";
+    string NightLabel = Model.NightDate?.ToString("yyyy-MM-dd") ?? "—";
+}
+
+<style>
+    .muted {
+        opacity: .85
+    }
+
+    .card-ghost {
+        transition: transform .12s, box-shadow .12s, border-color .12s;
+        cursor: pointer;
+    }
+
+        .card-ghost:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 .75rem 1.25rem rgba(0,0,0,.08);
+        }
+
+        .card-ghost.selected {
+            border-color: var(--bs-primary) !important;
+            box-shadow: 0 0 0 .22rem rgba(var(--bs-primary-rgb), .35), 0 .5rem 1rem rgba(0,0,0,.12);
+            transform: translateY(-1px) scale(1.01);
+        }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .35rem .55rem;
+        border: 1px solid rgba(0,0,0,.12);
+        border-radius: 999px;
+    }
+
+        .chip input {
+            margin-right: .25rem
+        }
+
+    .avatar {
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        background: #e9ecef;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: .8rem;
+    }
+
+    .sticky-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        background: var(--bs-body-bg);
+        border-top: 1px solid rgba(0,0,0,.08);
+        padding: .75rem;
+    }
+
+    .kbd {
+        font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+        padding: .1rem .35rem;
+        border: 1px solid rgba(0,0,0,.16);
+        border-bottom-width: 2px;
+        border-radius: .35rem;
+    }
+
+    /* --- Game cards --- */
+    .game-card {
+        position: relative;
+        overflow: hidden;
+        min-height: 92px;
+        height: 100%;
+    }
+
+    .game-card__bg {
+        position: absolute;
+        inset: 0;
+        background-image: var(--bg);
+        background-size: cover;
+        background-position: center;
+        opacity: .45;
+        filter: saturate(.9);
+        transition: opacity .15s, transform .15s;
+    }
+
+    .game-card__scrim {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(0,0,0,.45), rgba(0,0,0,.75));
+        opacity: .85;
+        transition: opacity .15s;
+    }
+
+    .game-card__content {
+        position: relative;
+        z-index: 1;
+        color: #fff;
+        text-shadow: 0 1px 2px rgba(0,0,0,.6);
+    }
+
+    .game-card__chip {
+        display: inline-block;
+        max-width: 100%;
+        background: rgba(0,0,0,.45);
+        backdrop-filter: blur(2px);
+        padding: .35rem .5rem;
+        border-radius: .5rem;
+    }
+
+    .game-card:hover .game-card__bg {
+        opacity: .55;
+        transform: scale(1.02);
+    }
+
+    .game-card:hover .game-card__scrim {
+        opacity: .95;
+    }
+
+    .game-card__check {
+        position: absolute;
+        top: .45rem;
+        right: .45rem;
+        z-index: 2;
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        background: var(--bs-primary);
+        color: #fff;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        line-height: 1;
+        box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+
+    .game-card.selected .game-card__check {
+        display: inline-flex;
+    }
+
+    .game-card.selected .game-card__scrim {
+        opacity: .95;
+    }
+
+    :root {
+        --gameRowH: 100px;
+        --gameGap: .75rem;
+    }
+
+    /* Hard cap the grid to 3 rows and force internal scroll */
+    .games-scroll {
+        height: calc((var(--gameRowH) + var(--gameGap)) * 3 + var(--gameGap));
+        overflow: auto;
+        padding-right: .25rem;
+    }
+
+    .grid-auto {
+        display: grid;
+        grid-template-columns: repeat(auto-fill,minmax(260px,1fr));
+        gap: var(--gameGap);
+        grid-auto-rows: var(--gameRowH);
+    }
+
+    /* --- Selected game preview --- */
+    .game-preview {
+        position: relative;
+        height: 180px;
+        border-radius: .5rem;
+        overflow: hidden;
+        margin-bottom: .75rem;
+        border: 1px solid rgba(0,0,0,.08);
+    }
+
+    .gp-bg {
+        position: absolute;
+        inset: 0;
+        background-image: var(--bg);
+        background-size: cover;
+        background-position: center;
+        filter: saturate(.95);
+        opacity: .6;
+    }
+
+    .gp-scrim {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(0,0,0,.2), rgba(0,0,0,.65));
+    }
+
+    .gp-content {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: .75rem;
+        text-shadow: 0 1px 2px rgba(0,0,0,.6);
+    }
+
+    .gp-title {
+        font-weight: 600;
+    }
+
+    .gp-meta {
+        font-size: .875rem;
+        opacity: .95;
+    }
+
+    /* --- Markers: scrolling picker --- */
+    .marker-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: .35rem 0;
+    }
+
+    .marker-player {
+        min-width: 200px;
+        font-weight: 600;
+    }
+
+    /* keep scroll inside Card body */
+    #markersCard .card-body {
+        overflow-x: hidden;
+    }
+
+    .marker-wrap {
+        position: relative;
+        flex: 1 1 auto;
+        overflow: hidden;
+    }
+
+    .marker-strip {
+        display: flex;
+        align-items: stretch;
+        gap: .5rem;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x mandatory;
+        padding: .25rem 2.25rem .5rem; /* space for arrows */
+        margin: 0;
+    }
+
+    .marker-card {
+        scroll-snap-align: start;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 92px;
+        max-width: 92px;
+        padding: .5rem .45rem;
+        border: 1px solid rgba(0,0,0,.12);
+        border-radius: .75rem;
+        background: #fff;
+        cursor: pointer;
+        user-select: none;
+        transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+
+        .marker-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,.08);
+        }
+
+        .marker-card.active {
+            border-color: var(--bs-primary);
+            box-shadow: 0 0 0 .15rem rgba(var(--bs-primary-rgb), .2);
+        }
+
+    .marker-img {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        object-fit: cover;
+        border: 1px solid rgba(0,0,0,.12);
+        background: #f8f9fa;
+    }
+
+    .marker-name {
+        margin-top: .35rem;
+        font-size: .75rem;
+        line-height: 1.1;
+        text-align: center;
+        word-break: break-word;
+    }
+
+    .marker-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        border: 1px solid rgba(0,0,0,.12);
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 .25rem .5rem rgba(0,0,0,.08);
+        cursor: pointer;
+        z-index: 2;
+    }
+
+        .marker-nav.left {
+            left: .25rem;
+        }
+
+        .marker-nav.right {
+            right: .25rem;
+        }
+
+    @@media (max-width: 992px) {
+        .marker-player {
+            min-width: 140px;
+        }
+    }
+</style>
+
+<h1 class="h3 mb-1">Add Match</h1>
+<p class="text-muted muted">Night: <strong>@NightLabel</strong></p>
+
+<form method="post" class="mb-5">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+    <input type="hidden" asp-for="Input.NightId" />
+    <input type="hidden" asp-for="Input.ReturnUrl" />
+
+    <!-- Game + Date -->
+    <div class="row g-3 align-items-start mb-3">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <div class="fw-semibold">Choose a Game</div>
+                    <input id="gameSearch" type="search" class="form-control form-control-sm" placeholder="Search games… (press /)" style="max-width:280px" />
+                </div>
+                <div class="card-body">
+                    @if (!Model.Games.Any())
+                    {
+                        <div class="text-muted">No games found.</div>
+                    }
+                    else
+                    {
+                        <div class="games-scroll">
+                            <div class="grid-auto" id="gamesGrid">
+                                @foreach (var g in Model.Games)
+                                {
+                                    var mins = (g.MinMinutes?.ToString() ?? "?") + (g.MaxMinutes is null ? "" : $"–{g.MaxMinutes}");
+                                    var bgUrl = g.CoverDataUrl ?? Url.Content("~/images/default-cover.png");
+                                    var metaStr = ((g.MinMinutes != null || g.MaxMinutes != null) ? $"~{mins} mins" : null)
+                                    + (g.Complexity != null ? $"{(g.MinMinutes != null || g.MaxMinutes != null ? " • " : "")}Complexity {g.Complexity}" : "");
+                                    <label class="card card-ghost game-card p-2 game-item"
+                                           data-name="@g.Name.ToLowerInvariant()"
+                                           data-cover="@bgUrl"
+                                           data-title="@g.Name"
+                                           data-meta="@metaStr"
+                                           style="--bg: url('@bgUrl')">
+                                        <input class="form-check-input game-radio" type="radio" name="Input.BoardGameId" value="@g.Id" hidden />
+                                        <div class="game-card__bg" aria-hidden="true"></div>
+                                        <div class="game-card__scrim" aria-hidden="true"></div>
+                                        <div class="game-card__check" aria-hidden="true">✓</div>
+                                        <div class="game-card__content">
+                                            <div class="game-card__chip">
+                                                <div class="fw-semibold">@g.Name</div>
+                                                <div class="small">
+                                                    @if (g.MinMinutes != null || g.MaxMinutes != null)
+                                                    {
+                                                        <span>~@mins mins</span>
+                                                    }
+                                                    @if (g.Complexity != null)
+                                                    {
+                                                        <span class="ms-2">• Complexity @g.Complexity</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+                        <span asp-validation-for="Input.BoardGameId" class="text-danger"></span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <!-- Selected game preview -->
+                    <div id="gamePreview" class="game-preview d-none">
+                        <div class="gp-bg" style="--bg: url('@Url.Content("~/images/default-cover.png")')"></div>
+                        <div class="gp-scrim"></div>
+                        <div class="gp-content">
+                            <div class="gp-title">No game selected</div>
+                            <div class="gp-meta"></div>
+                        </div>
+                    </div>
+
+                    <label asp-for="Input.MatchDate" class="form-label">Match Date</label>
+                    <input asp-for="Input.MatchDate" type="date" class="form-control mb-2" />
+                    <span asp-validation-for="Input.MatchDate" class="text-danger"></span>
+
+                    <div class="small text-muted">
+                        Shortcuts: <span class="kbd">/</span> focus games, <span class="kbd">P</span> focus players,
+                        <span class="kbd">A</span> select filtered, <span class="kbd">C</span> clear filtered, <span class="kbd">Enter</span> save
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Players -->
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <div class="fw-semibold">Players from this Night</div>
+            <div class="d-flex gap-2">
+                <input id="playerSearch" type="search" class="form-control form-control-sm" placeholder="Search players… (press P)" style="max-width:260px" />
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAll">Select all (filtered)</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnNone">Clear (filtered)</button>
+            </div>
+        </div>
+        <div class="card-body">
+            @if (!Model.Players.Any())
+            {
+                <div class="text-muted">No players are attached to this night yet.</div>
+            }
+            else
+            {
+                <div class="d-flex flex-wrap gap-2" id="playersChips">
+                    @foreach (var p in Model.Players)
+                    {
+                        var initials = (p.Name ?? "").Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        var init = initials.Length == 0 ? "?" : (initials[0][0].ToString() + (initials.Length > 1 ? initials[^1][0].ToString() : "")).ToUpperInvariant();
+                        <label class="chip player-chip" data-name="@p.Name.ToLowerInvariant()">
+                            <input class="form-check-input player-checkbox" type="checkbox"
+                                   name="Input.SelectedPlayerIds" value="@p.PlayerId" @(p.Preselected ? "checked" : null) />
+                            @if (!string.IsNullOrEmpty(p.AvatarDataUrl))
+                            {
+                                <img src="@p.AvatarDataUrl" alt="@p.Name" style="width:26px;height:26px;border-radius:999px;object-fit:cover;" />
+                            }
+                            else
+                            {
+
+                                <span class="avatar">@init</span>
+                            }
+                            <span>@p.Name</span>
+                        </label>
+                    }
+                </div>
+            }
+        </div>
+        <div class="sticky-actions d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div class="small text-muted" id="summaryText">No game • 0 players • @NightLabel</div>
+            <div>
+                <a class="btn btn-outline-secondary me-1"
+                   href="@(string.IsNullOrWhiteSpace(Model.Input.ReturnUrl) ? Url.Page("/GameNight/Details", new { id = Model.Input.NightId }) : Model.Input.ReturnUrl)">
+                    Cancel
+                </a>
+                <button type="submit" class="btn btn-success">Create Match</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Markers -->
+    <div id="markersCard" class="card d-none mt-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <div class="fw-semibold">Markers</div>
+            <div class="text-muted small">Assign a marker to each selected player (if the game supports markers).</div>
+        </div>
+        <div class="card-body">
+            <div id="markersHelp" class="text-muted small mb-2">No game selected.</div>
+            <div id="markersGrid" class="d-flex flex-column gap-2"></div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function(){
+          // ----- refs
+          const gSearch = document.getElementById('gameSearch');
+          const gGrid   = document.getElementById('gamesGrid');
+
+          const preview = document.getElementById('gamePreview');
+          const gpBg    = preview?.querySelector('.gp-bg');
+          const gpTitle = preview?.querySelector('.gp-title');
+          const gpMeta  = preview?.querySelector('.gp-meta');
+
+          const pSearch = document.getElementById('playerSearch');
+          const chips   = document.getElementById('playersChips');
+          const btnAll  = document.getElementById('btnAll');
+          const btnNone = document.getElementById('btnNone');
+
+          const summary     = document.getElementById('summaryText');
+          const markersCard = document.getElementById('markersCard');
+          const markersGrid = document.getElementById('markersGrid');
+          const markersHelp = document.getElementById('markersHelp');
+
+          // ----- filtering
+          function filterGames(){
+            const term = (gSearch?.value || '').trim().toLowerCase();
+            (gGrid?.querySelectorAll('.game-item') || []).forEach(it=>{
+              const name = it.getAttribute('data-name') || '';
+              it.style.display = (!term || name.includes(term)) ? '' : 'none';
+            });
+          }
+          gSearch?.addEventListener('input', filterGames);
+
+          // ----- preview + selection
+          function setPreview(card){
+            if(!preview) return;
+            if(!card){ preview.classList.add('d-none'); return; }
+            const cover = card.getAttribute('data-cover') || '@Url.Content("~/images/default-cover.png")';
+            const title = card.getAttribute('data-title') || '—';
+            const meta  = card.getAttribute('data-meta') || '';
+            gpBg?.style.setProperty('--bg', `url('${cover}')`);
+            if(gpTitle) gpTitle.textContent = title;
+            if(gpMeta) gpMeta.textContent = meta;
+            preview.classList.remove('d-none');
+          }
+
+          function updateGameSelection(){
+            const cards = gGrid?.querySelectorAll('.game-item') || [];
+            let selected = null;
+            cards.forEach(card=>{
+              const radio = card.querySelector('.game-radio');
+              const isSel = radio && radio.checked;
+              card.classList.toggle('selected', isSel);
+              if(isSel) selected = card;
+            });
+            setPreview(selected);
+            updateSummary();
+            loadMarkersForSelectedGame();
+          }
+
+          gGrid?.addEventListener('click', (e)=>{
+            const card = e.target.closest('.game-item'); if(!card) return;
+            const radio = card.querySelector('.game-radio'); if(!radio) return;
+            radio.checked = true;
+            updateGameSelection();
+          });
+
+          document.addEventListener('change', (e)=>{
+            if(e.target && e.target.classList.contains('game-radio')) updateGameSelection();
+            if(e.target && e.target.classList.contains('player-checkbox')){
+              updateSummary();
+              loadMarkersForSelectedGame();
+            }
+          });
+
+          // ----- players filter/select
+          function visibleChips(){ return Array.from(chips?.querySelectorAll('.player-chip')||[]).filter(c=>c.style.display!=='none'); }
+          function filterPlayers(){
+            const term = (pSearch?.value || '').trim().toLowerCase();
+            (chips?.querySelectorAll('.player-chip') || []).forEach(chip=>{
+              const name = chip.getAttribute('data-name') || '';
+              chip.style.display = (!term || name.includes(term)) ? '' : 'none';
+            });
+          }
+          pSearch?.addEventListener('input', filterPlayers);
+          btnAll?.addEventListener('click', ()=>{ visibleChips().forEach(c=>{ const cb=c.querySelector('.player-checkbox'); if(cb) cb.checked=true;}); updateSummary(); loadMarkersForSelectedGame();});
+          btnNone?.addEventListener('click', ()=>{ visibleChips().forEach(c=>{ const cb=c.querySelector('.player-checkbox'); if(cb) cb.checked=false;}); updateSummary(); loadMarkersForSelectedGame();});
+
+          // ----- summary
+          function updateSummary(){
+            const selectedCard = document.querySelector('#gamesGrid .game-item.selected');
+            const title = selectedCard ? selectedCard.getAttribute('data-title') : null;
+            const meta  = selectedCard ? selectedCard.getAttribute('data-meta') : '';
+            const players = document.querySelectorAll('.player-checkbox:checked').length;
+            const night = '@NightLabel';
+            summary.textContent = `${title || "No game"} • ${players} player${players==1?"":"s"} • ${night}${meta?` • ${' ' + meta}`:''}`;
+          }
+
+          // ----- hidden inputs for PlayerMarkers
+          function resetPlayerMarkerInputs(){ document.querySelectorAll('input[name^="Input.PlayerMarkers"]').forEach(n=>n.remove()); }
+          function addPlayerMarkerInput(idx, playerId, markerId){
+            const f = document.forms[0];
+            const a = document.createElement('input'); a.type='hidden'; a.name=`Input.PlayerMarkers[${idx}].PlayerId`; a.value=String(playerId); f.appendChild(a);
+            const b = document.createElement('input'); b.type='hidden'; b.name=`Input.PlayerMarkers[${idx}].MarkerId`; b.value = markerId==null ? '' : String(markerId); f.appendChild(b);
+          }
+
+          // ----- markers UI
+          function renderMarkers(markers){
+            markersGrid.innerHTML = '';
+            resetPlayerMarkerInputs();
+
+            const selectedPlayers = Array.from(document.querySelectorAll('#playersChips .player-checkbox:checked'))
+              .map(cb=>{ const chip=cb.closest('.player-chip'); return { id:Number(cb.value), name: chip?.querySelector('span:last-child')?.textContent?.trim() || 'Player' }; });
+
+            const selectedCard = document.querySelector('#gamesGrid .game-item.selected');
+            if(!selectedCard){ markersHelp.textContent='No game selected.'; markersCard.classList.remove('d-none'); return; }
+            if(!markers || markers.length===0){ markersHelp.textContent='This game has no markers.'; markersCard.classList.remove('d-none'); return; }
+
+            markersHelp.textContent='Pick a marker for each selected player.'; markersCard.classList.remove('d-none');
+
+            let idx=0;
+            selectedPlayers.forEach(p=>{
+              const row=document.createElement('div'); row.className='marker-row'; row.setAttribute('data-input-idx', String(idx));
+              const label=document.createElement('div'); label.className='marker-player'; label.textContent=p.name; row.appendChild(label);
+
+              const wrap=document.createElement('div'); wrap.className='marker-wrap';
+              const strip=document.createElement('div'); strip.className='marker-strip';
+
+              // None
+              const noneCard=document.createElement('div'); noneCard.className='marker-card active'; noneCard.setAttribute('data-value','');
+              const noneImg=document.createElement('div'); noneImg.className='marker-img'; noneImg.style.opacity='.25'; noneImg.style.background='#f1f3f5';
+              const noneText=document.createElement('div'); noneText.className='marker-name'; noneText.textContent='None';
+              noneCard.appendChild(noneImg); noneCard.appendChild(noneText); strip.appendChild(noneCard);
+
+              // options
+              markers.forEach(m=>{
+                const card=document.createElement('div'); card.className='marker-card'; card.setAttribute('data-value', String(m.id));
+                const img=document.createElement('img'); img.className='marker-img'; img.alt=m.name||'marker';
+                img.src = m.imageDataUrl || '@Url.Content("~/images/default-marker.png")';
+                const t=document.createElement('div'); t.className='marker-name'; t.textContent=m.name || 'Marker';
+                card.appendChild(img); card.appendChild(t); strip.appendChild(card);
+              });
+
+              // arrows inside the wrap
+              const left=document.createElement('button'); left.type='button'; left.className='marker-nav left'; left.innerHTML='&#x2039;';
+              const right=document.createElement('button'); right.type='button'; right.className='marker-nav right'; right.innerHTML='&#x203A;';
+              left.addEventListener('click', ()=> strip.scrollBy({left:-180, behavior:'smooth'}));
+              right.addEventListener('click',()=> strip.scrollBy({left: 180, behavior:'smooth'}));
+
+              wrap.appendChild(left); wrap.appendChild(strip); wrap.appendChild(right);
+              row.appendChild(wrap);
+
+              strip.addEventListener('click', (e)=>{
+                const card=e.target.closest('.marker-card'); if(!card) return;
+                strip.querySelectorAll('.marker-card').forEach(c=>c.classList.remove('active'));
+                card.classList.add('active');
+                const value = card.getAttribute('data-value') || '';
+                const hid=document.querySelector(`input[name="Input.PlayerMarkers[${idx}].MarkerId"]`);
+                if(hid) hid.value=value;
+              });
+
+              addPlayerMarkerInput(idx, p.id, null);
+              markersGrid.appendChild(row);
+              idx++;
+            });
+          }
+
+          async function loadMarkersForSelectedGame(){
+            const selectedCard = document.querySelector('#gamesGrid .game-item.selected');
+            const radio = selectedCard?.querySelector('.game-radio');
+            const gameId = radio?.value;
+            if(!gameId){
+              markersCard?.classList.add('d-none');
+              markersGrid.innerHTML=''; resetPlayerMarkerInputs(); return;
+            }
+            try{
+              const url = '@Url.Page("/Match/Create", "Markers")' + '&gameId=' + encodeURIComponent(gameId);
+              const res = await fetch(url, { headers:{ 'X-Requested-With':'XMLHttpRequest' }});
+              const data = await res.json();   // [{id,name,imageDataUrl}, ...]
+              renderMarkers(data);
+            }catch(err){
+              markersHelp.textContent='Unable to load markers.'; markersCard.classList.remove('d-none');
+            }
+          }
+
+          // shortcuts
+          document.addEventListener('keydown', (e)=>{
+            if(e.target && (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA')) return;
+            if(e.key === '/') { e.preventDefault(); gSearch?.focus(); }
+            if(e.key.toLowerCase()==='p'){ e.preventDefault(); pSearch?.focus(); }
+            if(e.key.toLowerCase()==='a'){ e.preventDefault(); btnAll?.click(); }
+            if(e.key.toLowerCase()==='c'){ e.preventDefault(); btnNone?.click(); }
+          });
+
+          // init
+          function init(){ filterGames(); filterPlayers(); updateGameSelection(); updateSummary(); }
+          init();
+        })();
+    </script>
+}
