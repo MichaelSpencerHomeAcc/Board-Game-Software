@@ -151,7 +151,6 @@
         --gameGap: .75rem;
     }
 
-    /* Hard cap the grid to 3 rows and force internal scroll */
     .games-scroll {
         height: calc((var(--gameRowH) + var(--gameGap)) * 3 + var(--gameGap));
         overflow: auto;
@@ -225,7 +224,6 @@
         font-weight: 600;
     }
 
-    /* keep scroll inside Card body */
     #markersCard .card-body {
         overflow-x: hidden;
     }
@@ -243,7 +241,7 @@
         overflow-x: auto;
         overscroll-behavior-x: contain;
         scroll-snap-type: x mandatory;
-        padding: .25rem 2.25rem .5rem; /* space for arrows */
+        padding: .25rem 2.25rem .5rem;
         margin: 0;
     }
 
@@ -326,7 +324,7 @@
 <h1 class="h3 mb-1">Add Match</h1>
 <p class="text-muted muted">Night: <strong>@NightLabel</strong></p>
 
-<form method="post" class="mb-5">
+<form method="post" class="mb-5" id="createForm">
     <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
     <input type="hidden" asp-for="Input.NightId" />
     <input type="hidden" asp-for="Input.ReturnUrl" />
@@ -446,7 +444,6 @@
                             }
                             else
                             {
-
                                 <span class="avatar">@init</span>
                             }
                             <span>@p.Name</span>
@@ -485,6 +482,7 @@
     <script>
         (function(){
           // ----- refs
+          const form    = document.getElementById('createForm');
           const gSearch = document.getElementById('gameSearch');
           const gGrid   = document.getElementById('gamesGrid');
 
@@ -578,18 +576,9 @@
             summary.textContent = `${title || "No game"} • ${players} player${players==1?"":"s"} • ${night}${meta?` • ${' ' + meta}`:''}`;
           }
 
-          // ----- hidden inputs for PlayerMarkers
-          function resetPlayerMarkerInputs(){ document.querySelectorAll('input[name^="Input.PlayerMarkers"]').forEach(n=>n.remove()); }
-          function addPlayerMarkerInput(idx, playerId, markerId){
-            const f = document.forms[0];
-            const a = document.createElement('input'); a.type='hidden'; a.name=`Input.PlayerMarkers[${idx}].PlayerId`; a.value=String(playerId); f.appendChild(a);
-            const b = document.createElement('input'); b.type='hidden'; b.name=`Input.PlayerMarkers[${idx}].MarkerId`; b.value = markerId==null ? '' : String(markerId); f.appendChild(b);
-          }
-
           // ----- markers UI
           function renderMarkers(markers){
             markersGrid.innerHTML = '';
-            resetPlayerMarkerInputs();
 
             const selectedPlayers = Array.from(document.querySelectorAll('#playersChips .player-checkbox:checked'))
               .map(cb=>{ const chip=cb.closest('.player-chip'); return { id:Number(cb.value), name: chip?.querySelector('span:last-child')?.textContent?.trim() || 'Player' }; });
@@ -600,9 +589,11 @@
 
             markersHelp.textContent='Pick a marker for each selected player.'; markersCard.classList.remove('d-none');
 
-            let idx=0;
             selectedPlayers.forEach(p=>{
-              const row=document.createElement('div'); row.className='marker-row'; row.setAttribute('data-input-idx', String(idx));
+              const row=document.createElement('div');
+              row.className='marker-row';
+              row.setAttribute('data-player-id', String(p.id));  // <-- used on submit
+
               const label=document.createElement('div'); label.className='marker-player'; label.textContent=p.name; row.appendChild(label);
 
               const wrap=document.createElement('div'); wrap.className='marker-wrap';
@@ -623,7 +614,6 @@
                 card.appendChild(img); card.appendChild(t); strip.appendChild(card);
               });
 
-              // arrows inside the wrap
               const left=document.createElement('button'); left.type='button'; left.className='marker-nav left'; left.innerHTML='&#x2039;';
               const right=document.createElement('button'); right.type='button'; right.className='marker-nav right'; right.innerHTML='&#x203A;';
               left.addEventListener('click', ()=> strip.scrollBy({left:-180, behavior:'smooth'}));
@@ -636,34 +626,59 @@
                 const card=e.target.closest('.marker-card'); if(!card) return;
                 strip.querySelectorAll('.marker-card').forEach(c=>c.classList.remove('active'));
                 card.classList.add('active');
-                const value = card.getAttribute('data-value') || '';
-                const hid=document.querySelector(`input[name="Input.PlayerMarkers[${idx}].MarkerId"]`);
-                if(hid) hid.value=value;
               });
 
-              addPlayerMarkerInput(idx, p.id, null);
               markersGrid.appendChild(row);
-              idx++;
             });
           }
 
-          async function loadMarkersForSelectedGame(){
-            const selectedCard = document.querySelector('#gamesGrid .game-item.selected');
-            const radio = selectedCard?.querySelector('.game-radio');
-            const gameId = radio?.value;
-            if(!gameId){
-              markersCard?.classList.add('d-none');
-              markersGrid.innerHTML=''; resetPlayerMarkerInputs(); return;
-            }
-            try{
-              const url = '@Url.Page("/Match/Create", "Markers")' + '&gameId=' + encodeURIComponent(gameId);
-              const res = await fetch(url, { headers:{ 'X-Requested-With':'XMLHttpRequest' }});
-              const data = await res.json();   // [{id,name,imageDataUrl}, ...]
-              renderMarkers(data);
-            }catch(err){
-              markersHelp.textContent='Unable to load markers.'; markersCard.classList.remove('d-none');
-            }
+                async function loadMarkersForSelectedGame(){
+          const selectedCard = document.querySelector('#gamesGrid .game-item.selected');
+          const radio = selectedCard?.querySelector('.game-radio');
+          const gameId = radio?.value;
+          if(!gameId){
+            markersCard?.classList.add('d-none');
+            markersGrid.innerHTML='';
+            return;
           }
+          try{
+            // Most compatible way to hit a Razor Pages handler:
+            // /Match/Create?handler=Markers&nightId=...&gameId=...
+            const base = '@Url.Page("/Match/Create")' + '?handler=Markers&nightId=@Model.Input.NightId';
+            const url  = base + '&gameId=' + encodeURIComponent(gameId);
+
+            const res = await fetch(url, { headers:{ 'X-Requested-With':'XMLHttpRequest' }});
+            if(!res.ok){
+              const txt = await res.text().catch(()=> '');
+              throw new Error(`HTTP ${res.status} ${res.statusText} ${txt ? '• ' + txt : ''}`);
+            }
+            const data = await res.json();   // [{id,name,imageDataUrl}, ...]
+            renderMarkers(data);
+          }catch(err){
+            console.error('Marker load failed:', err);
+            markersHelp.textContent = 'Unable to load markers.';
+            markersCard.classList.remove('d-none');
+          }
+        }
+
+          // ----- Build hidden inputs on SUBMIT (authoritative; keeps visuals untouched)
+          form?.addEventListener('submit', () => {
+            // wipe any previous inputs to avoid duplicates
+            document.querySelectorAll('input[name^="Input.PlayerMarkers"]').forEach(n => n.remove());
+
+            const rows = document.querySelectorAll('#markersGrid .marker-row');
+            let idx = 0;
+            rows.forEach(row => {
+              const playerId = row.getAttribute('data-player-id');
+              if(!playerId) return;
+              const active = row.querySelector('.marker-card.active');
+              const value  = active ? (active.getAttribute('data-value') || '') : '';
+
+              const a = document.createElement('input'); a.type='hidden'; a.name=`Input.PlayerMarkers[${idx}].PlayerId`; a.value=String(playerId); form.appendChild(a);
+              const b = document.createElement('input'); b.type='hidden'; b.name=`Input.PlayerMarkers[${idx}].MarkerId`; b.value=value; form.appendChild(b);
+              idx++;
+            });
+          });
 
           // shortcuts
           document.addEventListener('keydown', (e)=>{
@@ -675,7 +690,7 @@
           });
 
           // init
-          function init(){ filterGames(); filterPlayers(); updateGameSelection(); updateSummary(); }
+          function init(){ filterGames(); filterPlayers(); updateGameSelection(); summary.textContent = `No game • 0 players • ${'@NightLabel'}`; }
           init();
         })();
     </script>

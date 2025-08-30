@@ -6,7 +6,7 @@
 }
 
 <h1 class="d-flex align-items-center justify-content-between">
-    <span>Game Night @Model.Night.GameNightDate.ToString("yyyy-MM-dd")</span>
+    <span>Game Night @Model.Night.GameNightDate.ToString("dd/MM/yyyy")</span>
 
     @if (canDelete)
     {
@@ -78,7 +78,8 @@ else
                              class="me-3 rounded" />
                         <div>
                             <div class="fw-semibold">@m.GameName</div>
-                            <a asp-page="/Match/Details" asp-route-id="@m.MatchId">View match</a>
+                            <!-- Changed to open Results screen -->
+                            <a asp-page="/Match/Results" asp-route-id="@m.MatchId">View match</a>
                         </div>
                     </div>
                 </div>
