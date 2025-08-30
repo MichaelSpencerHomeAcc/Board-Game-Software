@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 
 namespace Board_Game_Software.Pages.Match
 {
@@ -75,24 +76,25 @@ namespace Board_Game_Software.Pages.Match
             public long? MarkerId { get; set; } // null/empty => None
         }
 
-        // ---------- Form input ----------
         public sealed class InputModel
         {
-            [Required]
-            public long NightId { get; set; }
+            [Required] public long NightId { get; set; }
             public string? ReturnUrl { get; set; }
 
             [Required(ErrorMessage = "Please select a game.")]
             public long? BoardGameId { get; set; }
 
-            [Required]
-            public DateOnly MatchDate { get; set; }
+            [Required] public DateOnly MatchDate { get; set; }
 
             public List<long> SelectedPlayerIds { get; set; } = new();
 
-            // per-player markers (optional)
+            // Existing
             public List<PlayerMarkerInput> PlayerMarkers { get; set; } = new();
+
+            // NEW: JSON posted from the client (we'll hydrate PlayerMarkers from this)
+            public string? PlayerMarkersJson { get; set; }
         }
+
 
         private async Task<string?> TryGetMarkerImageDataUrlAsync(Guid markerTypeGid)
         {
@@ -195,23 +197,22 @@ namespace Board_Game_Software.Pages.Match
         // ==========================
         public async Task<IActionResult> OnGetMarkersAsync(long nightId, long gameId)
         {
-            // All marker types available for this board game
-            // (Assumes a link table like bgd.BoardGameMarker => MarkerType)
+            // Get the markers for this board game
             var markers = await _db.BoardGameMarkers
                 .AsNoTracking()
-                .Where(m => m.FkBgdBoardGame == gameId && !m.Inactive)
+                .Where(m => !m.Inactive && m.FkBgdBoardGame == gameId)
                 .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
                 .Select(m => new
                 {
-                    Id = m.FkBgdBoardGameMarkerTypeNavigation.Id,
+                    MarkerId = m.Id, // << IMPORTANT: the FK points to THIS table
                     Name = m.FkBgdBoardGameMarkerTypeNavigation.TypeDesc,
-                    Gid = m.FkBgdBoardGameMarkerTypeNavigation.Gid
+                    TypeGid = m.FkBgdBoardGameMarkerTypeNavigation.Gid
                 })
-                .Distinct()
+                .OrderBy(x => x.Name)
                 .ToListAsync();
 
-            // Batch pull images by GID
-            var gids = markers.Select(m => (Guid?)m.Gid).ToArray();
+            // Batch images by Type GID
+            var gids = markers.Select(x => (Guid?)x.TypeGid).ToArray();
             var filter = Builders<BoardGameImages>.Filter.And(
                 Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
                 Builders<BoardGameImages>.Filter.In(x => x.GID, gids)
@@ -220,19 +221,21 @@ namespace Board_Game_Software.Pages.Match
             var imgMap = docs.ToDictionary(
                 d => d.GID!.Value,
                 d => d.ImageBytes != null && !string.IsNullOrWhiteSpace(d.ContentType)
-                        ? $"data:{d.ContentType};base64,{Convert.ToBase64String(d.ImageBytes)}"
-                        : null
+                    ? $"data:{d.ContentType};base64,{Convert.ToBase64String(d.ImageBytes)}"
+                    : null
             );
 
-            var result = markers.Select(m => new MarkerDto
+            // Shape to the JSON your JS expects
+            var result = markers.Select(x => new
             {
-                Id = m.Id,
-                Name = m.Name,
-                ImageDataUrl = imgMap.GetValueOrDefault(m.Gid)
-            }).OrderBy(m => m.Name).ToList();
+                id = x.MarkerId,              // << this is the BoardGameMarker.Id
+                name = x.Name,
+                imageDataUrl = x.TypeGid != Guid.Empty ? imgMap.GetValueOrDefault(x.TypeGid) : null
+            });
 
             return new JsonResult(result);
         }
+        
         // ==========================
         // POST
         // ==========================
@@ -255,6 +258,24 @@ namespace Board_Game_Software.Pages.Match
 
                 await OnGetAsync(Input.NightId, Input.ReturnUrl);
                 return Page();
+            }
+
+            if (Input.PlayerMarkers == null || Input.PlayerMarkers.Count == 0)
+            {
+                if (!string.IsNullOrWhiteSpace(Input.PlayerMarkersJson))
+                {
+                    try
+                    {
+                        Input.PlayerMarkers =
+                            JsonSerializer.Deserialize<List<PlayerMarkerInput>>(Input.PlayerMarkersJson)
+                            ?? new List<PlayerMarkerInput>();
+                    }
+                    catch
+                    {
+                        // Optional: surface a friendly error
+                        ModelState.AddModelError(string.Empty, "Could not read selected markers.");
+                    }
+                }
             }
 
             var now = DateTime.UtcNow;

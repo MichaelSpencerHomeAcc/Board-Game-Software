@@ -1,0 +1,89 @@
+﻿@page
+@model Board_Game_Software.Pages.Match.ResultsModel
+@using Board_Game_Software.Models
+@using Microsoft.AspNetCore.Mvc.Rendering
+
+<h2>Results – @Model.MatchGameName (@Model.MatchDate?.ToString("dd/MM/yyyy"))</h2>
+
+<form method="post">
+    <input type="hidden" asp-for="Input.MatchId" />
+    <input type="hidden" asp-for="Input.NightId" />
+
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Player</th>
+                <th>Result Type</th>
+                <th>Score</th>
+                <th>Winner</th>
+                <th>Final Team</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < Model.Input.PlayerResults.Count; i++)
+            {
+                var pr = Model.Input.PlayerResults[i];
+                var player = Model.Players.First(p => p.MatchPlayerId == pr.MatchPlayerId);
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            @* bigger marker image *@
+                            @if (!string.IsNullOrWhiteSpace(player.MarkerImageDataUrl))
+                            {
+                                <img src="@player.MarkerImageDataUrl"
+                                     alt="@player.MarkerTypeName"
+                                     class="marker-img-lg" />
+                            }
+
+                            <div class="d-flex flex-column">
+                                <span class="fw-semibold">@player.PlayerName</span>
+                                @if (!string.IsNullOrWhiteSpace(player.MarkerTypeName))
+                                {
+                                    <span class="small text-muted">@player.MarkerTypeName</span>
+                                }
+                            </div>
+                        </div>
+
+                        <input type="hidden" asp-for="Input.PlayerResults[@i].MatchPlayerId" />
+                    </td>
+
+                    <td>
+                        <select class="form-select"
+                                asp-for="Input.PlayerResults[@i].ResultTypeId"
+                                asp-items="@(new SelectList(Model.ResultTypes, nameof(ResultsModel.ResultTypeRow.Id), nameof(ResultsModel.ResultTypeRow.Name)))">
+                            <option value="">-- select --</option>
+                        </select>
+                    </td>
+
+                    <td>
+                        <input class="form-control" asp-for="Input.PlayerResults[@i].Score" />
+                    </td>
+
+                    <td class="text-center">
+                        <input class="form-check-input" asp-for="Input.PlayerResults[@i].IsWinner" />
+                    </td>
+
+                    <td>
+                        <select class="form-select"
+                                asp-for="Input.PlayerResults[@i].FinalTeam"
+                                asp-items="Html.GetEnumSelectList<FinalTeam>()">
+                            <option value="">-- none --</option>
+                        </select>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <button type="submit" class="btn btn-primary">Save Results</button>
+    <a asp-page="/GameNight/Details" asp-route-id="@Model.NightId" class="btn btn-secondary">Cancel</a>
+</form>
+<style>
+    .marker-img-lg {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        border-radius: 6px;
+        border: 1px solid rgba(0,0,0,.1);
+    }
+</style>
