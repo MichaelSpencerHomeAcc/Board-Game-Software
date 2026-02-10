@@ -1,0 +1,195 @@
+﻿@page
+@model Board_Game_Software.Pages.GameNight.AddPlayersModel
+@{
+    ViewData["Title"] = "Add Players";
+
+    string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpperInvariant();
+        return (parts[0][0].ToString() + parts[^1][0].ToString()).ToUpperInvariant();
+    }
+}
+
+<style>
+    .elevate {
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.08);
+    }
+
+    .sticky-actions {
+        position: sticky;
+        bottom: 0;
+        background: var(--bs-body-bg);
+        z-index: 5;
+        padding: .75rem;
+        border-top: 1px solid rgba(0,0,0,.08);
+    }
+
+    .tile {
+        border: 1px solid rgba(0,0,0,.08);
+        border-radius: .5rem;
+        padding: .5rem .6rem;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        transition: background-color .12s ease, border-color .12s ease;
+    }
+
+        .tile:hover {
+            background: rgba(0,0,0,.03);
+            border-color: rgba(0,0,0,.2);
+        }
+
+    .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: .9rem;
+        background: #e9ecef;
+    }
+
+    .muted-divider {
+        border-top: 1px dashed rgba(0,0,0,.12);
+    }
+
+    .search-input {
+        max-width: 360px;
+    }
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <h1 class="h3 mb-1">Add Players</h1>
+        <div class="text-muted">Pick attendees to add to this Game Night.</div>
+    </div>
+</div>
+
+<form method="post" class="mb-5">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+    <!-- round-trip -->
+    <input type="hidden" asp-for="Input.NightId" />
+    <input type="hidden" asp-for="Input.ReturnUrl" />
+
+    <!-- GRID BELOW IS COPIED VERBATIM FROM CREATE.CSHTML -->
+    <div class="card elevate">
+        <div class="card-header">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div class="fw-semibold">Players Attending</div>
+                <div class="d-flex align-items-center gap-2">
+                    <input id="playerSearch" type="search" class="form-control form-control-sm search-input" placeholder="Search players…  (press / to focus)" aria-label="Search players" />
+                    <div class="vr d-none d-sm-inline" style="height:1.6rem"></div>
+                    <button id="btnSelectAll" type="button" class="btn btn-outline-secondary btn-sm">Select all (filtered)</button>
+                    <button id="btnClearAll" type="button" class="btn btn-outline-secondary btn-sm">Clear (filtered)</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body">
+            @if (!Model.AllPlayers.Any())
+            {
+                <div class="text-muted">No players found.</div>
+            }
+            else
+            {
+                <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-2" id="playersGrid">
+                    @for (int i = 0; i < Model.AllPlayers.Count; i++)
+                    {
+                        var p = Model.AllPlayers[i];
+                        var initials = GetInitials(p.Name);
+                        <div class="col player-item" data-name="@p.Name.ToLowerInvariant()">
+                            <label class="tile w-100">
+                                <input class="form-check-input me-2 player-checkbox" type="checkbox"
+                                       name="Input.SelectedPlayerIds" value="@p.PlayerId" @(p.Preselected ? "checked" : null) />
+                                <span class="avatar">@initials</span>
+                                <span class="flex-grow-1">@p.Name</span>
+                            </label>
+                        </div>
+                    }
+                </div>
+
+                <div class="mt-3 pt-2 muted-divider small text-muted">
+                    <strong id="selectedCount">0</strong> selected
+                    <span class="ms-2">• Shortcuts: <kbd>/</kbd> focus search, <kbd>A</kbd> select filtered, <kbd>C</kbd> clear filtered, <kbd>Enter</kbd> save</span>
+                </div>
+            }
+        </div>
+
+        <div class="sticky-actions d-flex justify-content-end gap-2">
+            <a class="btn btn-outline-secondary"
+               href="@(Model.Input.ReturnUrl ?? Url.Page("/GameNight/Details", new { id = Model.Input.NightId }))">Cancel</a>
+            <button type="submit" class="btn btn-primary">Add Selected</button>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+          const grid = document.getElementById('playersGrid');
+          const search = document.getElementById('playerSearch');
+          const selectAll = document.getElementById('btnSelectAll');
+          const clearAll = document.getElementById('btnClearAll');
+          const countEl = document.getElementById('selectedCount');
+
+          function visibleItems() {
+            return Array.from(grid?.querySelectorAll('.player-item') || []).filter(it => it.style.display !== 'none');
+          }
+          function allBoxes(scope) {
+            return Array.from((scope || document).querySelectorAll('.player-checkbox'));
+          }
+          function updateCount() {
+            const n = allBoxes(document).filter(b => b.checked).length;
+            if (countEl) countEl.textContent = n.toString();
+          }
+          function filter() {
+            const term = (search?.value || '').trim().toLowerCase();
+            (grid?.querySelectorAll('.player-item') || []).forEach(it => {
+              const name = it.getAttribute('data-name') || '';
+              it.style.display = (!term || name.includes(term)) ? '' : 'none';
+            });
+          }
+
+          search?.addEventListener('input', () => { filter(); });
+          selectAll?.addEventListener('click', () => {
+            visibleItems().forEach(it => {
+              const cb = it.querySelector('.player-checkbox');
+              if (cb) cb.checked = true;
+            });
+            updateCount();
+          });
+          clearAll?.addEventListener('click', () => {
+            visibleItems().forEach(it => {
+              const cb = it.querySelector('.player-checkbox');
+              if (cb) cb.checked = false;
+            });
+            updateCount();
+          });
+          document.addEventListener('change', (e) => {
+            if (e.target && e.target.classList && e.target.classList.contains('player-checkbox')) updateCount();
+          });
+
+          // Keyboard shortcuts
+          document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+              e.preventDefault(); search?.focus(); return;
+            }
+            if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey && document.activeElement !== search) {
+              e.preventDefault(); selectAll?.click(); return;
+            }
+            if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && document.activeElement !== search) {
+              e.preventDefault(); clearAll?.click(); return;
+            }
+          });
+
+          // init
+          filter(); updateCount();
+        })();
+    </script>
+}
