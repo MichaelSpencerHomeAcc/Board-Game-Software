@@ -34,27 +34,15 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
         [BindProperty]
         public IFormFile? ImageUpload { get; set; }
 
-        // Marker type ids selected from the form
         [BindProperty]
         public List<long> MarkerTypeIds { get; set; } = new();
 
         public List<BoardGameMarker> ExistingMarkers { get; set; } = new();
-
-        public List<SelectListItem> MarkerTypes { get; set; } = new();
-
-        public bool HasMarkers
-        {
-            get => BoardGame?.HasMarkers ?? false;
-            set
-            {
-                if (BoardGame != null) BoardGame.HasMarkers = value;
-            }
-        }
+        public List<MarkerTypeViewModel> AvailableMarkerTypes { get; set; } = new();
 
         public SelectList BoardGameTypes { get; set; }
         public SelectList VictoryConditions { get; set; }
         public SelectList Publishers { get; set; }
-
         public string? CurrentImageUrl { get; set; }
 
         public async Task<IActionResult> OnGetAsync(long id)
@@ -65,24 +53,15 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
                 .Include(bg => bg.FkBgdPublisherNavigation)
                 .FirstOrDefaultAsync(bg => bg.Id == id);
 
-            if (BoardGame == null)
-            {
-                return NotFound();
-            }
+            if (BoardGame == null) return NotFound();
 
-            // Load markers for this board game
             ExistingMarkers = await _context.BoardGameMarkers
                 .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
                 .Where(m => m.FkBgdBoardGame == BoardGame.Id)
                 .ToListAsync();
 
-            ExistingMarkers = ExistingMarkers.OrderBy(m => m.FkBgdBoardGameMarkerTypeNavigation?.TypeDesc).ToList();
-
             await LoadSelectLists();
-
-            // Load marker types filtering out already assigned marker types
             await LoadMarkerTypes();
-
             await LoadCurrentImageUrl(BoardGame.Gid);
 
             return Page();
@@ -90,140 +69,70 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
 
         public async Task<IActionResult> OnPostAsync(long id)
         {
-            if (!ModelState.IsValid)
+            var gameToUpdate = await _context.BoardGames.FindAsync(id);
+            if (gameToUpdate == null) return NotFound();
+
+            // 1. Update the main game properties
+            if (await TryUpdateModelAsync<BoardGame>(gameToUpdate, "BoardGame",
+                b => b.BoardGameName, b => b.FkBgdBoardGameType, b => b.HasMarkers)) // Add all your other fields here
             {
-                ExistingMarkers = await _context.BoardGameMarkers
-                    .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
-                    .Where(m => m.FkBgdBoardGame == id)
-                    .ToListAsync();
-
-                await LoadSelectLists();
-                await LoadMarkerTypes(); // marker types filtered using ExistingMarkers
-                await LoadCurrentImageUrl(BoardGame.Gid);
-                return Page();
-            }
-
-            // Parse ComplexityRating explicitly
-            if (!decimal.TryParse(Request.Form["BoardGame.ComplexityRating"], out var complexity))
-            {
-                ModelState.AddModelError("BoardGame.ComplexityRating", "Invalid complexity rating format.");
-
-                ExistingMarkers = await _context.BoardGameMarkers
-                    .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
-                    .Where(m => m.FkBgdBoardGame == id)
-                    .ToListAsync();
-
-                await LoadSelectLists();
-                await LoadMarkerTypes();
-                await LoadCurrentImageUrl(BoardGame.Gid);
-                return Page();
-            }
-
-            var boardGameToUpdate = await _context.BoardGames.FindAsync(id);
-            if (boardGameToUpdate == null)
-            {
-                return NotFound();
-            }
-
-            // Update main properties
-            boardGameToUpdate.BoardGameName = BoardGame.BoardGameName;
-            boardGameToUpdate.FkBgdBoardGameType = BoardGame.FkBgdBoardGameType;
-            boardGameToUpdate.PlayerCountMin = BoardGame.PlayerCountMin;
-            boardGameToUpdate.PlayerCountMax = BoardGame.PlayerCountMax;
-            boardGameToUpdate.PlayingTimeMinInMinutes = BoardGame.PlayingTimeMinInMinutes;
-            boardGameToUpdate.PlayingTimeMaxInMinutes = BoardGame.PlayingTimeMaxInMinutes;
-            boardGameToUpdate.ComplexityRating = complexity;
-            boardGameToUpdate.FkBgdBoardGameVictoryConditionType = BoardGame.FkBgdBoardGameVictoryConditionType;
-            boardGameToUpdate.FkBgdPublisher = BoardGame.FkBgdPublisher;
-            boardGameToUpdate.ReleaseDate = BoardGame.ReleaseDate;
-            boardGameToUpdate.BoardGameSummary = BoardGame.BoardGameSummary;
-            boardGameToUpdate.HowToPlayHyperlink = BoardGame.HowToPlayHyperlink;
-            boardGameToUpdate.HeightCm = BoardGame.HeightCm;
-            boardGameToUpdate.WidthCm = BoardGame.WidthCm;
-            boardGameToUpdate.HasMarkers = BoardGame.HasMarkers;
-
-            _context.Entry(boardGameToUpdate).State = EntityState.Modified;
-
-            // Handle image upload
-            if (ImageUpload != null && ImageUpload.Length > 0)
-            {
-                using var ms = new MemoryStream();
-                await ImageUpload.CopyToAsync(ms);
-                var imageBytes = ms.ToArray();
-
-                var frontImageType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-                if (frontImageType != null)
+                // 2. Handle the Image logic (MongoDB)
+                if (ImageUpload != null)
                 {
-                    var existingImages = await _boardGameImages.Find(img =>
-                        img.GID == boardGameToUpdate.Gid && img.ImageTypeGID == frontImageType.Gid).ToListAsync();
+                    // ... (Your image upload code here)
+                }
 
-                    if (existingImages.Any())
+                // 3. SMART SYNC for Markers
+                var currentMarkersInDb = await _context.BoardGameMarkers
+                    .Where(m => m.FkBgdBoardGame == id)
+                    .ToListAsync();
+
+                if (!gameToUpdate.HasMarkers)
+                {
+                    // If the master toggle is off, wipe markers
+                    _context.BoardGameMarkers.RemoveRange(currentMarkersInDb);
+                }
+                else
+                {
+                    // Get IDs from the database
+                    var currentIds = currentMarkersInDb.Select(m => m.FkBgdBoardGameMarkerType ?? 0).ToHashSet();
+
+                    // Get IDs from the UI (the pills) - Ensure MarkerTypeIds isn't null
+                    var selectedIds = (MarkerTypeIds ?? new List<long>()).Distinct().ToHashSet();
+
+                    // A. Remove markers that are in DB but NOT in the new selection
+                    var toRemove = currentMarkersInDb.Where(m => !selectedIds.Contains(m.FkBgdBoardGameMarkerType ?? 0)).ToList();
+                    _context.BoardGameMarkers.RemoveRange(toRemove);
+
+                    // B. Add markers that are in selection but NOT in DB
+                    var toAdd = selectedIds.Where(sid => !currentIds.Contains(sid)).ToList();
+                    foreach (var newId in toAdd)
                     {
-                        await _boardGameImages.DeleteManyAsync(img =>
-                            img.GID == boardGameToUpdate.Gid && img.ImageTypeGID == frontImageType.Gid);
+                        _context.BoardGameMarkers.Add(new BoardGameMarker
+                        {
+                            Gid = Guid.NewGuid(),
+                            FkBgdBoardGame = id,
+                            FkBgdBoardGameMarkerType = newId,
+                            CreatedBy = User.Identity?.Name ?? "system",
+                            TimeCreated = DateTime.UtcNow,
+                            ModifiedBy = User.Identity?.Name ?? "system",
+                            TimeModified = DateTime.UtcNow
+                        });
                     }
-
-                    var newImage = new BoardGameImages
-                    {
-                        GID = boardGameToUpdate.Gid,
-                        SQLTable = "bgd.BoardGame",
-                        ImageTypeGID = frontImageType.Gid,
-                        ImageBytes = imageBytes,
-                        ContentType = ImageUpload.ContentType,
-                        Description = $"{boardGameToUpdate.BoardGameName} Box"
-                    };
-                    await _boardGameImages.InsertOneAsync(newImage);
                 }
+
+                await _context.SaveChangesAsync();
+                return RedirectToPage("./BoardGameDetails", new { id = gameToUpdate.Id });
             }
 
-            // Update markers only if HasMarkers is true, else remove all markers for this game
-            var existingMarkers = await _context.BoardGameMarkers
-                .Where(m => m.FkBgdBoardGame == boardGameToUpdate.Id)
-                .ToListAsync();
-
-            if (boardGameToUpdate.HasMarkers)
-            {
-                // Remove markers that were removed by user
-                var toRemove = existingMarkers
-                    .Where(em => !MarkerTypeIds.Contains(em.FkBgdBoardGameMarkerType ?? 0))
-                    .ToList();
-
-                _context.BoardGameMarkers.RemoveRange(toRemove);
-
-                // Add new markers that user added (only once per type)
-                var existingMarkerTypeIds = existingMarkers.Select(em => em.FkBgdBoardGameMarkerType ?? 0).ToHashSet();
-                var toAddTypeIds = MarkerTypeIds
-                    .Where(mt => mt != 0 && !existingMarkerTypeIds.Contains(mt))
-                    .Distinct()
-                    .ToList();
-
-                foreach (var markerTypeId in toAddTypeIds)
-                {
-                    var newMarker = new BoardGameMarker
-                    {
-                        Gid = Guid.NewGuid(),
-                        CreatedBy = User.Identity?.Name ?? "system",
-                        TimeCreated = DateTime.UtcNow,
-                        ModifiedBy = User.Identity?.Name ?? "system",
-                        TimeModified = DateTime.UtcNow,
-                        FkBgdBoardGame = boardGameToUpdate.Id,
-                        FkBgdBoardGameMarkerType = markerTypeId
-                    };
-                    _context.BoardGameMarkers.Add(newMarker);
-                }
-            }
-            else
-            {
-                // Remove all markers if HasMarkers is false
-                if (existingMarkers.Any())
-                {
-                    _context.BoardGameMarkers.RemoveRange(existingMarkers);
-                }
-            }
-
-            await _context.SaveChangesAsync();
-
-            return RedirectToPage("./BoardGameDetails", new { id = boardGameToUpdate.Id });
+            return Page();
+        }
+        private async Task ReloadPageData(long id)
+        {
+            ExistingMarkers = await _context.BoardGameMarkers.Include(m => m.FkBgdBoardGameMarkerTypeNavigation).Where(m => m.FkBgdBoardGame == id).ToListAsync();
+            await LoadSelectLists();
+            await LoadMarkerTypes();
+            await LoadCurrentImageUrl(BoardGame.Gid);
         }
 
         private async Task LoadSelectLists()
@@ -235,45 +144,36 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
 
         private async Task LoadMarkerTypes()
         {
-            // Filter out marker types already assigned
-            var existingMarkerTypeIds = ExistingMarkers
-                .Where(m => m.FkBgdBoardGameMarkerType.HasValue)
-                .Select(m => m.FkBgdBoardGameMarkerType.Value)
-                .ToHashSet();
+            var existingIds = ExistingMarkers.Select(m => m.FkBgdBoardGameMarkerType).ToHashSet();
+            var types = await _context.BoardGameMarkerTypes.Where(t => !t.Inactive && !existingIds.Contains(t.Id)).OrderBy(t => t.TypeDesc).ToListAsync();
 
-            var types = await _context.BoardGameMarkerTypes
-                .Where(t => !t.Inactive && !existingMarkerTypeIds.Contains(t.Id))
-                .OrderBy(t => t.TypeDesc)
-                .ToListAsync();
-
-            MarkerTypes = types
-                .Select(t => new SelectListItem(t.TypeDesc, t.Id.ToString()))
-                .ToList();
+            foreach (var type in types)
+            {
+                var img = await _boardGameImages.Find(x => x.SQLTable == "bgd.BoardGameMarkerType" && x.GID == type.Gid).FirstOrDefaultAsync();
+                AvailableMarkerTypes.Add(new MarkerTypeViewModel
+                {
+                    Id = type.Id,
+                    TypeDesc = type.TypeDesc,
+                    ImageBase64 = img != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
+                });
+            }
         }
 
         private async Task LoadCurrentImageUrl(Guid gid)
         {
-            var frontImageType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-            if (frontImageType != null && gid != Guid.Empty)
+            var frontType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+            if (frontType != null)
             {
-                var image = await _boardGameImages.Find(img =>
-                    img.GID == gid && img.ImageTypeGID == frontImageType.Gid)
-                    .FirstOrDefaultAsync();
-
-                if (image?.ImageBytes != null)
-                {
-                    var base64 = Convert.ToBase64String(image.ImageBytes);
-                    CurrentImageUrl = $"data:{image.ContentType};base64,{base64}";
-                }
-                else
-                {
-                    CurrentImageUrl = null;
-                }
-            }
-            else
-            {
-                CurrentImageUrl = null;
+                var img = await _boardGameImages.Find(i => i.GID == gid && i.ImageTypeGID == frontType.Gid).FirstOrDefaultAsync();
+                if (img != null) CurrentImageUrl = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
             }
         }
+    }
+
+    public class MarkerTypeViewModel
+    {
+        public long Id { get; set; }
+        public string TypeDesc { get; set; }
+        public string? ImageBase64 { get; set; }
     }
 }

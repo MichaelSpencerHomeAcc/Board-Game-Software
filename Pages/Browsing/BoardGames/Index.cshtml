@@ -3,71 +3,106 @@
 @{
     ViewData["Title"] = "Board Games";
 }
+<style>
+    /* Makes the header adapt to the theme instead of being stuck in 'Light' mode */
+    .table thead {
+        background-color: var(--bs-tertiary-bg);
+        border-bottom: 2px solid var(--bs-border-color);
+    }
+
+    /* Subtle hover effect for rows to make them pop in Dark Mode */
+    .table-hover tbody tr:hover {
+        background-color: var(--bs-secondary-bg) !important;
+        transition: background-color 0.2s ease;
+    }
+</style>
 
 <div class="row">
     <div class="col-12">
-        <h2>Board Game Search</h2>
+        <h2 class="text-body mb-4">Board Game Search</h2>
 
         <form method="get" id="searchForm" autocomplete="off">
             <div class="input-group mb-3 position-relative">
                 <input id="searchBox" name="search" class="form-control" placeholder="Search by name, type, or player count..." value="@Model.SearchTerm" autocomplete="off" />
-                <button class="btn btn-primary" type="submit">Search</button>
-                <ul id="autocomplete-results" class="list-group position-absolute w-100 bg-white border rounded" style="z-index: 1000; top: 100%; left: 0; max-height: 300px; overflow-y: auto;"></ul>
+                <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-search"></i> Search
+                </button>
+                <ul id="autocomplete-results" class="list-group position-absolute w-100 bg-body border shadow-sm" style="z-index: 1000; top: 100%; left: 0; max-height: 300px; overflow-y: auto;"></ul>
             </div>
         </form>
 
         <div class="d-flex justify-content-between align-items-center mb-3">
             @if (User.IsInRole("Admin"))
             {
-                <a asp-page="./Add" class="btn btn-success">+ Add New Board Game</a>
+                <a asp-page="./Add" class="btn btn-success">
+                    <i class="bi bi-plus-lg"></i> Add New Board Game
+                </a>
             }
         </div>
 
-
-        <div id="previewTooltip" style="position:absolute; display:none; border:1px solid #ccc; background:#fff; padding:5px; box-shadow:0 0 5px rgba(0,0,0,0.2); max-width:200px; z-index:2000;">
-            <img id="previewImage" src="" alt="Preview" style="max-width: 200px; max-height: 200px;" />
+        <div id="previewTooltip" class="shadow-lg border border-secondary-subtle bg-body p-1 rounded"
+             style="position:absolute; display:none; z-index:2000; pointer-events: none;">
+            <img id="previewImage" src="" alt="Preview" class="rounded" style="max-width: 250px; max-height: 250px; display: block;" />
         </div>
 
         @if (Model.BoardGames.Any())
         {
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Type</th>
-                        <th>Players</th>
-                        <th>Release Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Model.BoardGames)
-                    {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
                         <tr>
-                            <td>
-                                <a asp-page="./BoardGameDetails" asp-route-id="@item.BoardGame.Id"
-                                   class="board-game-link"
-                                   data-image="@item.Base64Image">
-                                    @item.BoardGame.BoardGameName
-                                </a>
-                            </td>
-                            <td>@item.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc</td>
-                            <td>@item.BoardGame.PlayerCountMin @(item.BoardGame.PlayerCountMax != item.BoardGame.PlayerCountMin ? " – " + item.BoardGame.PlayerCountMax : "")</td>
-                            <td>@(item.BoardGame.ReleaseDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                            <th class="text-body">Name</th>
+                            <th class="text-body">Type</th>
+                            <th class="text-body">Players</th>
+                            <th class="text-body">Release Date</th>
                         </tr>
-                    }
-
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.BoardGames)
+                        {
+                            <tr>
+                                <td>
+                                    <a asp-page="./BoardGameDetails" asp-route-id="@item.BoardGame.Id"
+                                       class="board-game-link fw-bold text-decoration-none"
+                                       data-image="@item.Base64Image">
+                                        @item.BoardGame.BoardGameName
+                                    </a>
+                                </td>
+                                <td class="text-body-secondary">@item.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc</td>
+                                <td class="text-body-secondary">
+                                    @item.BoardGame.PlayerCountMin @(item.BoardGame.PlayerCountMax != item.BoardGame.PlayerCountMin ? " – " + item.BoardGame.PlayerCountMax : "")
+                                </td>
+                                <td class="text-body-secondary">@(item.BoardGame.ReleaseDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
         else
         {
-            <p>No board games found.</p>
+            <div class="alert alert-info">No board games found.</div>
         }
     </div>
 </div>
 
 @section Scripts {
     <script>
+        // --- 1. PRELOADING LOGIC (Fixes the first-hover bug) ---
+        const imageCache = {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.board-game-link').forEach(link => {
+                const src = link.getAttribute('data-image');
+                if (src && src.length > 0 && !imageCache[src]) {
+                    const img = new Image();
+                    img.src = src;
+                    imageCache[src] = img; // Pre-warm the browser cache
+                }
+            });
+        });
+
+        // --- 2. AUTOCOMPLETE LOGIC ---
         const input = document.getElementById('searchBox');
         const resultsBox = document.getElementById('autocomplete-results');
         const form = document.getElementById('searchForm');
@@ -80,14 +115,13 @@
             }
 
             try {
-                // Fixed URL to point to Browsing/BoardGames for handler=Search
                 const res = await fetch(`/Browsing/BoardGames?handler=Search&term=${encodeURIComponent(term)}`);
                 const data = await res.json();
 
                 resultsBox.innerHTML = '';
                 data.forEach(item => {
                     const li = document.createElement('li');
-                    li.className = 'list-group-item list-group-item-action';
+                    li.className = 'list-group-item list-group-item-action text-body';
                     li.style.cursor = 'pointer';
                     li.innerHTML = `<strong>${item.name}</strong> <small class="text-muted">(${item.type})</small>`;
                     li.onclick = () => {
@@ -108,7 +142,7 @@
             }
         });
 
-        // Tooltip preview code
+        // --- 3. REFINED TOOLTIP LOGIC ---
         const previewTooltip = document.getElementById('previewTooltip');
         const previewImage = document.getElementById('previewImage');
 
@@ -122,15 +156,15 @@
             });
 
             link.addEventListener('mousemove', e => {
+                // Offset by 15px to avoid mouse flicker
                 previewTooltip.style.top = (e.pageY + 15) + 'px';
                 previewTooltip.style.left = (e.pageX + 15) + 'px';
             });
 
             link.addEventListener('mouseleave', () => {
                 previewTooltip.style.display = 'none';
-                previewImage.src = '';
+                // Don't clear src immediately to prevent "flash" if moving between links quickly
             });
         });
     </script>
 }
-

@@ -4,97 +4,125 @@
     ViewData["Title"] = "Board Game Marker Types";
 }
 
-<h1>Marker Types</h1>
+<div class="row">
+    <div class="col-12">
+        <h1 class="text-body mb-4">Marker Types</h1>
 
-@if (Model.ShowDeleteError)
-{
-    <div class="alert alert-warning" role="alert">
-        This marker is linked to @Model.DeleteLinkedCount @((Model.DeleteLinkedCount == 1) ? "game" : "games"), it cannot be deleted.
-    </div>
-}
-
-<p>
-    <a asp-page="Add" class="btn btn-primary">Add New Marker Type</a>
-    <a asp-page="AddAdditionalType" class="btn btn-primary">Add Additional Type</a>
-</p>
-
-<style>
-    .marker-image-tooltip {
-        display: none;
-        position: absolute;
-        z-index: 1000;
-        border: 1px solid #ccc;
-        background: #fff;
-        max-width: 315px;
-        max-height: 315px;
-        padding: 5px;
-    }
-    td.marker-desc {
-        position: relative;
-        cursor: pointer;
-    }
-
-    a.marker-link {
-        color: blue;
-        text-decoration: underline;
-    }
-
-</style>
-
-<table class="table table-striped position-relative">
-    <thead>
-        <tr>
-            <th>Description</th>
-            <th>Marker Alignment</th>
-            <th>Marker Additional Typing</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var item in Model.MarkerTypes)
+        @if (Model.ShowDeleteError)
         {
-            var imgSrc = Model.MarkerImagesBase64.ContainsKey(item.Id) ? Model.MarkerImagesBase64[item.Id] : null;
-            <tr>
-                <td class="marker-desc" style="position: relative;">
-                    <a asp-page="Details" asp-route-id="@item.Id" class="marker-link">
-                        @item.TypeDesc
-                    </a>
-
-                    @if (!string.IsNullOrEmpty(imgSrc))
-                    {
-                        <div class="marker-image-tooltip">
-                            <img src="@imgSrc" alt="Marker Image" style="max-width: 300px; max-height: 300px;" />
-                        </div>
-                    }
-                </td>
-                <td>@(item.FkBgdMarkerAlignmentTypeNavigation?.TypeDesc ?? "N/A")</td>
-                <td>@(item.FkBgdMarkerAdditionalTypeNavigation?.TypeDesc ?? "N/A")</td>
-                <td>
-                    <a asp-page="Edit" asp-route-id="@item.Id">Edit</a> |
-                    <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this marker type?');">
-                        <button type="submit" class="btn btn-link p-0 m-0 align-baseline">Delete</button>
-                    </form> |
-                    <a asp-page="Details" asp-route-id="@item.Id">Details</a>
-                </td>
-            </tr>
+            <div class="alert alert-warning border-warning shadow-sm" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                This marker is linked to @Model.DeleteLinkedCount @((Model.DeleteLinkedCount == 1) ? "game" : "games"), it cannot be deleted.
+            </div>
         }
-    </tbody>
-</table>
+
+        <div class="mb-3">
+            <a asp-page="Add" class="btn btn-primary shadow-sm">
+                <i class="bi bi-plus-circle me-1"></i> Add New Marker Type
+            </a>
+            <a asp-page="AddAdditionalType" class="btn btn-outline-primary shadow-sm">
+                Add Additional Type
+            </a>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th class="text-body-emphasis">Description</th>
+                        <th class="text-body-emphasis">Marker Alignment</th>
+                        <th class="text-body-emphasis">Additional Typing</th>
+                        <th class="text-end text-body-emphasis">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.MarkerTypes)
+                    {
+                        var imgSrc = Model.MarkerImagesBase64.ContainsKey(item.Id) ? Model.MarkerImagesBase64[item.Id] : null;
+                        <tr>
+                            <td>
+                                <a asp-page="Details" asp-route-id="@item.Id"
+                                   class="marker-link"
+                                   data-hover-img="@imgSrc">
+                                    @item.TypeDesc
+                                </a>
+                            </td>
+                            <td>
+                                <span class="text-body-secondary">
+                                    @(item.FkBgdMarkerAlignmentTypeNavigation?.TypeDesc ?? "N/A")
+                                </span>
+                            </td>
+                            <td>
+                                <span class="text-body-secondary">
+                                    @(item.FkBgdMarkerAdditionalTypeNavigation?.TypeDesc ?? "N/A")
+                                </span>
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group shadow-sm">
+                                    <a asp-page="./Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+
+                                    <a asp-page="./Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" title="Edit Marker">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+
+                                    <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" class="d-inline"
+                                          onsubmit="return confirm('Are you sure you want to delete this marker?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" style="border-top-left-radius: 0; border-bottom-left-radius: 0;" title="Delete Marker">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
-<script>
-    document.querySelectorAll('td.marker-desc').forEach(cell => {
-        const tooltip = cell.querySelector('.marker-image-tooltip');
-        cell.addEventListener('mouseenter', () => {
-            if (tooltip) {
-                tooltip.style.display = 'block';
-            }
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tooltip = document.getElementById('markerImageTooltip');
+            const tooltipImg = document.getElementById('tooltipImage');
+
+            if (!tooltip || !tooltipImg) return;
+
+            const imageCache = {};
+
+            document.querySelectorAll('.marker-link').forEach(link => {
+                const src = link.getAttribute('data-hover-img');
+
+                // --- PRELOAD ---
+                if (src && src.trim() !== "" && !imageCache[src]) {
+                    const img = new Image();
+                    img.src = src;
+                    imageCache[src] = img;
+                }
+
+                // --- EVENTS ---
+                link.addEventListener('mouseenter', (e) => {
+                    const currentSrc = e.currentTarget.getAttribute('data-hover-img');
+                    if (currentSrc && currentSrc.trim() !== "") {
+                        tooltipImg.src = currentSrc;
+                        tooltip.style.display = 'block';
+                    }
+                });
+
+                link.addEventListener('mousemove', (e) => {
+                    // Offset slightly to avoid flickering under the cursor
+                    tooltip.style.top = (e.pageY + 15) + 'px';
+                    tooltip.style.left = (e.pageX + 15) + 'px';
+                });
+
+                link.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                    tooltipImg.src = ""; // Clear src to prevent "flash" of old image next time
+                });
+            });
         });
-        cell.addEventListener('mouseleave', () => {
-            if (tooltip) {
-                tooltip.style.display = 'none';
-            }
-        });
-    });
-</script>
+    </script>
 }

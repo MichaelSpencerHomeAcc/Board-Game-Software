@@ -4,7 +4,60 @@
     ViewData["Title"] = "Home page";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+@* Hero Section - Uses the new site.css logic for depth *@
+<div class="p-5 mb-4 bg-body-tertiary rounded-3 shadow-sm border border-secondary-subtle">
+    <div class="container-fluid py-5 text-center">
+        <h1 class="display-5 fw-bold text-body">Game Night Manager</h1>
+        <p class="col-md-8 fs-4 mx-auto text-body-secondary">
+            Track your collection, manage your shelves, and organize the perfect gaming session.
+        </p>
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
+            <a class="btn btn-primary btn-lg px-4 gap-3 shadow-sm" asp-page="/GameNight/Index">
+                <i class="bi bi-calendar-plus me-2"></i>Plan a Game Night
+            </a>
+            <a class="btn btn-outline-secondary btn-lg px-4 shadow-sm" asp-page="/Browsing/BoardGames/Index">
+                <i class="bi bi-collection me-2"></i>View Collection
+            </a>
+        </div>
+    </div>
+</div>
+
+@* Dashboard Stats Section *@
+<div class="row g-4 text-center">
+    <div class="col-md-3">
+        <div class="card bg-body-tertiary border-secondary-subtle h-100 shadow-sm">
+            <div class="card-body">
+                <i class="bi bi-dice-5 text-primary-emphasis fs-1 mb-2"></i>
+                <h6 class="text-uppercase text-body-secondary small fw-bold">Games</h6>
+                <h2 class="display-6 fw-bold mb-0 text-body">24</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-body-tertiary border-secondary-subtle h-100 shadow-sm">
+            <div class="card-body">
+                <i class="bi bi-people text-success-emphasis fs-1 mb-2"></i>
+                <h6 class="text-uppercase text-body-secondary small fw-bold">Players</h6>
+                <h2 class="display-6 fw-bold mb-0 text-body">12</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-body-tertiary border-secondary-subtle h-100 shadow-sm">
+            <div class="card-body">
+                <i class="bi bi-calendar-event text-warning-emphasis fs-1 mb-2"></i>
+                <h6 class="text-uppercase text-body-secondary small fw-bold">Upcoming</h6>
+                <h2 class="display-6 fw-bold mb-0 text-body">2</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-body-tertiary border-secondary-subtle h-100 shadow-sm">
+            <div class="card-body">
+                <i class="bi bi-bookshelf text-info-emphasis fs-1 mb-2"></i>
+                <h6 class="text-uppercase text-body-secondary small fw-bold">Shelves</h6>
+                <h2 class="display-6 fw-bold mb-0 text-body">4</h2>
+            </div>
+        </div>
+    </div>
 </div>
