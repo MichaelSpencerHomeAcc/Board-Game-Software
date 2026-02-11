@@ -1,0 +1,239 @@
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.DataSetup.Shelves.DetailsModel
+@{
+    ViewData["Title"] = "Shelf Details";
+}
+
+<style>
+    .shelf-hero {
+        background-color: var(--bs-tertiary-bg);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--bs-border-color);
+    }
+
+    .avatar-large {
+        width: 60px;
+        height: 60px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        border: 2px solid var(--bs-body-bg);
+    }
+
+    .shelf-grid-container {
+        display: inline-block;
+    }
+
+    .shelf-grid {
+        display: grid;
+        grid-template-columns: repeat( @Model.MaxSections, max-content);
+        gap: 8px;
+        background-color: var(--bs-secondary-bg);
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--bs-border-color);
+    }
+
+    .shelf-cubby {
+        width: 60px !important;
+        height: 60px !important;
+        background-color: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color);
+        border-radius: 4px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.1s ease, border-color 0.15s ease;
+        text-decoration: none;
+        color: var(--bs-body-color);
+        padding: 2px;
+        text-align: center;
+    }
+
+        .shelf-cubby:hover {
+            border-color: var(--bs-primary);
+            transform: scale(1.1);
+            z-index: 5;
+        }
+
+    .shelf-empty-slot {
+        width: 60px;
+        height: 60px;
+        border: 1px dashed var(--bs-border-color);
+        opacity: 0.1;
+        border-radius: 4px;
+    }
+
+    .cubby-blocked {
+        background-color: var(--bs-tertiary-bg);
+        opacity: 0.5;
+        background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, var(--bs-border-color) 5px, var(--bs-border-color) 10px);
+    }
+
+    .cubby-name {
+        font-weight: 800;
+        font-size: 0.7rem;
+    }
+
+    .cubby-count {
+        font-size: 0.55rem;
+        margin-top: 1px;
+    }
+
+    .cubby-fill-container {
+        width: 80%;
+        height: 4px;
+        background-color: var(--bs-border-color);
+        border-radius: 2px;
+        margin-top: 4px;
+        overflow: hidden;
+    }
+
+    .cubby-fill-bar {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+
+    .fixed-table {
+        table-layout: fixed;
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .fixed-table td {
+            vertical-align: middle;
+            border-bottom: 1px solid var(--bs-border-color);
+            padding: 8px;
+        }
+</style>
+
+<div class="container-fluid py-4">
+    @* --- Header --- *@
+    <div class="shelf-hero shadow-sm">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <div class="avatar-large" style="background-color: @Model.GetAvatarColor(Model.Shelf.ShelfName);">
+                    <span class="text-white h4 m-0">@Model.GetInitials(Model.Shelf.ShelfName)</span>
+                </div>
+            </div>
+            <div class="col">
+                <h1 class="h4 fw-bold mb-1 text-body">@Model.Shelf.ShelfName</h1>
+                <p class="text-muted mb-0 small"><i class="bi bi-layers me-1"></i> @Model.ActiveSections.Count Sections</p>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group shadow-sm">
+                    <a asp-page="./Edit" asp-route-id="@Model.Shelf.Id" class="btn btn-sm btn-primary"><i class="bi bi-pencil me-1"></i> Edit</a>
+                    <a asp-page="./Index" class="btn btn-sm btn-outline-secondary">Back</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        @* --- Visual Map --- *@
+        <div class="col-xl-4 col-lg-5 mb-4">
+            <div class="card shadow-sm border-0 h-100 bg-transparent">
+                <div class="card-header bg-transparent py-2 border-0 text-center">
+                    <h6 class="mb-0 fw-bold text-muted text-uppercase small">Quick Map</h6>
+                </div>
+                <div class="card-body pt-0 d-flex justify-content-center align-items-start">
+                    <div class="shelf-grid-container shadow-sm">
+                        <div class="shelf-grid">
+                            @{
+                                int tRows = (int?)(Model.Shelf.TotalRows) ?? 1;
+                            }
+                            @for (int r = 1; r <= tRows; r++)
+                            {
+                                @for (int c = 1; c <= Model.MaxSections; c++)
+                                {
+                                    var cubby = Model.ActiveSections.FirstOrDefault(x => (int?)(x.RowNumber) == r && (int?)(x.SectionNumber) == c);
+
+                                    if (cubby != null)
+                                    {
+                                        @* Calculate Space Usage *@
+                                        decimal usedWidth = cubby.BoardGameShelfSections
+                                        .Where(bgss => bgss.FkBgdBoardGameNavigation != null)
+                                        .Sum(bgss => bgss.FkBgdBoardGameNavigation.WidthCm ?? 0m);
+
+                                        decimal totalWidth = cubby.WidthCm;
+                                        decimal remainingWidth = totalWidth - usedWidth;
+                                        double percentFull = totalWidth > 0 ? (double)((usedWidth / totalWidth) * 100) : 0;
+
+                                        string barColor = percentFull > 90 ? "bg-danger" : (percentFull > 70 ? "bg-warning" : "bg-success");
+                                        @* Forced to 2 decimal places *@
+                                        string statusText = remainingWidth <= 0 ? "Full" : $"{remainingWidth.ToString("N2")} cm left";
+
+                                        <a href="/DataSetup/Shelves/ShelfSections/Details/@cubby.Id"
+                                           class="shelf-cubby shadow-sm @(cubby.Blocked == true ? "cubby-blocked" : "")"
+                                           data-bs-toggle="tooltip" data-bs-html="true"
+                                           title="<b>@cubby.SectionName</b><br/>Capacity: @totalWidth cm<br/>Status: @statusText">
+
+                                            <span class="cubby-name">@cubby.SectionName</span>
+                                            <span class="cubby-count badge bg-primary-subtle text-primary rounded-pill">@cubby.BoardGameShelfSections.Count G</span>
+
+                                            <div class="cubby-fill-container">
+                                                <div class="cubby-fill-bar @barColor" style="width: @(Math.Min(percentFull, 100))%"></div>
+                                            </div>
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <div class="shelf-empty-slot"></div>
+                                    }
+                                }
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* --- List View --- *@
+        <div class="col-xl-8 col-lg-7 mb-4">
+            <div class="card shadow-sm border-0 h-100 bg-transparent">
+                <div class="card-header bg-transparent py-2 border-0">
+                    <h6 class="mb-0 fw-bold text-muted text-uppercase small">Sections List</h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 fixed-table border-top border-secondary-subtle">
+                        <tbody>
+                            @foreach (var s in Model.ActiveSections.OrderBy(x => x.SectionName))
+                            {
+                                @* Updated link to ShelfSections folder *@
+                                <tr style="cursor: pointer;" onclick="window.location.href='/DataSetup/Shelves/ShelfSections/Details/@s.Id'">
+                                    <td class="ps-3">
+                                        <span class="fw-bold text-body small">@s.SectionName</span>
+                                        @if (s.Blocked == true)
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger ms-1" style="font-size: 0.6rem;">Blocked</span>
+                                        }
+                                    </td>
+                                    <td class="text-muted" style="font-size: 0.7rem;">R: @s.RowNumber C: @s.SectionNumber</td>
+                                    <td class="text-end pe-3">
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill" style="font-size: 0.7rem;">@s.BoardGameShelfSections.Count Games</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl)
+            })
+        })
+    </script>
+}

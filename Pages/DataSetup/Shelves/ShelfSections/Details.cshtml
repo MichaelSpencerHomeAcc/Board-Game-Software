@@ -1,0 +1,226 @@
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections.DetailsModel
+@{
+    ViewData["Title"] = "Section Details";
+}
+
+<style>
+    .section-hero {
+        background-color: var(--bs-tertiary-bg);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid var(--bs-border-color);
+    }
+
+    .stat-card {
+        background-color: var(--bs-body-bg);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--bs-border-color);
+        height: 100%;
+    }
+
+    /* Table Styling to match other pages */
+    .fixed-table {
+        table-layout: fixed;
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .fixed-table th {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            color: var(--bs-secondary-color);
+            border-bottom: 1px solid var(--bs-border-color);
+            padding: 12px 15px;
+        }
+
+        .fixed-table td {
+            vertical-align: middle;
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--bs-border-color);
+        }
+
+    .clickable-row {
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+        .clickable-row:hover {
+            background-color: var(--bs-secondary-bg) !important;
+        }
+
+    .game-thumb {
+        width: 50px;
+        height: 50px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid var(--bs-border-color);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .progress-custom {
+        height: 8px;
+        border-radius: 4px;
+        background-color: var(--bs-secondary-bg);
+    }
+</style>
+
+<div class="container-fluid py-4">
+    @* --- Breadcrumbs --- *@
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/DataSetup/Shelves/Index">Shelves</a></li>
+            <li class="breadcrumb-item">
+                <a href="/DataSetup/Shelves/Details/@Model.ShelfSection.FkBgdShelf">
+                    Shelf @Model.ShelfSection.FkBgdShelfNavigation?.ShelfName
+                </a>
+            </li>
+            <li class="breadcrumb-item active">Section @Model.ShelfSection.SectionName</li>
+        </ol>
+    </nav>
+
+    @* --- Hero Section --- *@
+    <div class="section-hero shadow-sm">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="display-5 fw-bold mb-1 text-body">Section @Model.ShelfSection.SectionName</h1>
+                <p class="text-muted mb-0 h5">
+                    <i class="bi bi-layers-half me-2 text-primary"></i>
+                    Row @Model.ShelfSection.RowNumber, Column @Model.ShelfSection.SectionNumber
+                </p>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group shadow-sm">
+                    <a href="/DataSetup/Shelves/Details/@Model.ShelfSection.FkBgdShelf" class="btn btn-sm btn-outline-secondary px-3">
+                        <i class="bi bi-arrow-left me-2"></i>Back to Shelf
+                    </a>
+                    <button class="btn btn-sm btn-primary px-3">
+                        <i class="bi bi-plus-lg me-2"></i>Add Game
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        @* --- Left Column: Space Analysis --- *@
+        <div class="col-lg-4 mb-4">
+            <div class="stat-card shadow-sm">
+                <h5 class="fw-bold mb-4 text-muted text-uppercase small">Space Analysis</h5>
+
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted small">Total Capacity</span>
+                    <span class="fw-bold">@Model.ShelfSection.WidthCm.ToString("N2") cm</span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted small">Used Width</span>
+                    <span class="fw-bold">@((Model.ShelfSection.WidthCm - Model.RemainingWidth).ToString("N2")) cm</span>
+                </div>
+
+                <div class="my-4">
+                    <div class="progress progress-custom mb-1">
+                        <div class="progress-bar @(Model.PercentFull > 90 ? "bg-danger" : "bg-success")"
+                             style="width: @Model.PercentFull%"></div>
+                    </div>
+                    <div class="text-end small text-muted">@Model.PercentFull.ToString("N1")% Full</div>
+                </div>
+
+                <div class="pt-3 border-top mt-3">
+                    <div class="text-muted small text-uppercase mb-1">Remaining Space</div>
+                    <div class="h3 fw-bold mb-0 @(Model.RemainingWidth < 5 ? "text-danger" : "text-success")">
+                        @Model.RemainingWidth.ToString("N2") <small class="h6">cm</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* --- Right Column: Contents Table --- *@
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 rounded-4 overflow-hidden bg-transparent">
+                <div class="card-header bg-transparent py-3 border-0">
+                    <h6 class="mb-0 fw-bold text-muted text-uppercase small">Stored Games (@Model.ShelfSection.BoardGameShelfSections.Count)</h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0 fixed-table bg-body rounded-3 shadow-sm">
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">Cover</th>
+                                <th>Game Title</th>
+                                <th style="width: 150px;" class="text-center">Width</th>
+                                <th style="width: 120px;" class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var bgss in Model.ShelfSection.BoardGameShelfSections.OrderBy(x => x.FkBgdBoardGameNavigation?.BoardGameName))
+                            {
+                                var game = bgss.FkBgdBoardGameNavigation;
+                                <tr class="clickable-row" onclick="handleRowClick(event, '/Browsing/BoardGames/BoardGameDetails/@bgss.FkBgdBoardGame')">
+                                    <td>
+                                        @if (game != null && Model.GameImages.TryGetValue(game.Id, out var base64Image))
+                                        {
+                                            <img src="@base64Image" class="game-thumb" alt="Cover" />
+                                        }
+                                        else
+                                        {
+                                            <div class="game-thumb bg-secondary-subtle d-flex align-items-center justify-content-center">
+                                                <i class="bi bi-image text-secondary h5 mb-0"></i>
+                                            </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-body">@game?.BoardGameName</div>
+                                        <div class="text-muted extra-small" style="font-size: 0.7rem;">
+                                            Added @bgss.TimeCreated.ToString("MMM dd, yyyy")
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis border fw-semibold">
+                                            @(game?.WidthCm?.ToString("N2") ?? "0.00") cm
+                                        </span>
+                                    </td>
+                                    <td class="text-end" onclick="event.stopPropagation();">
+                                        <div class="btn-group">
+                                            <a href="/Browsing/BoardGames/BoardGameDetails/@bgss.FkBgdBoardGame"
+                                               class="btn btn-sm btn-outline-secondary border-0" title="View">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger border-0" title="Remove">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!Model.ShelfSection.BoardGameShelfSections.Any())
+                            {
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="bi bi-box2 display-4 d-block mb-3 opacity-25"></i>
+                                        <p class="mb-0">This section is currently empty.</p>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function handleRowClick(event, url) {
+            // Prevent navigation if the user clicked a button or a link inside the row
+            if (event.target.closest('button') || event.target.closest('a')) {
+                return;
+            }
+            window.location.href = url;
+        }
+    </script>
+}
