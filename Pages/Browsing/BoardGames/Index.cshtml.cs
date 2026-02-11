@@ -27,6 +27,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
         public List<BoardGameViewModel> BoardGames { get; set; } = new();
 
+        [BindProperty(SupportsGet = true)]
         public string SearchTerm { get; set; } = string.Empty;
 
         public async Task OnGetAsync(string? search)
@@ -39,12 +40,18 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
-                bool isNumber = int.TryParse(SearchTerm, out int playerCount);
+                // Clean the search term: strip "min" so "60 min" becomes "60"
+                var cleanSearch = SearchTerm.Replace("min", "", StringComparison.OrdinalIgnoreCase).Trim();
+                bool isNumber = int.TryParse(cleanSearch, out int numericValue);
 
                 if (isNumber)
                 {
                     query = query.Where(bg =>
-                        (bg.PlayerCountMin <= playerCount && playerCount <= bg.PlayerCountMax)
+                        // 1. Match Player Count Range
+                        (bg.PlayerCountMin <= numericValue && numericValue <= bg.PlayerCountMax)
+                        // 2. NEW: Match Playing Time Range
+                        || (bg.PlayingTimeMinInMinutes <= numericValue && numericValue <= bg.PlayingTimeMaxInMinutes)
+                        // 3. Fallback to name/type string match
                         || bg.BoardGameName.Contains(SearchTerm)
                         || bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(SearchTerm)
                     );
@@ -68,7 +75,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
             if (frontImageType != null && games.Any())
             {
-                // Convert GIDs to strings for Mongo query
                 var gids = games.Select(g => g.Gid.ToString()).ToList();
                 var imageTypeGidString = frontImageType.Gid.ToString();
 
@@ -97,7 +103,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             }
             else
             {
-                // No images or no games
                 foreach (var game in games)
                 {
                     BoardGames.Add(new BoardGameViewModel
@@ -116,7 +121,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 return new JsonResult(new List<object>());
             }
 
-            bool isNumber = int.TryParse(term, out int playerCount);
+            var cleanSearch = term.Replace("min", "", StringComparison.OrdinalIgnoreCase).Trim();
+            bool isNumber = int.TryParse(cleanSearch, out int numericValue);
 
             var suggestionsQuery = _context.BoardGames
                 .Include(bg => bg.FkBgdBoardGameTypeNavigation)
@@ -125,7 +131,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             if (isNumber)
             {
                 suggestionsQuery = suggestionsQuery.Where(bg =>
-                    (bg.PlayerCountMin <= playerCount && playerCount <= bg.PlayerCountMax)
+                    (bg.PlayerCountMin <= numericValue && numericValue <= bg.PlayerCountMax)
+                    || (bg.PlayingTimeMinInMinutes <= numericValue && numericValue <= bg.PlayingTimeMaxInMinutes)
                     || bg.BoardGameName.Contains(term)
                     || bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(term)
                 );

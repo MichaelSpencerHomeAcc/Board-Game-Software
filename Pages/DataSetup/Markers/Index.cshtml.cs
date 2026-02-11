@@ -23,54 +23,63 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
         }
 
         public IList<BoardGameMarkerType> MarkerTypes { get; set; } = default!;
-
-        // Dictionary mapping MarkerType Id to Base64 image string
         public Dictionary<long, string?> MarkerImagesBase64 { get; set; } = new();
 
-        public string? DeleteErrorMessage { get; set; }
+        [BindProperty(SupportsGet = true)]
+        public string? SearchTerm { get; set; }
 
         public int? DeleteLinkedCount { get; set; }
         public bool ShowDeleteError => DeleteLinkedCount.HasValue && DeleteLinkedCount.Value > 0;
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(string? search)
         {
-            MarkerTypes = await _context.BoardGameMarkerTypes
+            SearchTerm = search;
+
+            var query = _context.BoardGameMarkerTypes
                 .Include(m => m.FkBgdMarkerAlignmentTypeNavigation)
                 .Include(m => m.FkBgdMarkerAdditionalTypeNavigation)
+                .Where(m => !m.Inactive);
+
+            if (!string.IsNullOrWhiteSpace(SearchTerm))
+            {
+                // Partial match for Description, Full match for Alignment or Additional Type
+                query = query.Where(m =>
+                    m.TypeDesc.Contains(SearchTerm) ||
+                    m.FkBgdMarkerAlignmentTypeNavigation.TypeDesc == SearchTerm ||
+                    m.FkBgdMarkerAdditionalTypeNavigation.TypeDesc == SearchTerm
+                );
+            }
+
+            MarkerTypes = await query
                 .OrderBy(mt => mt.TypeDesc)
                 .ToListAsync();
 
+            // Image Fetching
             var gids = MarkerTypes.Select(m => m.Gid.ToString()).ToList();
-
-            var filter = Builders<BoardGameImages>.Filter.And(
-                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
-                Builders<BoardGameImages>.Filter.In("GID", gids)
-            );
-
-            var imageDocs = await _imagesCollection.Find(filter).ToListAsync();
-
-            var imagesDict = imageDocs
-                .Where(img => img.ImageBytes != null && img.GID.HasValue)
-                .ToDictionary(img => img.GID.Value.ToString(), img => $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}");
-
-
-            foreach (var marker in MarkerTypes)
+            if (gids.Any())
             {
-                var gidStr = marker.Gid.ToString();
-                MarkerImagesBase64[marker.Id] = imagesDict.ContainsKey(gidStr) ? imagesDict[gidStr] : null;
+                var filter = Builders<BoardGameImages>.Filter.And(
+                    Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
+                    Builders<BoardGameImages>.Filter.In("GID", gids)
+                );
+
+                var imageDocs = await _imagesCollection.Find(filter).ToListAsync();
+                var imagesDict = imageDocs
+                    .Where(img => img.ImageBytes != null && img.GID.HasValue)
+                    .ToDictionary(img => img.GID.Value.ToString(), img => $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}");
+
+                foreach (var marker in MarkerTypes)
+                {
+                    var gidStr = marker.Gid.ToString();
+                    MarkerImagesBase64[marker.Id] = imagesDict.ContainsKey(gidStr) ? imagesDict[gidStr] : null;
+                }
             }
         }
-
-
 
         public async Task<IActionResult> OnPostDeleteAsync(long id)
         {
             var markerType = await _context.BoardGameMarkerTypes.FindAsync(id);
-
-            if (markerType == null)
-            {
-                return NotFound();
-            }
+            if (markerType == null) return NotFound();
 
             var linkedCount = await _context.BoardGameMarkers
                 .CountAsync(bgm => bgm.FkBgdBoardGameMarkerType == id && !bgm.Inactive);
@@ -78,19 +87,13 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
             if (linkedCount > 0)
             {
                 DeleteLinkedCount = linkedCount;
-
-                MarkerTypes = await _context.BoardGameMarkerTypes
-                    .Include(m => m.FkBgdMarkerAlignmentTypeNavigation)
-                    .OrderBy(mt => mt.TypeDesc)
-                    .ToListAsync();
-
+                await OnGetAsync(SearchTerm); // Refresh list with current search
                 return Page();
             }
 
             markerType.Inactive = true;
             await _context.SaveChangesAsync();
-
-            return RedirectToPage();
+            return RedirectToPage(new { search = SearchTerm });
         }
     }
 }

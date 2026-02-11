@@ -72,14 +72,43 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
             var gameToUpdate = await _context.BoardGames.FindAsync(id);
             if (gameToUpdate == null) return NotFound();
 
-            // 1. Update the main game properties
+            // 1. Update the main game properties 
+            // Explicitly listing fields prevents "Over-Posting" attacks
             if (await TryUpdateModelAsync<BoardGame>(gameToUpdate, "BoardGame",
-                b => b.BoardGameName, b => b.FkBgdBoardGameType, b => b.HasMarkers)) // Add all your other fields here
+                b => b.BoardGameName, b => b.FkBgdBoardGameType, b => b.PlayerCountMin, b => b.PlayerCountMax, b => b.ReleaseDate, 
+                b => b.PlayingTimeMinInMinutes, b => b.PlayingTimeMaxInMinutes, b => b.HasMarkers, b => b.FkBgdBoardGameVictoryConditionType, 
+                b => b.HeightCm, b => b.WidthCm,
+                b => b.FkBgdBoardGameVictoryConditionType, b => b.FkBgdPublisher))
             {
-                // 2. Handle the Image logic (MongoDB)
-                if (ImageUpload != null)
+                // 2. Handle Image logic (placeholder for your MongoDB logic)
+                if (ImageUpload != null && ImageUpload.Length > 0)
                 {
-                    // ... (Your image upload code here)
+                    using var ms = new MemoryStream();
+                    await ImageUpload.CopyToAsync(ms);
+                    var imageBytes = ms.ToArray();
+
+                    // Find the "Board Game Front" type GID from SQL
+                    var frontImageType = await _context.BoardGameImageTypes
+                        .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+
+                    if (frontImageType != null)
+                    {
+                        // Remove existing front images for this GID to avoid duplicates
+                        await _boardGameImages.DeleteManyAsync(img =>
+                            img.GID == gameToUpdate.Gid && img.ImageTypeGID == frontImageType.Gid);
+
+                        var newImage = new BoardGameImages
+                        {
+                            GID = gameToUpdate.Gid,
+                            ImageTypeGID = frontImageType.Gid,
+                            SQLTable = "BoardGames",
+                            ImageBytes = imageBytes,
+                            ContentType = ImageUpload.ContentType,
+                            Description = $"Updated front image for {gameToUpdate.BoardGameName}"
+                        };
+
+                        await _boardGameImages.InsertOneAsync(newImage);
+                    }
                 }
 
                 // 3. SMART SYNC for Markers
@@ -89,26 +118,20 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
 
                 if (!gameToUpdate.HasMarkers)
                 {
-                    // If the master toggle is off, wipe markers
                     _context.BoardGameMarkers.RemoveRange(currentMarkersInDb);
                 }
                 else
                 {
-                    // Get IDs from the database
-                    var currentIds = currentMarkersInDb.Select(m => m.FkBgdBoardGameMarkerType ?? 0).ToHashSet();
-
-                    // Get IDs from the UI (the pills) - Ensure MarkerTypeIds isn't null
                     var selectedIds = (MarkerTypeIds ?? new List<long>()).Distinct().ToHashSet();
 
-                    // A. Remove markers that are in DB but NOT in the new selection
-                    var toRemove = currentMarkersInDb.Where(m => !selectedIds.Contains(m.FkBgdBoardGameMarkerType ?? 0)).ToList();
+                    // Remove markers no longer selected
+                    var toRemove = currentMarkersInDb.Where(m => !selectedIds.Contains(m.FkBgdBoardGameMarkerType ?? 0));
                     _context.BoardGameMarkers.RemoveRange(toRemove);
 
-                    // B. Add markers that are in selection but NOT in DB
-                    var toAdd = selectedIds.Where(sid => !currentIds.Contains(sid)).ToList();
-                    foreach (var newId in toAdd)
-                    {
-                        _context.BoardGameMarkers.Add(new BoardGameMarker
+                    // Add new markers
+                    var currentIds = currentMarkersInDb.Select(m => m.FkBgdBoardGameMarkerType ?? 0).ToHashSet();
+                    var toAdd = selectedIds.Where(sid => !currentIds.Contains(sid))
+                        .Select(newId => new BoardGameMarker
                         {
                             Gid = Guid.NewGuid(),
                             FkBgdBoardGame = id,
@@ -118,15 +141,20 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
                             ModifiedBy = User.Identity?.Name ?? "system",
                             TimeModified = DateTime.UtcNow
                         });
-                    }
+
+                    _context.BoardGameMarkers.AddRange(toAdd);
                 }
 
                 await _context.SaveChangesAsync();
                 return RedirectToPage("./BoardGameDetails", new { id = gameToUpdate.Id });
             }
 
+            // IMPORTANT: If we reach here, validation failed. 
+            // We MUST reload the data so the UI doesn't break.
+            await ReloadPageData(id);
             return Page();
         }
+
         private async Task ReloadPageData(long id)
         {
             ExistingMarkers = await _context.BoardGameMarkers.Include(m => m.FkBgdBoardGameMarkerTypeNavigation).Where(m => m.FkBgdBoardGame == id).ToListAsync();

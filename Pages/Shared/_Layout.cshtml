@@ -10,6 +10,13 @@
         var user = await UserManager.GetUserAsync(User);
         isAdmin = user != null && await UserManager.IsInRoleAsync(user, "Admin");
     }
+
+    // Smart helper: checks if the title contains the keyword
+    string IsActive(string keyword)
+    {
+        var title = ViewData["Title"]?.ToString() ?? "";
+        return title.Contains(keyword, StringComparison.OrdinalIgnoreCase) ? "active" : "link-body-emphasis";
+    }
 }
 
 <!DOCTYPE html>
@@ -24,12 +31,10 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 
     <script>
-        // Theme Management Script
         const setTheme = (theme) => {
             document.documentElement.setAttribute('data-bs-theme', theme);
             localStorage.setItem('theme', theme);
         };
-
         const storedTheme = localStorage.getItem('theme') || 'light';
         setTheme(storedTheme);
 
@@ -38,7 +43,6 @@
             if (localStorage.getItem('theme') === 'dark') {
                 toggle.checked = true;
             }
-
             toggle.addEventListener('change', () => {
                 const newTheme = toggle.checked ? 'dark' : 'light';
                 setTheme(newTheme);
@@ -47,13 +51,12 @@
     </script>
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm border-bottom shadow-sm mb-3 bg-body">
+    <header class="main-header">
+        <nav class="navbar navbar-expand-sm border-bottom shadow-sm bg-body">
             <div class="container-fluid">
                 <a class="navbar-brand fw-bold text-primary" asp-page="/Index">
                     <i class="bi bi-dice-5-fill me-2"></i>Board Game Manager
                 </a>
-
                 <div class="d-flex align-items-center">
                     <div class="form-check form-switch me-3">
                         <i class="bi bi-sun-fill text-warning me-1"></i>
@@ -69,12 +72,12 @@
     <div class="container-fluid">
         <div class="row">
             @* Sidebar Navigation *@
-            <div class="col-md-2 bg-body-tertiary border-end" style="min-height: 100vh;">
+            <div class="col-md-2 bg-body-tertiary border-end sidebar-nav px-0">
                 <div class="p-3">
                     <h6 class="text-uppercase text-body-secondary fw-bold small mb-3 pt-2">Navigation</h6>
                     <ul class="nav nav-pills flex-column mb-4">
                         <li class="nav-item">
-                            <a class="nav-link @(ViewData["Title"]?.ToString() == "Home page" ? "active" : "link-body-emphasis")" asp-page="/Index">
+                            <a class="nav-link @IsActive("Home")" asp-page="/Index">
                                 <i class="bi bi-house-door me-2"></i> Home
                             </a>
                         </li>
@@ -84,34 +87,34 @@
                     {
                         <h6 class="text-uppercase text-body-secondary fw-bold small mb-3">Data Setup</h6>
                         <ul class="nav nav-pills flex-column mb-4">
-                            <li><a class="nav-link link-body-emphasis" asp-page="/DataSetup/Players/Index"><i class="bi bi-people me-2"></i> Players</a></li>
+                            <li><a class="nav-link @IsActive("Players")" asp-page="/DataSetup/Players/Index"><i class="bi bi-people me-2"></i> Players</a></li>
                             @if (isAdmin)
                             {
-                                <li><a class="nav-link link-body-emphasis" asp-page="/DataSetup/Markers/Index"><i class="bi bi-tag me-2"></i> Markers</a></li>
-                                <li><a class="nav-link link-body-emphasis" asp-page="/DataSetup/Publishers/Index"><i class="bi bi-building me-2"></i> Publishers</a></li>
-                                <li><a class="nav-link link-body-emphasis" asp-page="/DataSetup/Shelves/Index"><i class="bi bi-bookshelf me-2"></i> Shelves</a></li>
+                                <li><a class="nav-link @IsActive("Markers")" asp-page="/DataSetup/Markers/Index"><i class="bi bi-tag me-2"></i> Markers</a></li>
+                                <li><a class="nav-link @IsActive("Publishers")" asp-page="/DataSetup/Publishers/Index"><i class="bi bi-building me-2"></i> Publishers</a></li>
+                                <li><a class="nav-link @IsActive("Shelves")" asp-page="/DataSetup/Shelves/Index"><i class="bi bi-bookshelf me-2"></i> Shelves</a></li>
                             }
                         </ul>
                     }
 
                     <h6 class="text-uppercase text-body-secondary fw-bold small mb-3">Browsing</h6>
                     <ul class="nav nav-pills flex-column mb-4">
-                        <li><a class="nav-link link-body-emphasis" asp-page="/Browsing/BoardGames/Index"><i class="bi bi-dice-5 me-2"></i> Board Games</a></li>
-                        <li><a class="nav-link link-body-emphasis" asp-page="/GameNight/Index"><i class="bi bi-calendar-check me-2"></i> Game Nights</a></li>
+                        <li><a class="nav-link @IsActive("Board Games")" asp-page="/Browsing/BoardGames/Index"><i class="bi bi-dice-5 me-2"></i> Board Games</a></li>
+                        <li><a class="nav-link @IsActive("Game Night")" asp-page="/GameNight/Index"><i class="bi bi-calendar-check me-2"></i> Game Nights</a></li>
                     </ul>
 
                     @if (isAdmin)
                     {
                         <h6 class="text-uppercase text-danger-emphasis fw-bold small mb-3">Admin</h6>
                         <ul class="nav nav-pills flex-column">
-                            <li><a class="nav-link link-body-emphasis" asp-page="/Admin/ManageUsers/Index"><i class="bi bi-gear me-2"></i> Manage Users</a></li>
+                            <li><a class="nav-link @IsActive("Users")" asp-page="/Admin/ManageUsers/Index"><i class="bi bi-gear me-2"></i> Manage Users</a></li>
                         </ul>
                     }
                 </div>
             </div>
 
             @* Main Content Area *@
-            <div class="col-md-10">
+            <div class="col-md-10 px-0">
                 <main role="main" class="pb-3 px-4 mt-3">
                     @RenderBody()
                 </main>
@@ -119,7 +122,6 @@
         </div>
     </div>
 
-    @* --- GLOBAL PREVIEW TOOLTIP --- *@
     <div id="markerImageTooltip">
         <img id="tooltipImage" src="" alt="Preview" />
     </div>

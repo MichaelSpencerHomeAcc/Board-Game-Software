@@ -97,10 +97,15 @@
         <div class="row">
             <div class="col-lg-8">
                 <div class="card bg-dark text-white border-secondary mb-4">
-                    <div class="card-header border-secondary"><h5>Core Details</h5></div>
+                    <div class="card-header border-secondary">
+                        <h5 class="mb-0">Edit Game Information</h5>
+                    </div>
+                    
                     <div class="card-body">
+                        <h5 class="text-info mb-3">Core Details</h5>
+
                         <div class="mb-3">
-                            <label class="form-label text-muted small uppercase">Game Name</label>
+                            <label class="form-label text-muted small">Game Name</label>
                             <input asp-for="BoardGame.BoardGameName" class="form-control bg-dark text-white border-secondary" />
                         </div>
 
@@ -118,7 +123,62 @@
                                     <option value="">-- Select Type --</option>
                                 </select>
                             </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">Victory Condition</label>
+                                <select asp-for="BoardGame.FkBgdBoardGameVictoryConditionType"
+                                        class="form-select bg-dark text-white border-secondary"
+                                        asp-items="Model.VictoryConditions">
+                                    <option value="">-- Select Victory Condition --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3"></div>
                         </div>
+
+                        <hr class="border-secondary my-4">
+                        <h5 class="text-info mb-3">Gameplay Statistics</h5>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">Min Players</label>
+                                <input asp-for="BoardGame.PlayerCountMin" type="number" class="form-control bg-dark text-white border-secondary" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">Max Players</label>
+                                <input asp-for="BoardGame.PlayerCountMax" type="number" class="form-control bg-dark text-white border-secondary" />
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">Min Play Time (Mins)</label>
+                                <input asp-for="BoardGame.PlayingTimeMinInMinutes" type="number" class="form-control bg-dark text-white border-secondary" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">Max Play Time (Mins)</label>
+                                <input asp-for="BoardGame.PlayingTimeMaxInMinutes" type="number" class="form-control bg-dark text-white border-secondary" />
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">Release Date</label>
+                                <input asp-for="BoardGame.ReleaseDate" type="date" class="form-control bg-dark text-white border-secondary" />
+                            </div>
+                            <div class="col-md-6 mb-3"></div>
+                        </div>
+
+                        <hr class="border-secondary my-4">
+                        <h5 class="text-info mb-3">Physical Details</h5>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">Height (cm)</label>
+                                <input asp-for="BoardGame.HeightCm" type="number" step="0.01" class="form-control bg-dark text-white border-secondary" placeholder="0" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">Width (cm)</label>
+                                <input asp-for="BoardGame.WidthCm" type="number" step="0.01" class="form-control bg-dark text-white border-secondary" placeholder="0" />
+                            </div>
+                        </div>
+
+                        <hr class="border-secondary my-4">
 
                         <div class="form-check form-switch mb-4 mt-2">
                             <input class="form-check-input" type="checkbox" asp-for="BoardGame.HasMarkers" id="markerSwitch">
@@ -143,8 +203,7 @@
                                 }
                             </div>
                         </div>
-                    </div>
-                </div>
+                    </div> </div>
             </div>
 
             <div class="col-lg-4">
@@ -164,39 +223,6 @@
     </form>
 </div>
 
-<div class="modal fade" id="bulkModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content bg-dark text-white border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title">Bulk Add Components</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="text" id="modalSearch" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Filter list..." onkeyup="filterBulk()">
-                <div class="bulk-container">
-                    @foreach (var mt in Model.AvailableMarkerTypes)
-                    {
-                        <div class="bulk-tile" onclick="toggleTile(this)" data-id="@mt.Id" data-name="@mt.TypeDesc">
-                            @if (!string.IsNullOrEmpty(mt.ImageBase64))
-                            {
-                                <img src="@mt.ImageBase64" class="tile-img" />
-                            }
-                            else
-                            {
-                                <div class="tile-img d-flex align-items-center justify-content-center text-muted"><i class="bi bi-box"></i></div>
-                            }
-                            <span class="tile-text">@mt.TypeDesc</span>
-                        </div>
-                    }
-                </div>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-primary w-100" onclick="commitBulk()" data-bs-dismiss="modal">Add Selected</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 @section Scripts {
     <script>
         // Toggle UI Section
@@ -214,7 +240,9 @@
         }
 
         // Bulk Modal Logic
-        function toggleTile(el) { el.classList.toggle('selected'); }
+        function toggleTile(el) {
+            el.classList.toggle('selected');
+        }
 
         function filterBulk() {
             let val = document.getElementById('modalSearch').value.toLowerCase();
@@ -229,14 +257,15 @@
                 const id = t.dataset.id;
                 const name = t.dataset.name;
 
+                // Create the pill element
                 const pill = document.createElement('div');
                 pill.className = 'marker-pill';
                 pill.innerHTML = `${name} <input type="hidden" name="MarkerTypeIds" value="${id}" />
                                   <button type="button" class="btn-remove-pill" onclick="this.parentElement.remove()">&times;</button>`;
                 container.appendChild(pill);
 
+                // Reset tile state
                 t.classList.remove('selected');
-                t.style.display = 'none'; // Prevent adding twice
             });
         }
     </script>

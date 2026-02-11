@@ -3,167 +3,213 @@
 @{
     ViewData["Title"] = "Board Games";
 }
+
 <style>
-    /* Makes the header adapt to the theme instead of being stuck in 'Light' mode */
-    .table thead {
-        background-color: var(--bs-tertiary-bg);
-        border-bottom: 2px solid var(--bs-border-color);
+    .fixed-table {
+        table-layout: fixed;
+        width: 100%;
+        border-collapse: collapse;
     }
 
-    /* Subtle hover effect for rows to make them pop in Dark Mode */
-    .table-hover tbody tr:hover {
-        background-color: var(--bs-secondary-bg) !important;
-        transition: background-color 0.2s ease;
+        .fixed-table tbody tr {
+            height: 92px !important;
+        }
+
+        .fixed-table td {
+            height: 92px !important;
+            padding: 0 12px !important;
+            vertical-align: middle;
+            overflow: hidden;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+    /* THE LOCKDOWN: Prevents zooming, shows full art */
+    .img-lockdown {
+        width: 68px !important;
+        height: 68px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 8px;
+        flex-shrink: 0;
+        /* Subtle background for the 'empty' space of non-square boxes */
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+        .img-lockdown img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            /* Changed from 'cover' to 'contain' to stop the zoom */
+            object-fit: contain;
+        }
+
+    .clickable-row:hover {
+        background-color: rgba(var(--bs-primary-rgb), 0.1) !important;
+    }
+
+    /* Ensure text doesn't wrap and break the height */
+    .text-truncate-custom {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
     }
 </style>
 
-<div class="row">
-    <div class="col-12">
-        <h2 class="text-body mb-4">Board Game Search</h2>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="text-body m-0">Board Game Search</h1>
+            <p class="text-muted mb-0">Track your collection and find your next session.</p>
+        </div>
+        @if (User.IsInRole("Admin"))
+        {
+            <a asp-page="./Add" class="btn btn-primary shadow-sm">
+                <i class="bi bi-plus-circle me-1"></i> Add New Board Game
+            </a>
+        }
+    </div>
 
+    @* --- SEARCH BAR --- *@
+    <div class="mb-4">
         <form method="get" id="searchForm" autocomplete="off">
-            <div class="input-group mb-3 position-relative">
-                <input id="searchBox" name="search" class="form-control" placeholder="Search by name, type, or player count..." value="@Model.SearchTerm" autocomplete="off" />
-                <button class="btn btn-primary" type="submit">
-                    <i class="bi bi-search"></i> Search
-                </button>
-                <ul id="autocomplete-results" class="list-group position-absolute w-100 bg-body border shadow-sm" style="z-index: 1000; top: 100%; left: 0; max-height: 300px; overflow-y: auto;"></ul>
+            <div class="input-group shadow-sm position-relative">
+                <span class="input-group-text bg-body border-end-0 text-muted">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input id="searchBox" name="search" class="form-control border-start-0 ps-0"
+                       placeholder="Search by name, type, or player count..."
+                       value="@Model.SearchTerm" autocomplete="off" />
+                <button class="btn btn-primary px-4" type="submit">Search</button>
+                <ul id="autocomplete-results" class="list-group position-absolute w-100 bg-body border shadow-sm"
+                    style="z-index: 1000; top: 100%; left: 0; max-height: 300px; overflow-y: auto;"></ul>
             </div>
         </form>
+    </div>
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            @if (User.IsInRole("Admin"))
-            {
-                <a asp-page="./Add" class="btn btn-success">
-                    <i class="bi bi-plus-lg"></i> Add New Board Game
-                </a>
-            }
-        </div>
+    @* Tooltip Container *@
+    <div id="markerImageTooltip" class="shadow-lg border border-secondary-subtle bg-body p-1 rounded"
+         style="position:absolute; display:none; z-index:2000; pointer-events: none;">
+        <img id="tooltipImage" src="" alt="Preview" class="rounded" style="max-width: 250px; max-height: 250px; display: block;" />
+    </div>
 
-        <div id="previewTooltip" class="shadow-lg border border-secondary-subtle bg-body p-1 rounded"
-             style="position:absolute; display:none; z-index:2000; pointer-events: none;">
-            <img id="previewImage" src="" alt="Preview" class="rounded" style="max-width: 250px; max-height: 250px; display: block;" />
-        </div>
-
+    <div class="card shadow-sm border-0 bg-transparent">
         @if (Model.BoardGames.Any())
         {
             <div class="table-responsive">
-                <table class="table table-hover align-middle">
+                <table class="table table-hover align-middle mb-0 fixed-table">
                     <thead>
                         <tr>
-                            <th class="text-body">Name</th>
-                            <th class="text-body">Type</th>
-                            <th class="text-body">Players</th>
-                            <th class="text-body">Release Date</th>
+                            <th style="width: 45%;" class="ps-4">Name</th>
+                            <th style="width: 15%;">Type</th>
+                            <th style="width: 15%;">Players</th>
+                            <th style="width: 15%;">Play Time</th>
+                            <th style="width: 10%;" class="text-end pe-4">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var item in Model.BoardGames)
                         {
-                            <tr>
-                                <td>
-                                    <a asp-page="./BoardGameDetails" asp-route-id="@item.BoardGame.Id"
-                                       class="board-game-link fw-bold text-decoration-none"
-                                       data-image="@item.Base64Image">
-                                        @item.BoardGame.BoardGameName
-                                    </a>
+                            <tr class="clickable-row" data-href="@Url.Page("./BoardGameDetails", new { id = item.BoardGame.Id })" style="cursor: pointer;">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="img-lockdown game-image-hover me-3 shadow-sm" data-hover-img="@item.Base64Image">
+                                            @if (!string.IsNullOrEmpty(item.Base64Image))
+                                            {
+                                                <img src="@item.Base64Image" alt="" />
+                                            }
+                                            else
+                                            {
+                                                <div class="h-100 w-100 d-flex align-items-center justify-content-center">
+                                                    <i class="bi bi-dice-5 text-secondary" style="font-size: 1.5rem;"></i>
+                                                </div>
+                                            }
+                                        </div>
+                                        <span class="fw-bold text-body-emphasis">@item.BoardGame.BoardGameName</span>
+                                    </div>
                                 </td>
                                 <td class="text-body-secondary">@item.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc</td>
                                 <td class="text-body-secondary">
-                                    @item.BoardGame.PlayerCountMin @(item.BoardGame.PlayerCountMax != item.BoardGame.PlayerCountMin ? " – " + item.BoardGame.PlayerCountMax : "")
+                                    <i class="bi bi-people me-1 small"></i>
+                                    @item.BoardGame.PlayerCountMin@(item.BoardGame.PlayerCountMax != item.BoardGame.PlayerCountMin ? " – " + item.BoardGame.PlayerCountMax : "")
                                 </td>
-                                <td class="text-body-secondary">@(item.BoardGame.ReleaseDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                                <td class="text-body-secondary">
+                                    @if (item.BoardGame.PlayingTimeMinInMinutes != null || item.BoardGame.PlayingTimeMaxInMinutes != null)
+                                    {
+                                        <i class="bi bi-clock me-1 small"></i>
+                                        @item.BoardGame.PlayingTimeMinInMinutes
+                                        @(item.BoardGame.PlayingTimeMaxInMinutes != item.BoardGame.PlayingTimeMinInMinutes ? " – " + item.BoardGame.PlayingTimeMaxInMinutes : "")
+                            
+                                        <span> min</span>
+                                    }
+                                </td>
+                                <td class="text-end pe-4">
+                                    <a asp-page="./BoardGameDetails" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                </td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
         }
-        else
-        {
-            <div class="alert alert-info">No board games found.</div>
-        }
     </div>
 </div>
 
 @section Scripts {
     <script>
-        // --- 1. PRELOADING LOGIC (Fixes the first-hover bug) ---
-        const imageCache = {};
-
         document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('.board-game-link').forEach(link => {
-                const src = link.getAttribute('data-image');
-                if (src && src.length > 0 && !imageCache[src]) {
-                    const img = new Image();
-                    img.src = src;
-                    imageCache[src] = img; // Pre-warm the browser cache
-                }
-            });
-        });
-
-        // --- 2. AUTOCOMPLETE LOGIC ---
-        const input = document.getElementById('searchBox');
-        const resultsBox = document.getElementById('autocomplete-results');
-        const form = document.getElementById('searchForm');
-
-        input.addEventListener('input', async () => {
-            const term = input.value.trim();
-            if (term.length < 1) {
-                resultsBox.innerHTML = '';
-                return;
-            }
-
-            try {
-                const res = await fetch(`/Browsing/BoardGames?handler=Search&term=${encodeURIComponent(term)}`);
-                const data = await res.json();
-
-                resultsBox.innerHTML = '';
-                data.forEach(item => {
-                    const li = document.createElement('li');
-                    li.className = 'list-group-item list-group-item-action text-body';
-                    li.style.cursor = 'pointer';
-                    li.innerHTML = `<strong>${item.name}</strong> <small class="text-muted">(${item.type})</small>`;
-                    li.onclick = () => {
-                        input.value = item.name;
-                        resultsBox.innerHTML = '';
-                        form.submit();
-                    };
-                    resultsBox.appendChild(li);
+            // Clickable Row
+            document.querySelectorAll('.clickable-row').forEach(row => {
+                row.addEventListener('click', (e) => {
+                    if (e.target.closest('button') || e.target.closest('a')) return;
+                    window.location.href = row.getAttribute('data-href');
                 });
-            } catch (err) {
-                console.error('Autocomplete fetch failed', err);
-            }
-        });
-
-        document.addEventListener('click', e => {
-            if (!resultsBox.contains(e.target) && e.target !== input) {
-                resultsBox.innerHTML = '';
-            }
-        });
-
-        // --- 3. REFINED TOOLTIP LOGIC ---
-        const previewTooltip = document.getElementById('previewTooltip');
-        const previewImage = document.getElementById('previewImage');
-
-        document.querySelectorAll('.board-game-link').forEach(link => {
-            link.addEventListener('mouseenter', e => {
-                const imageUrl = e.target.getAttribute('data-image');
-                if (imageUrl) {
-                    previewImage.src = imageUrl;
-                    previewTooltip.style.display = 'block';
-                }
             });
 
-            link.addEventListener('mousemove', e => {
-                // Offset by 15px to avoid mouse flicker
-                previewTooltip.style.top = (e.pageY + 15) + 'px';
-                previewTooltip.style.left = (e.pageX + 15) + 'px';
-            });
+            // Autocomplete
+            const input = document.getElementById('searchBox');
+            const resultsBox = document.getElementById('autocomplete-results');
+            if (input) {
+                input.addEventListener('input', async () => {
+                    const term = input.value.trim();
+                    if (term.length < 1) { resultsBox.innerHTML = ''; return; }
+                    const res = await fetch(`/Browsing/BoardGames?handler=Search&term=${encodeURIComponent(term)}`);
+                    const data = await res.json();
+                    resultsBox.innerHTML = '';
+                    data.forEach(item => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item list-group-item-action';
+                        li.innerHTML = `<strong>${item.name}</strong> <small class="text-muted">(${item.type})</small>`;
+                        li.onclick = () => { input.value = item.name; resultsBox.innerHTML = ''; document.getElementById('searchForm').submit(); };
+                        resultsBox.appendChild(li);
+                    });
+                });
+            }
 
-            link.addEventListener('mouseleave', () => {
-                previewTooltip.style.display = 'none';
-                // Don't clear src immediately to prevent "flash" if moving between links quickly
+            // Tooltip
+            const tooltip = document.getElementById('markerImageTooltip');
+            const tooltipImg = document.getElementById('tooltipImage');
+            document.querySelectorAll('.game-image-hover').forEach(box => {
+                box.addEventListener('mouseenter', (e) => {
+                    const src = e.currentTarget.getAttribute('data-hover-img');
+                    if (src) { tooltipImg.src = src; tooltip.style.display = 'block'; }
+                });
+                box.addEventListener('mousemove', (e) => {
+                    const offset = 15;
+                    let top = e.pageY + offset;
+                    let left = e.pageX + offset;
+                    if (e.clientY + tooltip.offsetHeight + offset > window.innerHeight) top = e.pageY - tooltip.offsetHeight - offset;
+                    if (e.clientX + tooltip.offsetWidth + offset > window.innerWidth) left = e.pageX - tooltip.offsetWidth - offset;
+                    tooltip.style.top = top + 'px';
+                    tooltip.style.left = left + 'px';
+                });
+                box.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
             });
         });
     </script>
