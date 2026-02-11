@@ -23,7 +23,8 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
             _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
-        public Publisher Publisher { get; set; }
+        public Publisher Publisher { get; set; } = default!;
+        public string? PublisherLogoBase64 { get; set; }
         public IList<(BoardGame Game, string? ImageBase64)> RelatedBoardGamesWithImages { get; set; } = new List<(BoardGame, string?)>();
 
         public async Task<IActionResult> OnGetAsync(long id)
@@ -36,38 +37,36 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
                 return NotFound();
             }
 
-            // Load related board games by this publisher
+            // Load Publisher Logo
+            var logoType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Image");
+            if (logoType != null)
+            {
+                var logoDoc = await _imagesCollection.Find(x => x.GID == Publisher.Gid && x.ImageTypeGID == logoType.Gid).FirstOrDefaultAsync();
+                if (logoDoc?.ImageBytes != null)
+                {
+                    PublisherLogoBase64 = $"data:{logoDoc.ContentType};base64,{Convert.ToBase64String(logoDoc.ImageBytes)}";
+                }
+            }
+
+            // Load Related Games
             var relatedGames = await _context.BoardGames
                 .Where(bg => bg.FkBgdPublisher == id)
                 .OrderBy(bg => bg.BoardGameName)
                 .ToListAsync();
 
-            // Load images from MongoDB (similar logic to your existing code)
+            var frontImageType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+
             foreach (var game in relatedGames)
             {
                 string? base64Image = null;
-
-                if (game.Gid != Guid.Empty)
+                if (game.Gid != Guid.Empty && frontImageType != null)
                 {
-                    var frontImageType = await _context.BoardGameImageTypes
-                        .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-
-                    if (frontImageType != null)
+                    var imageDoc = await _imagesCollection.Find(x => x.GID == game.Gid && x.ImageTypeGID == frontImageType.Gid).FirstOrDefaultAsync();
+                    if (imageDoc?.ImageBytes != null)
                     {
-                        var filter = Builders<BoardGameImages>.Filter.And(
-                            Builders<BoardGameImages>.Filter.Eq(x => x.GID, game.Gid),
-                            Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, frontImageType.Gid)
-                        );
-
-                        var imageDoc = await _imagesCollection.Find(filter).FirstOrDefaultAsync();
-
-                        if (imageDoc?.ImageBytes != null)
-                        {
-                            base64Image = $"data:{imageDoc.ContentType};base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
-                        }
+                        base64Image = $"data:{imageDoc.ContentType};base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
                     }
                 }
-
                 RelatedBoardGamesWithImages.Add((game, base64Image));
             }
 

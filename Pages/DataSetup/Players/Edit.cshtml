@@ -2,55 +2,126 @@
 @model EditModel
 @using Microsoft.AspNetCore.Http
 
-<h1>Edit Player</h1>
-
-<form method="post" enctype="multipart/form-data">
-    <input type="hidden" asp-for="Player.Id" />
-
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-    <div class="mb-3">
-        <label asp-for="Player.FirstName" class="form-label"></label>
-        <input asp-for="Player.FirstName" class="form-control" />
-        <span asp-validation-for="Player.FirstName" class="text-danger"></span>
-    </div>
-    <div class="mb-3">
-        <label asp-for="Player.MiddleName" class="form-label"></label>
-        <input asp-for="Player.MiddleName" class="form-control" />
-        <span asp-validation-for="Player.MiddleName" class="text-danger"></span>
-    </div>
-    <div class="mb-3">
-        <label asp-for="Player.LastName" class="form-label"></label>
-        <input asp-for="Player.LastName" class="form-control" />
-        <span asp-validation-for="Player.LastName" class="text-danger"></span>
-    </div>
-    <div class="mb-3">
-        <label asp-for="Player.DateOfBirth" class="form-label"></label>
-        <input asp-for="Player.DateOfBirth" type="date" class="form-control" />
-        <span asp-validation-for="Player.DateOfBirth" class="text-danger"></span>
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <a asp-page="./Index" class="btn btn-outline-secondary me-3 shadow-sm btn-sm">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h2 class="m-0 fw-bold">Edit Player Profile</h2>
     </div>
 
-    <div class="mb-3">
-        <label>Current Profile Picture:</label><br />
-        @if (Model.ProfileImageBase64 != null)
-        {
-            <img src="@Model.ProfileImageBase64" alt="Profile Picture" style="max-width: 150px; max-height: 150px;" />
-        }
-        else
-        {
-            <span>No profile picture uploaded.</span>
-        }
-    </div>
+    <form method="post" enctype="multipart/form-data">
+        <input type="hidden" asp-for="Player.Id" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger border-0 shadow-sm mb-4"></div>
 
-    <div class="mb-3">
-        <label for="Upload" class="form-label">Upload New Profile Picture</label>
-        <input type="file" asp-for="Upload" class="form-control" accept="image/*" />
-    </div>
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card shadow-sm border-0 text-center h-100">
+                    <div class="card-body p-4 d-flex flex-column align-items-center justify-content-center">
+                        <label class="form-label fw-bold mb-3">Profile Picture</label>
 
-    <button type="submit" class="btn btn-primary">Save</button>
-    <a asp-page="./Index" class="btn btn-secondary">Cancel</a>
-</form>
+                        <div class="mb-4">
+                            @if (Model.ProfileImageBase64 != null)
+                            {
+                                <img src="@Model.ProfileImageBase64" id="preview" class="img-fluid rounded-circle shadow" style="width: 160px; height: 160px; object-fit: cover;" alt="Current Profile" />
+                            }
+                            else
+                            {
+                                <div id="placeholder" class="avatar-xl bg-primary bg-gradient text-white shadow mx-auto">
+                                    <i class="bi bi-person-fill" style="font-size: 3.5rem;"></i>
+                                </div>
+                                <img id="preview" class="img-fluid rounded-circle shadow d-none" style="width: 160px; height: 160px; object-fit: cover;" />
+                            }
+                        </div>
+
+                        <div class="w-100">
+                            <label for="Upload" class="btn btn-outline-primary btn-sm w-100 mb-2">
+                                <i class="bi bi-upload me-1"></i> Choose New Photo
+                            </label>
+                            <input type="file" asp-for="Upload" id="Upload" class="form-control d-none" accept="image/*" onchange="previewImage(this)" />
+                            <small class="text-muted d-block mt-1">Accepts JPG, PNG, GIF</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-transparent border-0 pt-4 px-4">
+                        <h5 class="fw-bold mb-0">Personal Details</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Player.FirstName" class="form-label small fw-bold text-muted text-uppercase">First Name</label>
+                                <input asp-for="Player.FirstName" class="form-control bg-body-tertiary border-0 shadow-sm" placeholder="e.g. John" />
+                                <span asp-validation-for="Player.FirstName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Player.MiddleName" class="form-label small fw-bold text-muted text-uppercase">Middle Name</label>
+                                <input asp-for="Player.MiddleName" class="form-control bg-body-tertiary border-0 shadow-sm" />
+                                <span asp-validation-for="Player.MiddleName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-12 mb-3">
+                                <label asp-for="Player.LastName" class="form-label small fw-bold text-muted text-uppercase">Last Name</label>
+                                <input asp-for="Player.LastName" class="form-control bg-body-tertiary border-0 shadow-sm" />
+                                <span asp-validation-for="Player.LastName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-12 mb-4">
+                                <label asp-for="Player.DateOfBirth" class="form-label small fw-bold text-muted text-uppercase">Date of Birth</label>
+                                <div class="input-group shadow-sm">
+                                    <span class="input-group-text bg-body-tertiary border-0"><i class="bi bi-calendar3"></i></span>
+                                    <input asp-for="Player.DateOfBirth" type="date" class="form-control bg-body-tertiary border-0" />
+                                </div>
+                                <span asp-validation-for="Player.DateOfBirth" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-end mt-2">
+                            <a asp-page="./Index" class="btn btn-outline-secondary px-4">Cancel</a>
+                            <button type="submit" class="btn btn-primary px-5 shadow">
+                                <i class="bi bi-save me-2"></i> Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+    .avatar-xl {
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .form-control:focus {
+        background-color: var(--bs-body-bg);
+        box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.15);
+    }
+</style>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var preview = document.getElementById('preview');
+                    var placeholder = document.getElementById('placeholder');
+
+                    preview.src = e.target.result;
+                    preview.classList.remove('d-none');
+                    if(placeholder) placeholder.classList.add('d-none');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
 }

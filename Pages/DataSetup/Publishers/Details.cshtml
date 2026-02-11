@@ -4,77 +4,131 @@
     ViewData["Title"] = "Publisher Details";
 }
 
-<h1>Publisher Details</h1>
-
-<div class="row">
-    <div class="col-md-8">
-        <dl class="row">
-            <dt class="col-sm-3">Publisher Name</dt>
-            <dd class="col-sm-9">@Model.Publisher.PublisherName</dd>
-
-            <dt class="col-sm-3">Description</dt>
-            <dd class="col-sm-9">@Model.Publisher.Description</dd>
-        </dl>
-
-        <p>
-            <a asp-page="Edit" asp-route-id="@Model.Publisher.Id" asp-route-returnUrl="Details?id=@Model.Publisher.Id" class="btn btn-primary">Edit</a>
-            <a asp-page="Index" class="btn btn-secondary ms-2">Return to List</a>
-        </p>
+<div class="container-fluid pb-5">
+    <div class="d-flex align-items-center mb-4">
+        <a asp-page="Index" class="btn btn-outline-secondary me-3 shadow-sm">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h1 class="text-body m-0">Publisher Details</h1>
     </div>
-</div>
 
-<div style="
-    position: fixed;
-    bottom: 10px;
-    left: 0;
-    width: 100vw;
-    max-height: 250px;
-    background-color: white;
-    border-top: 1px solid #ccc;
-    padding: 0.5rem 1rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    z-index: 1050;
-">
-    <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem;">Board Games by this Publisher</h3>
-    <div style="white-space: nowrap;">
-        @foreach (var (game, img) in Model.RelatedBoardGamesWithImages)
-        {
-            <div style="display: inline-block; vertical-align: top; width: 130px; margin-right: 0.75rem;">
-                <div class="card h-100" style="height: 220px; display: flex; flex-direction: column;">
-                    @if (!string.IsNullOrEmpty(img))
-                    {
-                        <img src="@img" class="card-img-top" alt="@game.BoardGameName" style="width: 100%; height: 140px; object-fit: cover;" />
-                    }
-                    else
-                    {
-                        <svg class="bd-placeholder-img card-img-top" width="100%" height="140"
-                             xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Placeholder"
-                             preserveAspectRatio="xMidYMid slice" focusable="false">
-                            <title>No image</title>
-                            <rect width="100%" height="100%" fill="#868e96"></rect>
-                            <text x="50%" y="50%" fill="#dee2e6" dy=".3em" text-anchor="middle">No image</text>
-                        </svg>
-                    }
-                    <div class="card-body d-flex flex-column justify-content-between" style="flex-grow: 1; padding: 0.5rem;">
-                        <h5 class="card-title" style="
-                                font-size: clamp(0.7rem, 1vw, 1rem);
-                                line-height: 1.1;
-                                margin-bottom: 0.25rem;
-                                overflow: hidden;
-                                text-overflow: ellipsis;
-                                display: -webkit-box;
-                                -webkit-line-clamp: 2;
-                                -webkit-box-orient: vertical;
-                            ">
-                            @game.BoardGameName
-                        </h5>
-                        <a asp-page="/Browsing/BoardGames/Details" asp-route-id="@game.Id" class="btn btn-sm btn-outline-primary mt-auto" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
-                            View Details
-                        </a>
-                    </div>
+    <div class="row g-4">
+        <div class="col-md-7">
+            <div class="card shadow-sm border-0 bg-body-tertiary">
+                <div class="card-body p-4">
+                    <h4 class="card-title mb-4 text-primary-emphasis">General Information</h4>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-body-secondary fw-medium">Name</dt>
+                        <dd class="col-sm-8 text-body-emphasis fw-bold">@Model.Publisher.PublisherName</dd>
+
+                        <hr class="my-3 opacity-25">
+
+                        <dt class="col-sm-4 text-body-secondary fw-medium">Description</dt>
+                        <dd class="col-sm-8 text-body">@(Model.Publisher.Description ?? "N/A")</dd>
+                    </dl>
+                </div>
+                <div class="card-footer bg-transparent border-0 p-4 pt-0">
+                    <a asp-page="Edit" asp-route-id="@Model.Publisher.Id" class="btn btn-primary px-4 shadow-sm">
+                        <i class="bi bi-pencil-square me-1"></i> Edit Details
+                    </a>
                 </div>
             </div>
-        }
+        </div>
+
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0 h-100 bg-body-tertiary text-center d-flex align-items-center justify-content-center p-3">
+                @if (!string.IsNullOrEmpty(Model.PublisherLogoBase64))
+                {
+                    <img src="@Model.PublisherLogoBase64" alt="Publisher Logo" class="img-fluid rounded shadow-sm" style="max-height: 300px; object-fit: contain;" />
+                }
+                else
+                {
+                    <div class="text-body-secondary p-5">
+                        <i class="bi bi-image text-secondary opacity-50" style="font-size: 4rem;"></i>
+                        <p class="mt-2 mb-0">No image available.</p>
+                    </div>
+                }
+            </div>
+        </div>
     </div>
 </div>
+
+<div class="related-games-tray bg-body-tertiary border-top shadow-lg">
+    <div class="container-fluid py-3">
+        <h5 class="mb-3 px-2 text-body-emphasis fw-bold">
+            <i class="bi bi-controller me-2"></i>Board Games Using this Marker
+        </h5>
+        <div class="d-flex overflow-x-auto pb-2 custom-scrollbar">
+            @foreach (var (game, img) in Model.RelatedBoardGamesWithImages)
+            {
+                <div class="related-game-card me-3">
+                    <div class="card h-100 shadow-sm border-0">
+                        @if (!string.IsNullOrEmpty(img))
+                        {
+                            <img src="@img" class="card-img-top" alt="@game.BoardGameName" />
+                        }
+                        else
+                        {
+                            <div class="card-img-top bg-secondary-subtle" style="height: 80px; overflow: hidden;">
+                                <i class="bi bi-camera-video"></i>
+                            </div>
+                        }
+                        <div class="card-body p-2 d-flex flex-column">
+                            <span class="game-title text-truncate fw-semibold text-body" title="@game.BoardGameName">@game.BoardGameName</span>
+                            <a href="/Browsing/BoardGames/BoardGameDetails/@game.Id" class="btn btn-sm btn-link p-0 text-start text-decoration-none mt-1">
+                                View Details <i class="bi bi-arrow-right small"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    /* 1. Force the tray height so the browser knows the exact footprint */
+    :root {
+        --tray-height: 220px;
+    }
+
+    /* 2. Apply padding to the main container instead of the body
+              to prevent the "jumping" background effect */
+    .details-container {
+        padding-bottom: var(--tray-height);
+    }
+
+    /* 3. Refined Tray Styles */
+    .related-games-tray {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: var(--tray-height);
+        z-index: 1030;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+
+    .related-game-card {
+        min-width: 160px;
+        max-width: 160px;
+        height: 150px; /* Fixed height for inner cards */
+        transition: transform 0.2s;
+    }
+
+        .related-game-card .card-img-top {
+            height: 80px;
+            object-fit: cover;
+        }
+
+    /* Clean scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: var(--bs-secondary-bg);
+        border-radius: 10px;
+    }
+</style>

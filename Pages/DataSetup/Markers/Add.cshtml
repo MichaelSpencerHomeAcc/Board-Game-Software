@@ -4,26 +4,94 @@
     ViewData["Title"] = "Add Board Game Marker Type";
 }
 
-<h1>Add Board Game Marker Type</h1>
-
-<form method="post">
-    <div class="form-group">
-        <label asp-for="MarkerType.TypeDesc">Name</label>
-        <input asp-for="MarkerType.TypeDesc" class="form-control" />
-        <span asp-validation-for="MarkerType.TypeDesc" class="text-danger"></span>
+<div class="container-fluid">
+    <div class="d-flex align-items-center mb-4">
+        <a asp-page="Index" class="btn btn-outline-secondary me-3 shadow-sm">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h1 class="text-body m-0">Create New Marker Type</h1>
     </div>
 
-    <div class="form-group">
-        <label asp-for="MarkerType.FkBgdMarkerAlignmentType">Alignment Type</label>
-        <select asp-for="MarkerType.FkBgdMarkerAlignmentType" asp-items="Model.AlignmentTypes" class="form-control">
-            <option value="">-- Select Alignment --</option>
-        </select>
-    </div>
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 bg-body-tertiary">
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data">
+                        <div class="row">
+                            <div class="col-md-7">
+                                <div class="mb-3">
+                                    <label asp-for="MarkerType.TypeDesc" class="form-label fw-semibold">Marker Name</label>
+                                    <input asp-for="MarkerType.TypeDesc" class="form-control shadow-sm" placeholder="e.g., Wooden Meeple, Plastic Token" />
+                                    <span asp-validation-for="MarkerType.TypeDesc" class="text-danger small"></span>
+                                </div>
 
-    <button type="submit" class="btn btn-primary mt-2">Add Marker Type</button>
-    <a asp-page="Index" class="btn btn-secondary mt-2">Cancel</a>
-</form>
+                                <div class="mb-3">
+                                    <label asp-for="MarkerType.FkBgdMarkerAlignmentType" class="form-label fw-semibold">Alignment Type</label>
+                                    <select asp-for="MarkerType.FkBgdMarkerAlignmentType" asp-items="Model.AlignmentTypes" class="form-select shadow-sm">
+                                        <option value="">-- Select Alignment --</option>
+                                    </select>
+                                    <span asp-validation-for="MarkerType.FkBgdMarkerAlignmentType" class="text-danger small"></span>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="form-label fw-semibold">Upload Marker Image</label>
+                                    <input type="file" name="Upload" id="imageUpload" class="form-control shadow-sm" accept="image/*" />
+                                    <div class="form-text">Visual aids help identify markers during game setup.</div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-5">
+                                <label class="form-label fw-semibold d-block text-center">Image Preview</label>
+                                <div class="d-flex align-items-center justify-content-center border rounded bg-body p-3 shadow-inner" style="min-height: 220px;">
+                                    <div id="no-preview" class="text-center opacity-25">
+                                        <i class="bi bi-plus-square-dotted" style="font-size: 3.5rem;"></i>
+                                        <p class="small mb-0">Select an image</p>
+                                    </div>
+                                    <img id="preview" src="#" alt="Preview" class="img-fluid rounded shadow-sm d-none" style="max-height: 180px;" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4 opacity-25">
+
+                        <div class="d-flex justify-content-end">
+                            <a asp-page="Index" class="btn btn-outline-secondary px-4 me-2">Cancel</a>
+                            <button type="submit" class="btn btn-success px-5 shadow">
+                                <i class="bi bi-plus-circle me-1"></i> Create Marker
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm bg-primary text-white mb-3">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-lightbulb me-2"></i>Quick Tip</h5>
+                    <p class="card-text small">
+                        Marker types define the physical components used in gameplay. Be descriptive so they are easy to find when adding new Board Games!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Live Preview Logic
+        document.getElementById('imageUpload').onchange = evt => {
+            const [file] = evt.target.files;
+            if (file) {
+                const preview = document.getElementById('preview');
+                const noPreview = document.getElementById('no-preview');
+
+                preview.src = URL.createObjectURL(file);
+                preview.classList.remove('d-none');
+                if(noPreview) noPreview.classList.add('d-none');
+            }
+        }
+    </script>
 }
