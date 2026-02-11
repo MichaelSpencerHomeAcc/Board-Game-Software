@@ -4,13 +4,35 @@
     ViewData["Title"] = "Board Games";
 }
 
+@* --- Helper Functions for Avatars --- *@
+@functions {
+    public string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return name.Substring(0, Math.Min(2, name.Length)).ToUpper();
+        return (parts[0][0].ToString() + parts[1][0].ToString()).ToUpper();
+    }
+
+    public string GetAvatarColor(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return "#6c757d";
+        int hash = 0;
+        foreach (char c in name) hash = c + ((hash << 5) - hash);
+        var colors = new[] { "#d32f2f", "#c2185b", "#7b1fa2", "#512da8", "#303f9f", "#1976d2", "#0288d1", "#0097a7", "#00796b", "#388e3c", "#689f38", "#fbc02d", "#ffa000", "#f57c00", "#e64a19", "#5d4037", "#616161", "#455a64" };
+        return colors[Math.Abs(hash) % colors.Length];
+    }
+}
+
 <style>
+    /* 1. LOCK THE TABLE LAYOUT */
     .fixed-table {
         table-layout: fixed;
         width: 100%;
         border-collapse: collapse;
     }
 
+        /* 2. LOCK THE ROW HEIGHT */
         .fixed-table tbody tr {
             height: 92px !important;
         }
@@ -23,35 +45,50 @@
             border-bottom: 1px solid rgba(255,255,255,0.1);
         }
 
-    /* THE LOCKDOWN: Prevents zooming, shows full art */
+    /* 3. LOCK THE IMAGE BOX */
     .img-lockdown {
-        width: 68px !important;
-        height: 68px !important;
+        width: 64px !important;
+        height: 64px !important;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
         border-radius: 8px;
         flex-shrink: 0;
-        /* Subtle background for the 'empty' space of non-square boxes */
-        background-color: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: var(--bs-tertiary-bg);
+        border: 1px solid rgba(0,0,0,0.1);
+        transition: transform 0.2s ease-in-out;
     }
 
+        /* 4. FILL THE BOX (Cover mode) */
         .img-lockdown img {
-            max-width: 100%;
-            max-height: 100%;
-            width: auto;
-            height: auto;
-            /* Changed from 'cover' to 'contain' to stop the zoom */
-            object-fit: contain;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Ensures image fills the square */
+            object-position: center;
         }
 
-    .clickable-row:hover {
-        background-color: rgba(var(--bs-primary-rgb), 0.1) !important;
+    /* Avatar Text Fallback */
+    .avatar-text {
+        color: white;
+        font-weight: 600;
+        font-size: 1.2rem;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.2);
     }
 
-    /* Ensure text doesn't wrap and break the height */
+    .clickable-row:hover {
+        background-color: rgba(var(--bs-primary-rgb), 0.06) !important;
+    }
+
+        .clickable-row:hover .img-lockdown {
+            transform: scale(1.05);
+        }
+
     .text-truncate-custom {
         white-space: nowrap;
         overflow: hidden;
@@ -61,155 +98,199 @@
 </style>
 
 <div class="container-fluid">
+    @* --- Header --- *@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="text-body m-0">Board Game Search</h1>
-            <p class="text-muted mb-0">Track your collection and find your next session.</p>
+            <h1 class="text-body m-0">Board Games</h1>
+            <p class="text-muted mb-0">Browse and manage your collection.</p>
         </div>
         @if (User.IsInRole("Admin"))
         {
-            <a asp-page="./Add" class="btn btn-primary shadow-sm">
-                <i class="bi bi-plus-circle me-1"></i> Add New Board Game
-            </a>
+            <div class="d-flex gap-2">
+                <a asp-page="./Add" class="btn btn-primary shadow-sm">
+                    <i class="bi bi-plus-circle me-1"></i> Add Game
+                </a>
+            </div>
         }
     </div>
 
     @* --- SEARCH BAR --- *@
     <div class="mb-4">
-        <form method="get" id="searchForm" autocomplete="off">
-            <div class="input-group shadow-sm position-relative">
+        <form method="get" autocomplete="off">
+            <div class="input-group shadow-sm">
                 <span class="input-group-text bg-body border-end-0 text-muted">
                     <i class="bi bi-search"></i>
                 </span>
-                <input id="searchBox" name="search" class="form-control border-start-0 ps-0"
+                <input name="search" class="form-control border-start-0 ps-0"
                        placeholder="Search by name, type, or player count..."
-                       value="@Model.SearchTerm" autocomplete="off" />
+                       value="@Model.SearchTerm" />
                 <button class="btn btn-primary px-4" type="submit">Search</button>
-                <ul id="autocomplete-results" class="list-group position-absolute w-100 bg-body border shadow-sm"
-                    style="z-index: 1000; top: 100%; left: 0; max-height: 300px; overflow-y: auto;"></ul>
             </div>
         </form>
     </div>
 
-    @* Tooltip Container *@
+    @* --- Tooltip Container --- *@
     <div id="markerImageTooltip" class="shadow-lg border border-secondary-subtle bg-body p-1 rounded"
          style="position:absolute; display:none; z-index:2000; pointer-events: none;">
         <img id="tooltipImage" src="" alt="Preview" class="rounded" style="max-width: 250px; max-height: 250px; display: block;" />
     </div>
 
+    @* --- Data Table --- *@
     <div class="card shadow-sm border-0 bg-transparent">
-        @if (Model.BoardGames.Any())
-        {
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 fixed-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 45%;" class="ps-4">Name</th>
-                            <th style="width: 15%;">Type</th>
-                            <th style="width: 15%;">Players</th>
-                            <th style="width: 15%;">Play Time</th>
-                            <th style="width: 10%;" class="text-end pe-4">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in Model.BoardGames)
-                        {
-                            <tr class="clickable-row" data-href="@Url.Page("./BoardGameDetails", new { id = item.BoardGame.Id })" style="cursor: pointer;">
-                                <td class="ps-4">
-                                    <div class="d-flex align-items-center">
-                                        <div class="img-lockdown game-image-hover me-3 shadow-sm" data-hover-img="@item.Base64Image">
-                                            @if (!string.IsNullOrEmpty(item.Base64Image))
-                                            {
-                                                <img src="@item.Base64Image" alt="" />
-                                            }
-                                            else
-                                            {
-                                                <div class="h-100 w-100 d-flex align-items-center justify-content-center">
-                                                    <i class="bi bi-dice-5 text-secondary" style="font-size: 1.5rem;"></i>
-                                                </div>
-                                            }
-                                        </div>
-                                        <span class="fw-bold text-body-emphasis">@item.BoardGame.BoardGameName</span>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 fixed-table">
+                <thead class="border-bottom border-secondary-subtle">
+                    <tr>
+                        <th class="ps-4" style="width: 40%;">Name</th>
+                        <th style="width: 15%;">Type</th>
+                        <th style="width: 15%;">Players</th>
+                        <th style="width: 15%;">Play Time</th>
+                        <th class="text-end pe-4" style="width: 15%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="border-0">
+                    @foreach (var item in Model.BoardGames)
+                    {
+                        var hasImage = !string.IsNullOrEmpty(item.Base64Image);
+
+                        <tr class="clickable-row border-bottom border-secondary-subtle"
+                            data-href="@Url.Page("./BoardGameDetails", new { id = item.BoardGame.Id })"
+                            style="cursor: pointer;">
+
+                            @* 1. Name & Image *@
+                            <td class="ps-4 border-0">
+                                <div class="d-flex align-items-center">
+                                    <div class="img-lockdown game-image-hover me-3 shadow-sm"
+                                         data-hover-img="@(hasImage? item.Base64Image: "")">
+                                        @if (hasImage)
+                                        {
+                                            <img src="@item.Base64Image" alt="@item.BoardGame.BoardGameName" />
+                                        }
+                                        else
+                                        {
+                                            <div class="avatar-text" style="background-color: @GetAvatarColor(item.BoardGame.BoardGameName);">
+                                                @GetInitials(item.BoardGame.BoardGameName)
+                                            </div>
+                                        }
                                     </div>
-                                </td>
-                                <td class="text-body-secondary">@item.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc</td>
-                                <td class="text-body-secondary">
-                                    <i class="bi bi-people me-1 small"></i>
-                                    @item.BoardGame.PlayerCountMin@(item.BoardGame.PlayerCountMax != item.BoardGame.PlayerCountMin ? " – " + item.BoardGame.PlayerCountMax : "")
-                                </td>
-                                <td class="text-body-secondary">
-                                    @if (item.BoardGame.PlayingTimeMinInMinutes != null || item.BoardGame.PlayingTimeMaxInMinutes != null)
+                                    <div>
+                                        <span class="fw-bold text-body-emphasis text-truncate-custom">@item.BoardGame.BoardGameName</span>
+                                        <small class="text-muted">@(item.BoardGame.FkBgdPublisherNavigation?.PublisherName ?? "Unknown Publisher")</small>
+                                    </div>
+                                </div>
+                            </td>
+
+                            @* 2. Type *@
+                            <td class="border-0">
+                                <span class="text-body-secondary text-truncate-custom">
+                                    @(item.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc ?? "-")
+                                </span>
+                            </td>
+
+                            @* 3. Players *@
+                            <td class="border-0">
+                                <span class="text-body-secondary text-truncate-custom">
+                                    <i class="bi bi-people me-1 small opacity-50"></i>
+                                    @item.BoardGame.PlayerCountMin@(item.BoardGame.PlayerCountMax != item.BoardGame.PlayerCountMin ? "–" + item.BoardGame.PlayerCountMax : "")
+                                </span>
+                            </td>
+
+                            @* 4. Play Time (Updated Logic) *@
+                            <td class="border-0">
+                                <span class="text-body-secondary text-truncate-custom">
+                                    @if (item.BoardGame.PlayingTimeMinInMinutes.HasValue && item.BoardGame.PlayingTimeMinInMinutes.Value > 0)
                                     {
-                                        <i class="bi bi-clock me-1 small"></i>
+                                        <i class="bi bi-clock me-1 small opacity-50"></i>
                                         @item.BoardGame.PlayingTimeMinInMinutes
-                                        @(item.BoardGame.PlayingTimeMaxInMinutes != item.BoardGame.PlayingTimeMinInMinutes ? " – " + item.BoardGame.PlayingTimeMaxInMinutes : "")
-                            
-                                        <span> min</span>
+                                        @(item.BoardGame.PlayingTimeMaxInMinutes != item.BoardGame.PlayingTimeMinInMinutes ? "–" + item.BoardGame.PlayingTimeMaxInMinutes : "")
+                                
+                                        @:m
                                     }
-                                </td>
-                                <td class="text-end pe-4">
+                                    else
+                                    {
+                                        <span class="text-muted opacity-25">-</span>
+                                    }
+                                </span>
+                            </td>
+
+                            @* 5. Actions *@
+                            <td class="text-end pe-4 border-0">
+                                <div class="btn-group shadow-sm">
                                     <a asp-page="./BoardGameDetails" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-secondary">
                                         <i class="bi bi-eye"></i> View
                                     </a>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <a asp-page="./Edit" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     </div>
+
+    @if (!Model.BoardGames.Any())
+    {
+        <div class="text-center py-5">
+            <div class="mb-3">
+                <i class="bi bi-box-seam text-secondary opacity-25" style="font-size: 4rem;"></i>
+            </div>
+            <h4 class="text-secondary fw-normal">No games found</h4>
+            <p class="text-muted">Adjust your search or add a new game.</p>
+        </div>
+    }
 </div>
 
 @section Scripts {
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Clickable Row
+            // Clickable Row Logic
             document.querySelectorAll('.clickable-row').forEach(row => {
                 row.addEventListener('click', (e) => {
-                    if (e.target.closest('button') || e.target.closest('a')) return;
+                    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('form')) return;
                     window.location.href = row.getAttribute('data-href');
                 });
             });
 
-            // Autocomplete
-            const input = document.getElementById('searchBox');
-            const resultsBox = document.getElementById('autocomplete-results');
-            if (input) {
-                input.addEventListener('input', async () => {
-                    const term = input.value.trim();
-                    if (term.length < 1) { resultsBox.innerHTML = ''; return; }
-                    const res = await fetch(`/Browsing/BoardGames?handler=Search&term=${encodeURIComponent(term)}`);
-                    const data = await res.json();
-                    resultsBox.innerHTML = '';
-                    data.forEach(item => {
-                        const li = document.createElement('li');
-                        li.className = 'list-group-item list-group-item-action';
-                        li.innerHTML = `<strong>${item.name}</strong> <small class="text-muted">(${item.type})</small>`;
-                        li.onclick = () => { input.value = item.name; resultsBox.innerHTML = ''; document.getElementById('searchForm').submit(); };
-                        resultsBox.appendChild(li);
-                    });
-                });
-            }
-
-            // Tooltip
+            // Tooltip Logic
             const tooltip = document.getElementById('markerImageTooltip');
             const tooltipImg = document.getElementById('tooltipImage');
+
             document.querySelectorAll('.game-image-hover').forEach(box => {
-                box.addEventListener('mouseenter', (e) => {
-                    const src = e.currentTarget.getAttribute('data-hover-img');
-                    if (src) { tooltipImg.src = src; tooltip.style.display = 'block'; }
-                });
-                box.addEventListener('mousemove', (e) => {
-                    const offset = 15;
-                    let top = e.pageY + offset;
-                    let left = e.pageX + offset;
-                    if (e.clientY + tooltip.offsetHeight + offset > window.innerHeight) top = e.pageY - tooltip.offsetHeight - offset;
-                    if (e.clientX + tooltip.offsetWidth + offset > window.innerWidth) left = e.pageX - tooltip.offsetWidth - offset;
-                    tooltip.style.top = top + 'px';
-                    tooltip.style.left = left + 'px';
-                });
-                box.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+                const src = box.getAttribute('data-hover-img');
+
+                if(src && src.length > 0) {
+                    box.addEventListener('mouseenter', () => {
+                        tooltipImg.src = src;
+                        tooltip.style.display = 'block';
+                    });
+
+                    box.addEventListener('mousemove', (e) => {
+                        const offset = 15;
+                        let top = e.pageY + offset;
+                        let left = e.pageX + offset;
+
+                        // Prevent tooltip from going off-screen
+                        if (e.clientY + tooltip.offsetHeight + offset > window.innerHeight) {
+                            top = e.pageY - tooltip.offsetHeight - offset;
+                        }
+                        if (e.clientX + tooltip.offsetWidth + offset > window.innerWidth) {
+                            left = e.pageX - tooltip.offsetWidth - offset;
+                        }
+
+                        tooltip.style.top = top + 'px';
+                        tooltip.style.left = left + 'px';
+                    });
+
+                    box.addEventListener('mouseleave', () => {
+                        tooltip.style.display = 'none';
+                    });
+                }
             });
         });
     </script>

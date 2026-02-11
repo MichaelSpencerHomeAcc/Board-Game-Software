@@ -1,96 +1,118 @@
-using Board_Game_Software.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Board_Game_Software.Data;
+using Board_Game_Software.Models;
 using MongoDB.Driver;
-using System;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 
 namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 {
     public class DetailsModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
-        public IList<(BoardGame Game, string? ImageBase64)> RelatedBoardGamesWithImages { get; set; } = new List<(BoardGame, string?)>();
+        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
 
-        public DetailsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration config)
+        public DetailsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
         {
             _context = context;
-            var dbName = config["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(dbName);
-            _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
+            var databaseName = configuration["MongoDbSettings:Database"];
+            var database = mongoClient.GetDatabase(databaseName);
+            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
-        public BoardGameMarkerType? MarkerType { get; set; }
-        public string? MarkerImageBase64 { get; set; }
+        public BoardGameMarkerType BoardGameMarkerType { get; set; } = default!;
+        public IList<BoardGameMarker> BoardGameMarkers { get; set; } = default!;
 
-        public async Task<IActionResult> OnGetAsync(long id)
+        // Holds the main image for the Marker Type
+        public string? MarkerTypeImageBase64 { get; set; }
+
+        // Holds the COVER IMAGES for the linked Board Games
+        public Dictionary<long, string> BoardGameImagesBase64 { get; set; } = new();
+
+        public async Task<IActionResult> OnGetAsync(long? id)
         {
-            MarkerType = await _context.BoardGameMarkerTypes
-                .Include(m => m.FkBgdMarkerAlignmentTypeNavigation)
-                .Include(m => m.FkBgdMarkerAdditionalTypeNavigation)
+            if (id == null) return NotFound();
+
+            // 1. Fetch Main Marker Type
+            var boardgamemarkertype = await _context.BoardGameMarkerTypes
+                .Include(b => b.FkBgdMarkerAdditionalTypeNavigation)
+                .Include(b => b.FkBgdMarkerAlignmentTypeNavigation)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (MarkerType == null)
-            {
-                return NotFound();
-            }
+            if (boardgamemarkertype == null) return NotFound();
+            BoardGameMarkerType = boardgamemarkertype;
 
-            await LoadMarkerImage(MarkerType.Gid);
-
-            // Load related board games that use this marker type
-            var relatedGames = await _context.BoardGameMarkers
-                .Where(bgm => bgm.FkBgdBoardGameMarkerType == id && !bgm.Inactive)
-                .Include(bgm => bgm.FkBgdBoardGameNavigation)
-                .Select(bgm => bgm.FkBgdBoardGameNavigation)
-                .OrderBy(game => game.BoardGameName)  // Order by name here
+            // 2. Fetch Associated Markers AND the Linked Board Game
+            BoardGameMarkers = await _context.BoardGameMarkers
+                .Include(m => m.FkBgdBoardGameNavigation) // <--- Crucial: Load the Game info
+                .Where(m => m.FkBgdBoardGameMarkerType == id)
                 .ToListAsync();
 
-            // Load images from MongoDB similarly to BoardGameDetails.cshtml.cs
-            foreach (var game in relatedGames)
+            // 3. Fetch Main Image (Marker Type)
+            var typeImage = await _boardGameImages
+                .Find(x => x.SQLTable == "bgd.BoardGameMarkerType" && x.GID == BoardGameMarkerType.Gid)
+                .FirstOrDefaultAsync();
+
+            if (typeImage != null && typeImage.ImageBytes != null)
             {
-                string? base64Image = null;
+                MarkerTypeImageBase64 = $"data:{typeImage.ContentType};base64,{Convert.ToBase64String(typeImage.ImageBytes)}";
+            }
 
-                if (game.Gid != Guid.Empty)
+            // 4. Fetch Images for the LINKED BOARD GAMES
+            if (BoardGameMarkers.Any())
+            {
+                // Get the GIDs of the *Games*, not the markers
+                var gameGids = BoardGameMarkers
+                    .Select(m => (Guid?)m.FkBgdBoardGameNavigation.Gid)
+                    .Distinct()
+                    .ToList();
+
+                // Look up images for the Board Games
+                var filter = Builders<BoardGameImages>.Filter.And(
+                    Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGame"),
+                    Builders<BoardGameImages>.Filter.In(x => x.GID, gameGids)
+                );
+
+                var images = await _boardGameImages.Find(filter).ToListAsync();
+
+                // Map images back to the Marker ID (so the view can easily find the image for the row)
+                foreach (var marker in BoardGameMarkers)
                 {
-                    var frontImageType = await _context.BoardGameImageTypes
-                        .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+                    var gameGid = marker.FkBgdBoardGameNavigation.Gid;
+                    // Just take the first image found for this game
+                    var img = images.FirstOrDefault(x => x.GID == gameGid);
 
-                    if (frontImageType != null)
+                    if (img != null && img.ImageBytes != null)
                     {
-                        var filter = Builders<BoardGameImages>.Filter.And(
-                            Builders<BoardGameImages>.Filter.Eq(x => x.GID, game.Gid),
-                            Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, frontImageType.Gid)
-                        );
-
-                        var imageDoc = await _imagesCollection.Find(filter).FirstOrDefaultAsync();
-
-                        if (imageDoc?.ImageBytes != null)
-                        {
-                            base64Image = $"data:{imageDoc.ContentType};base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
-                        }
+                        BoardGameImagesBase64[marker.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
                     }
                 }
-
-                RelatedBoardGamesWithImages.Add((game, base64Image));
             }
 
             return Page();
         }
-        private async Task LoadMarkerImage(Guid gid)
+
+        // --- UI Helper Methods ---
+        public string GetInitials(string? text)
         {
-            var filter = Builders<BoardGameImages>.Filter.And(
-                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
-                Builders<BoardGameImages>.Filter.Eq(x => x.GID, gid)
-            );
+            if (string.IsNullOrWhiteSpace(text)) return "?";
+            var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 1) return text.Substring(0, Math.Min(2, text.Length)).ToUpper();
+            return (parts[0][0].ToString() + parts[1][0].ToString()).ToUpper();
+        }
 
-            var imageDoc = await _imagesCollection.Find(filter).FirstOrDefaultAsync();
-
-            if (imageDoc?.ImageBytes != null)
-                MarkerImageBase64 = $"data:{imageDoc.ContentType};base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
-            else
-                MarkerImageBase64 = null;
+        public string GetAvatarColor(string? name)
+        {
+            if (string.IsNullOrEmpty(name)) return "#6c757d";
+            int hash = 0;
+            foreach (char c in name) hash = c + ((hash << 5) - hash);
+            var colors = new[] { "#d32f2f", "#c2185b", "#7b1fa2", "#512da8", "#303f9f", "#1976d2", "#0288d1", "#0097a7", "#00796b", "#388e3c", "#689f38", "#fbc02d", "#ffa000", "#f57c00", "#e64a19", "#5d4037", "#616161", "#455a64" };
+            return colors[Math.Abs(hash) % colors.Length];
         }
     }
 }

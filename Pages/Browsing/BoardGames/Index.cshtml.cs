@@ -19,7 +19,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         public IndexModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
         {
             _context = context;
-
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -34,24 +33,22 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         {
             SearchTerm = search ?? string.Empty;
 
+            // 1. Build Query (Includes Publisher for the new UI)
             var query = _context.BoardGames
+                .Include(bg => bg.FkBgdPublisherNavigation)
                 .Include(bg => bg.FkBgdBoardGameTypeNavigation)
                 .Where(bg => !bg.Inactive);
 
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
-                // Clean the search term: strip "min" so "60 min" becomes "60"
                 var cleanSearch = SearchTerm.Replace("min", "", StringComparison.OrdinalIgnoreCase).Trim();
                 bool isNumber = int.TryParse(cleanSearch, out int numericValue);
 
                 if (isNumber)
                 {
                     query = query.Where(bg =>
-                        // 1. Match Player Count Range
                         (bg.PlayerCountMin <= numericValue && numericValue <= bg.PlayerCountMax)
-                        // 2. NEW: Match Playing Time Range
                         || (bg.PlayingTimeMinInMinutes <= numericValue && numericValue <= bg.PlayingTimeMaxInMinutes)
-                        // 3. Fallback to name/type string match
                         || bg.BoardGameName.Contains(SearchTerm)
                         || bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(SearchTerm)
                     );
@@ -69,46 +66,49 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .Take(50)
                 .ToListAsync();
 
-            var frontImageType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-
             BoardGames = new List<BoardGameViewModel>();
 
-            if (frontImageType != null && games.Any())
+            if (games.Any())
             {
-                var gids = games.Select(g => g.Gid.ToString()).ToList();
-                var imageTypeGidString = frontImageType.Gid.ToString();
+                // 2. Fetch Images (Logic matched to BoardGameDetails)
+                Dictionary<Guid, string> imagesDict = new();
 
-                var filter = Builders<BoardGameImages>.Filter.And(
-                    Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGame"),
-                    Builders<BoardGameImages>.Filter.In("GID", gids),
-                    Builders<BoardGameImages>.Filter.Eq("ImageTypeGID", imageTypeGidString)
-                );
+                var frontImageType = await _context.BoardGameImageTypes
+                    .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
 
-                var imageDocs = await _boardGameImages.Find(filter).ToListAsync();
-
-                var imagesDict = imageDocs
-                    .Where(img => img.ImageBytes != null && img.GID.HasValue)
-                    .ToDictionary(img => img.GID.Value.ToString(), img => $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}");
-
-                foreach (var game in games)
+                if (frontImageType != null)
                 {
-                    var gidStr = game.Gid.ToString();
+                    // FIX: Explicit cast to (Guid?) is required for Mongo Filter
+                    var guids = games.Select(g => (Guid?)g.Gid).ToList();
+                    var typeId = frontImageType.Gid;
 
-                    BoardGames.Add(new BoardGameViewModel
+                    // Exact logic from Details page: Match GID AND ImageTypeGID
+                    var filter = Builders<BoardGameImages>.Filter.And(
+                        Builders<BoardGameImages>.Filter.In(x => x.GID, guids),
+                        Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, typeId)
+                    );
+
+                    var images = await _boardGameImages.Find(filter).ToListAsync();
+
+                    foreach (var img in images)
                     {
-                        BoardGame = game,
-                        Base64Image = imagesDict.ContainsKey(gidStr) ? imagesDict[gidStr] : null
-                    });
+                        if (img.GID.HasValue && img.ImageBytes != null)
+                        {
+                            if (!imagesDict.ContainsKey(img.GID.Value))
+                            {
+                                var contentType = !string.IsNullOrEmpty(img.ContentType) ? img.ContentType : "image/png";
+                                imagesDict[img.GID.Value] = $"data:{contentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                            }
+                        }
+                    }
                 }
-            }
-            else
-            {
+
                 foreach (var game in games)
                 {
                     BoardGames.Add(new BoardGameViewModel
                     {
                         BoardGame = game,
-                        Base64Image = null
+                        Base64Image = imagesDict.ContainsKey(game.Gid) ? imagesDict[game.Gid] : null
                     });
                 }
             }
@@ -116,21 +116,18 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
         public async Task<JsonResult> OnGetSearchAsync(string term)
         {
-            if (string.IsNullOrWhiteSpace(term))
-            {
-                return new JsonResult(new List<object>());
-            }
+            if (string.IsNullOrWhiteSpace(term)) return new JsonResult(new List<object>());
 
             var cleanSearch = term.Replace("min", "", StringComparison.OrdinalIgnoreCase).Trim();
             bool isNumber = int.TryParse(cleanSearch, out int numericValue);
 
-            var suggestionsQuery = _context.BoardGames
+            var query = _context.BoardGames
                 .Include(bg => bg.FkBgdBoardGameTypeNavigation)
                 .Where(bg => !bg.Inactive);
 
             if (isNumber)
             {
-                suggestionsQuery = suggestionsQuery.Where(bg =>
+                query = query.Where(bg =>
                     (bg.PlayerCountMin <= numericValue && numericValue <= bg.PlayerCountMax)
                     || (bg.PlayingTimeMinInMinutes <= numericValue && numericValue <= bg.PlayingTimeMaxInMinutes)
                     || bg.BoardGameName.Contains(term)
@@ -139,22 +136,24 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             }
             else
             {
-                suggestionsQuery = suggestionsQuery.Where(bg =>
+                query = query.Where(bg =>
                     bg.BoardGameName.Contains(term) ||
                     bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(term));
             }
 
-            var suggestions = await suggestionsQuery
+            var suggestions = await query
                 .OrderBy(bg => bg.BoardGameName)
-                .Select(bg => new
-                {
-                    name = bg.BoardGameName,
-                    type = bg.FkBgdBoardGameTypeNavigation.TypeDesc
-                })
+                .Select(bg => new { name = bg.BoardGameName, type = bg.FkBgdBoardGameTypeNavigation.TypeDesc })
                 .Take(10)
                 .ToListAsync();
 
             return new JsonResult(suggestions);
         }
+    }
+
+    public class BoardGameViewModel
+    {
+        public BoardGame BoardGame { get; set; }
+        public string? Base64Image { get; set; }
     }
 }

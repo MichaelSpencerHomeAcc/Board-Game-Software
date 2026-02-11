@@ -4,6 +4,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
+using Microsoft.Extensions.Configuration;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.DataSetup.Publishers
 {
@@ -20,34 +25,52 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
-        public IList<Publisher> Publishers { get; set; } = default!;
-        public Dictionary<long, string> PublisherLogosBase64 { get; set; } = new();
-        public bool ShowDeleteError { get; set; } = false;
-        public int DeleteLinkedCount { get; set; } = 0;
+        public IList<VwPublisher> Publishers { get; set; } = default!;
+        public Dictionary<long, string> PublisherImagesBase64 { get; set; } = new();
 
-        public async Task OnGetAsync(bool? deleteError, int? linkedCount)
+        [BindProperty(SupportsGet = true)]
+        public string? SearchTerm { get; set; }
+
+        public async Task OnGetAsync()
         {
-            ShowDeleteError = deleteError ?? false;
-            DeleteLinkedCount = linkedCount ?? 0;
+            // 1. Get the "Image" Type GID (Required for Publishers)
+            // This matches the logic in your Edit.cshtml.cs
+            var imageType = await _context.BoardGameImageTypes
+                .FirstOrDefaultAsync(t => t.TypeDesc == "Image");
 
-            Publishers = await _context.Publishers
+            var imageTypeGid = imageType?.Gid ?? Guid.Empty;
+
+            // 2. Start Query
+            var query = _context.VwPublishers.AsQueryable();
+
+            if (!string.IsNullOrEmpty(SearchTerm))
+            {
+                query = query.Where(p => p.PublisherName.Contains(SearchTerm));
+            }
+
+            Publishers = await query
                 .OrderBy(p => p.PublisherName)
                 .ToListAsync();
 
-            if (Publishers.Any())
+            // 3. Fetch Images using ImageTypeGID
+            if (imageTypeGid != Guid.Empty)
             {
-                var gids = Publishers.Select(p => p.Gid.ToString()).ToList();
+                var publisherGids = Publishers.Select(p => p.Gid).ToList();
 
-                var filter = Builders<BoardGameImages>.Filter.In("GID", gids);
+                // Optimized: Fetch all relevant images in one Mongo query
+                var filter = Builders<BoardGameImages>.Filter.And(
+                    Builders<BoardGameImages>.Filter.In(x => x.GID, publisherGids.Select(g => (Guid?)g)),
+                    Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, (Guid?)imageTypeGid)
+                );
 
-                var imageDocs = await _boardGameImages.Find(filter).ToListAsync();
+                var images = await _boardGameImages.Find(filter).ToListAsync();
 
                 foreach (var pub in Publishers)
                 {
-                    var doc = imageDocs.FirstOrDefault(img => img.GID.ToString() == pub.Gid.ToString());
-                    if (doc?.ImageBytes != null)
+                    var img = images.FirstOrDefault(x => x.GID == pub.Gid);
+                    if (img != null && img.ImageBytes != null)
                     {
-                        PublisherLogosBase64[pub.Id] = $"data:{doc.ContentType};base64,{Convert.ToBase64String(doc.ImageBytes)}";
+                        PublisherImagesBase64[pub.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
                     }
                 }
             }
@@ -55,15 +78,14 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
 
         public async Task<IActionResult> OnPostDeleteAsync(long id)
         {
-            var publisher = await _context.Publishers
-                .Include(p => p.BoardGames)
-                .FirstOrDefaultAsync(p => p.Id == id);
-
+            var publisher = await _context.Publishers.FindAsync(id);
             if (publisher == null) return NotFound();
 
-            if (publisher.BoardGames != null && publisher.BoardGames.Any())
+            // Clean up using ImageTypeGID logic
+            var imageType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Image");
+            if (imageType != null)
             {
-                return RedirectToPage(new { deleteError = true, linkedCount = publisher.BoardGames.Count });
+                await _boardGameImages.DeleteManyAsync(img => img.GID == publisher.Gid && img.ImageTypeGID == imageType.Gid);
             }
 
             _context.Publishers.Remove(publisher);

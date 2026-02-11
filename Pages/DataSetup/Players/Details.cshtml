@@ -1,152 +1,158 @@
 ﻿@page "{id:long}"
-@model DetailsModel
-@using System.Globalization
-@using Microsoft.AspNetCore.Identity
-@using System.Security.Claims
-@inject UserManager<IdentityUser> UserManager
-@inject SignInManager<IdentityUser> SignInManager
+@model Board_Game_Software.Pages.DataSetup.Players.DetailsModel
 
 @{
-    ViewData["Title"] = $"{Model.Player.FirstName}'s Profile";
-    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-    var isAdmin = User.IsInRole("Admin");
-    var isOwner = Model.Player.FkdboAspNetUsers == userId;
-    var fullName = $"{Model.Player.FirstName} {Model.Player.MiddleName} {Model.Player.LastName}".Trim();
+    ViewData["Title"] = "Player Details";
+    var fullName = $"{Model.Player.FirstName} {Model.Player.LastName}".Trim();
 }
 
-<div class="container py-4">
-    <div class="d-flex align-items-center justify-content-between mb-4">
-        <div class="d-flex align-items-center">
-            <a asp-page="./Index" class="btn btn-outline-secondary me-3 shadow-sm btn-sm">
-                <i class="bi bi-arrow-left"></i>
-            </a>
-            <h2 class="m-0 fw-bold">Player Profile</h2>
-        </div>
+<style>
+    .avatar-container {
+        width: 128px;
+        height: 128px;
+        border-radius: 50%;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 4px solid white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        background-color: var(--bs-tertiary-bg);
+    }
 
-        @if (isAdmin || isOwner)
-        {
-            <a asp-page="./Edit" asp-route-id="@Model.Player.Id" class="btn btn-primary shadow-sm">
-                <i class="bi bi-pencil-square me-1"></i> Edit Profile
-            </a>
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
-    </div>
 
-    <div class="row g-4">
-        <div class="col-lg-4">
-            <div class="card shadow-sm border-0 text-center h-100">
-                <div class="card-body p-5">
-                    <div class="mb-4">
-                        @if (Model.ProfileImageBase64 != null)
+    .avatar-large-text {
+        color: white;
+        font-weight: 600;
+        font-size: 3rem;
+        letter-spacing: -1px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .detail-label {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--bs-secondary);
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .detail-value {
+        font-size: 1.1rem;
+        color: var(--bs-body-color);
+        font-weight: 500;
+    }
+</style>
+
+<div class="container py-4">
+
+    @if (!ModelState.IsValid)
+    {
+        <div class="alert alert-danger mb-4">
+            @Html.ValidationSummary(false, "", new { @class = "mb-0" })
+        </div>
+    }
+
+    @* --- Header Section --- *@
+    <div class="card border-0 shadow-sm mb-4 overflow-hidden">
+        <div class="card-body p-0">
+            <div class="d-flex flex-column flex-md-row align-items-center bg-body-tertiary p-4 p-md-5">
+
+                @* Avatar *@
+                <div class="me-md-5 mb-3 mb-md-0">
+                    <div class="avatar-container">
+                        @if (!string.IsNullOrEmpty(Model.ProfileImageBase64))
                         {
-                            <img src="@Model.ProfileImageBase64" alt="Profile Picture" class="img-fluid rounded-circle shadow border border-3 border-body" style="width: 160px; height: 160px; object-fit: cover;" />
+                            <img src="@Model.ProfileImageBase64" alt="@fullName" />
                         }
                         else
                         {
-                            <div class="avatar-xl bg-primary bg-gradient text-white shadow mx-auto">
-                                @Model.Player.FirstName.Substring(0, 1).ToUpper()
+                            <div class="avatar-large-text" style="background-color: @Model.GetAvatarColor(fullName);">
+                                @Model.GetInitials(Model.Player.FirstName, Model.Player.LastName)
                             </div>
                         }
                     </div>
+                </div>
 
-                    <h4 class="fw-bold mb-1 text-body-emphasis">@fullName</h4>
-                    <p class="text-muted mb-4">Board Game Community Member</p>
+                @* Name & Status *@
+                <div class="text-center text-md-start">
+                    <h1 class="display-5 fw-bold mb-1">@fullName</h1>
+                    <p class="text-muted fs-5 mb-2">Registered Player</p>
 
-                    <div class="d-flex flex-wrap justify-content-center gap-2">
-                        @if (isOwner)
-                        {
-                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill">
-                                <i class="bi bi-patch-check-fill me-1"></i> Your Profile
-                            </span>
-                        }
-                        else if (Model.Player.FkdboAspNetUsers != null)
-                        {
-                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-3 py-2 rounded-pill">
-                                <i class="bi bi-person-check-fill me-1"></i> Claimed
-                            </span>
-                        }
+                    @* Claim Status Badge *@
+                    @if (Model.CurrentUserClaimedPlayerId == Model.Player.Id)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">
+                            <i class="bi bi-check-circle-fill me-1"></i> You have claimed this profile
+                        </span>
+                    }
+                    else if (!string.IsNullOrEmpty(Model.Player.FkdboAspNetUsers))
+                    {
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">
+                            <i class="bi bi-lock-fill me-1"></i> Claimed by another user
+                        </span>
+                    }
+                </div>
+
+                @* Action Buttons *@
+                <div class="ms-md-auto mt-4 mt-md-0 d-flex flex-column gap-2">
+                    <div class="d-flex gap-2">
+                        <a asp-page="./Edit" asp-route-id="@Model.Player.Id" class="btn btn-primary px-4">
+                            <i class="bi bi-pencil me-1"></i> Edit Profile
+                        </a>
+                        <a asp-page="./Index" class="btn btn-outline-secondary">
+                            Back
+                        </a>
                     </div>
+
+                    @* Claim Button Logic *@
+                    @if (Model.CurrentUserClaimedPlayerId == null && string.IsNullOrEmpty(Model.Player.FkdboAspNetUsers))
+                    {
+                        <form method="post" asp-page-handler="Claim" asp-route-id="@Model.Player.Id" class="mt-2">
+                            <button type="submit" class="btn btn-outline-success w-100"
+                                    onclick="return confirm('Are you sure you want to claim this player profile? This will link your user account to this player.');">
+                                <i class="bi bi-link-45deg me-1"></i> Claim This Profile
+                            </button>
+                        </form>
+                    }
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="col-lg-8">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-body p-4">
-                    <h5 class="fw-bold mb-4">Account Information</h5>
-
-                    <div class="row mb-4 align-items-center">
-                        <div class="col-sm-4 text-muted small text-uppercase fw-bold pb-1 pb-sm-0">Full Name</div>
-                        <div class="col-sm-8 fs-5 fw-semibold text-body-emphasis">@fullName</div>
-                    </div>
-
-                    <hr class="opacity-10">
-
-                    <div class="row mb-4 align-items-center">
-                        <div class="col-sm-4 text-muted small text-uppercase fw-bold pb-1 pb-sm-0">Date of Birth</div>
-                        <div class="col-sm-8 text-body-emphasis">
-                            <i class="bi bi-calendar3 me-2 text-primary"></i>
-                            @Model.Player.DateOfBirth?.ToString("MMMM dd, yyyy")
-                        </div>
-                    </div>
-
-                    <div class="mt-5 p-4 bg-body-tertiary rounded-3 border border-dashed border-secondary border-opacity-50">
-                        <h6 class="fw-bold mb-3 text-muted text-uppercase small">Account Management</h6>
-
-                        @if (SignInManager.IsSignedIn(User))
-                        {
-                            @if (Model.Player.FkdboAspNetUsers == null)
-                            {
-                                @if (Model.CurrentUserClaimedPlayerId == null)
-                                {
-                                    <form method="post" asp-page-handler="Claim" asp-route-id="@Model.Player.Id">
-                                        <button type="submit" class="btn btn-success w-100 shadow-sm py-2">
-                                            <i class="bi bi-person-plus-fill me-1"></i> Claim this Player Record
-                                        </button>
-                                        <small class="text-muted d-block mt-3 text-center">Claiming allows you to manage this profile and link it to your login.</small>
-                                    </form>
-                                }
-                                else
-                                {
-                                    <div class="d-grid">
-                                        <button class="btn btn-outline-secondary py-2" disabled>
-                                            <i class="bi bi-lock-fill me-2"></i> Record Locked (Limit 1 per User)
-                                        </button>
-                                    </div>
-                                }
-                            }
-                            else if (isOwner)
-                            {
-                                <div class="alert alert-info bg-info bg-opacity-10 border-info border-opacity-25 text-info mb-0 py-3">
-                                    <div class="d-flex">
-                                        <i class="bi bi-info-circle-fill me-3 fs-4"></i>
-                                        <div>
-                                            <strong>Verified Connection</strong><br>
-                                            <small>This record is securely linked to your active account.</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            }
-                        }
+    @* --- Details Grid --- *@
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+            <h5 class="card-title mb-0">Personal Information</h5>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="detail-label">First Name</div>
+                    <div class="detail-value">@Model.Player.FirstName</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="detail-label">Last Name</div>
+                    <div class="detail-value">@Model.Player.LastName</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="detail-label">Date of Birth</div>
+                    <div class="detail-value">
+                        @(Model.Player.DateOfBirth.HasValue? Model.Player.DateOfBirth.Value.ToString("D") : "-")
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<style>
-    .avatar-xl {
-        width: 160px;
-        height: 160px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 800;
-        font-size: 4rem;
-    }
-
-    .border-dashed {
-        border-style: dashed !important;
-    }
-</style>

@@ -62,6 +62,7 @@
         padding: 8px;
         text-align: center;
         transition: 0.2s;
+        position: relative;
     }
 
         .bulk-tile:hover {
@@ -72,6 +73,15 @@
             border-color: #0d6efd;
             background: #0d6efd20;
         }
+
+            .bulk-tile.selected::after {
+                content: "\2713"; /* Checkmark */
+                position: absolute;
+                top: 2px;
+                right: 5px;
+                color: #0d6efd;
+                font-weight: bold;
+            }
 
     .tile-img {
         height: 60px;
@@ -86,6 +96,7 @@
         display: block;
         overflow: hidden;
         text-overflow: ellipsis;
+        white-space: nowrap;
     }
 </style>
 
@@ -100,7 +111,7 @@
                     <div class="card-header border-secondary">
                         <h5 class="mb-0">Edit Game Information</h5>
                     </div>
-                    
+
                     <div class="card-body">
                         <h5 class="text-info mb-3">Core Details</h5>
 
@@ -132,7 +143,6 @@
                                     <option value="">-- Select Victory Condition --</option>
                                 </select>
                             </div>
-                            <div class="col-md-6 mb-3"></div>
                         </div>
 
                         <hr class="border-secondary my-4">
@@ -161,7 +171,6 @@
                                 <label class="form-label text-muted small">Release Date</label>
                                 <input asp-for="BoardGame.ReleaseDate" type="date" class="form-control bg-dark text-white border-secondary" />
                             </div>
-                            <div class="col-md-6 mb-3"></div>
                         </div>
 
                         <hr class="border-secondary my-4">
@@ -203,7 +212,8 @@
                                 }
                             </div>
                         </div>
-                    </div> </div>
+                    </div>
+                </div>
             </div>
 
             <div class="col-lg-4">
@@ -221,6 +231,43 @@
             </div>
         </div>
     </form>
+</div>
+
+<div class="modal fade" id="bulkModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Select Components to Add</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="modalSearch" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Search markers..." onkeyup="filterBulk()">
+
+                <div class="bulk-container">
+                    @foreach (var item in Model.AvailableMarkerTypes)
+                    {
+                        <div class="bulk-tile" data-id="@item.Id" data-name="@item.TypeDesc" onclick="toggleTile(this)">
+                            @if (!string.IsNullOrEmpty(item.ImageBase64))
+                            {
+                                <img src="@item.ImageBase64" class="tile-img" />
+                            }
+                            else
+                            {
+                                <div class="tile-img d-flex align-items-center justify-content-center bg-secondary text-white rounded">
+                                    <span class="fs-4">@item.TypeDesc.Substring(0, 1)</span>
+                                </div>
+                            }
+                            <span class="tile-text">@item.TypeDesc</span>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="commitBulk()" data-bs-dismiss="modal">Add Selected</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {
@@ -266,6 +313,9 @@
 
                 // Reset tile state
                 t.classList.remove('selected');
+
+                // Optional: Hide tile so it can't be added again immediately
+                t.style.display = 'none';
             });
         }
     </script>
