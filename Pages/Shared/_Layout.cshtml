@@ -1,17 +1,32 @@
-﻿@using Microsoft.AspNetCore.Identity
+﻿@using Board_Game_Software.Models
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
 @inject SignInManager<IdentityUser> SignInManager
 @inject UserManager<IdentityUser> UserManager
+@inject BoardGameDbContext BoardGameDbContext
 
 @{
     var isSignedIn = SignInManager.IsSignedIn(User);
     bool isAdmin = false;
+    long? claimedPlayerId = null;
+
     if (isSignedIn)
     {
         var user = await UserManager.GetUserAsync(User);
-        isAdmin = user != null && await UserManager.IsInRoleAsync(user, "Admin");
+        if (user != null)
+        {
+            isAdmin = await UserManager.IsInRoleAsync(user, "Admin");
+
+            // Lookup claimed player ID for the quicklinks
+            claimedPlayerId = BoardGameDbContext.Players
+                .AsNoTracking()
+                .Where(p => p.FkdboAspNetUsers == user.Id)
+                .Select(p => (long?)p.Id)
+                .FirstOrDefault();
+        }
     }
 
-    // Smart helper: checks if the title contains the keyword
+    // Smart helper: checks if the title contains the keyword for active styling
     string IsActive(string keyword)
     {
         var title = ViewData["Title"]?.ToString() ?? "";
@@ -58,11 +73,17 @@
                     <i class="bi bi-dice-5-fill me-2"></i>Board Game Manager
                 </a>
                 <div class="d-flex align-items-center">
-                    <div class="form-check form-switch me-3">
-                        <i class="bi bi-sun-fill text-warning me-1"></i>
-                        <input class="form-check-input" type="checkbox" id="themeToggle" style="cursor: pointer; width: 3em; height: 1.5em;">
-                        <i class="bi bi-moon-stars-fill text-primary ms-1"></i>
+                    <div class="d-flex align-items-center me-3">
+                        <i class="bi bi-sun-fill text-warning me-2"></i>
+
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="themeToggle"
+                                   style="cursor: pointer; width: 3em; height: 1.5em; margin-left: -2.5em;">
+                        </div>
+
+                        <i class="bi bi-moon-stars-fill text-primary ms-2"></i>
                     </div>
+
                     <partial name="_LoginPartial" />
                 </div>
             </div>
@@ -81,6 +102,22 @@
                                 <i class="bi bi-house-door me-2"></i> Home
                             </a>
                         </li>
+                        
+                        @if (claimedPlayerId.HasValue)
+                        {
+                            <li class="nav-item ps-3 mt-1">
+                                <a class="nav-link py-1 small @IsActive("Player Details")" 
+                                   asp-page="/DataSetup/Players/Details" asp-route-id="@claimedPlayerId">
+                                    <i class="bi bi-person-badge me-2"></i> My Profile
+                                </a>
+                            </li>
+                            <li class="nav-item ps-3">
+                                <a class="nav-link py-1 small @IsActive("Manage Top 10")" 
+                                   asp-page="/DataSetup/Players/ManageTopTen" asp-route-id="@claimedPlayerId">
+                                    <i class="bi bi-trophy me-2"></i> My Top 10
+                                </a>
+                            </li>
+                        }
                     </ul>
 
                     @if (isSignedIn)

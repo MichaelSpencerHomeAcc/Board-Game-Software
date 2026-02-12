@@ -6,7 +6,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using System;
-using System.Security.Claims;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.DataSetup.Players
@@ -33,24 +34,61 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         public Player Player { get; set; } = null!;
         public string? ProfileImageBase64 { get; set; }
         public long? CurrentUserClaimedPlayerId { get; set; }
+        public List<PlayerBoardGame> TopTenGames { get; set; } = new();
+        public Dictionary<long, string> GameImages { get; set; } = new();
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
-            Player = await _context.Players.FindAsync(id);
-            if (Player == null)
+            Player = await _context.Players
+                .Include(p => p.PlayerBoardGames)
+                    .ThenInclude(pbg => pbg.BoardGame)
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (Player == null) return NotFound();
+
+            TopTenGames = Player.PlayerBoardGames
+                .Where(x => !x.Inactive)
+                .OrderBy(x => x.Rank)
+                .Take(10)
+                .ToList();
+
+            if (TopTenGames.Any())
             {
-                return NotFound();
+                var frontImageType = await _context.BoardGameImageTypes
+                    .FirstOrDefaultAsync(bgit => bgit.TypeDesc == "Board Game Front");
+
+                if (frontImageType != null)
+                {
+                    var gidStrings = TopTenGames
+                        .Where(x => x.BoardGame != null)
+                        .Select(x => x.BoardGame.Gid.ToString())
+                        .ToList();
+
+                    var images = await _imagesCollection.Find(img =>
+                        gidStrings.Contains(img.GID.ToString()) &&
+                        img.ImageTypeGID == frontImageType.Gid)
+                        .ToListAsync();
+
+                    foreach (var item in TopTenGames)
+                    {
+                        var itemGidString = item.BoardGame.Gid.ToString();
+                        var img = images.FirstOrDefault(x => x.GID.ToString() == itemGidString);
+
+                        if (img?.ImageBytes != null)
+                        {
+                            GameImages[item.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                        }
+                    }
+                }
             }
 
             await LoadProfileImage(Player.Gid);
 
-            // Check if the current logged-in user has already claimed a player
             var user = await _userManager.GetUserAsync(User);
             if (user != null)
             {
                 var claimedPlayer = await _context.Players
                     .FirstOrDefaultAsync(p => p.FkdboAspNetUsers == user.Id);
-
                 CurrentUserClaimedPlayerId = claimedPlayer?.Id;
             }
 
@@ -65,65 +103,19 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             );
 
             var imageDoc = await _imagesCollection.Find(filter).FirstOrDefaultAsync();
-
-            if (imageDoc != null && imageDoc.ImageBytes != null)
+            if (imageDoc?.ImageBytes != null)
             {
-                // Assuming standard image types; you can make this dynamic if needed
                 ProfileImageBase64 = $"data:image/png;base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
             }
         }
 
-        public async Task<IActionResult> OnPostClaimAsync(long id)
-        {
-            var userId = _userManager.GetUserId(User);
-            if (userId == null) return Forbid();
-
-            // 1. Check if user already claimed a player
-            var existingClaim = await _context.Players.FirstOrDefaultAsync(p => p.FkdboAspNetUsers == userId);
-            if (existingClaim != null)
-            {
-                ModelState.AddModelError(string.Empty, "You have already claimed a player profile.");
-
-                // Reload data to show page correctly with error
-                Player = await _context.Players.FindAsync(id);
-                if (Player != null) await LoadProfileImage(Player.Gid);
-                CurrentUserClaimedPlayerId = existingClaim.Id;
-
-                return Page();
-            }
-
-            // 2. Find and Claim
-            Player = await _context.Players.FindAsync(id);
-            if (Player == null) return NotFound();
-
-            if (!string.IsNullOrEmpty(Player.FkdboAspNetUsers))
-            {
-                ModelState.AddModelError(string.Empty, "This player is already claimed by another user.");
-                await LoadProfileImage(Player.Gid);
-                return Page();
-            }
-
-            Player.FkdboAspNetUsers = userId;
-            await _context.SaveChangesAsync();
-
-            return RedirectToPage(new { id });
-        }
-
-        // --- UI Helper Methods ---
-
-        public string GetInitials(string? firstName, string? lastName)
-        {
-            string first = !string.IsNullOrEmpty(firstName) ? firstName[0].ToString() : "";
-            string last = !string.IsNullOrEmpty(lastName) ? lastName[0].ToString() : "";
-            return (first + last).ToUpper();
-        }
+        public string GetInitials(string? f, string? l) => $"{(f?.Length > 0 ? f[0] : ' ')}{(l?.Length > 0 ? l[0] : ' ')}".ToUpper().Trim();
 
         public string GetAvatarColor(string? name)
         {
             if (string.IsNullOrEmpty(name)) return "#6c757d";
-            int hash = 0;
-            foreach (char c in name) hash = c + ((hash << 5) - hash);
-            var colors = new[] { "#d32f2f", "#c2185b", "#7b1fa2", "#512da8", "#303f9f", "#1976d2", "#0288d1", "#0097a7", "#00796b", "#388e3c", "#689f38", "#fbc02d", "#ffa000", "#f57c00", "#e64a19", "#5d4037", "#616161", "#455a64" };
+            int hash = name.GetHashCode();
+            var colors = new[] { "#d32f2f", "#7b1fa2", "#303f9f", "#1976d2", "#00796b", "#388e3c", "#ffa000", "#e64a19" };
             return colors[Math.Abs(hash) % colors.Length];
         }
     }

@@ -1,29 +1,23 @@
 ﻿@page "{id:long}"
 @model Board_Game_Software.Pages.Browsing.BoardGames.BoardGameDetailsModel
-
 @inject Microsoft.AspNetCore.Identity.UserManager<Microsoft.AspNetCore.Identity.IdentityUser> UserManager
 @inject Microsoft.AspNetCore.Identity.SignInManager<Microsoft.AspNetCore.Identity.IdentityUser> SignInManager
 
 @{
     ViewData["Title"] = Model.BoardGame?.BoardGameName ?? "Board Game Details";
-
     var isAdmin = false;
     if (SignInManager.IsSignedIn(User))
     {
         var currentUser = await UserManager.GetUserAsync(User);
-        if (currentUser != null)
-        {
-            isAdmin = await UserManager.IsInRoleAsync(currentUser, "Admin");
-        }
+        isAdmin = currentUser != null && await UserManager.IsInRoleAsync(currentUser, "Admin");
     }
-
     var shelfName = Model.BoardGame.BoardGameShelfSections?.FirstOrDefault()?.FkBgdShelfSectionNavigation?.SectionName;
 }
 
 <style>
-    /* --- HERO AVATAR (GAME COVER) STYLES --- */
+    /* --- Layout & Hero Styles --- */
     .avatar-container {
-        width: 160px; /* Slightly larger for game covers */
+        width: 160px;
         height: 160px;
         border-radius: 12px;
         overflow: hidden;
@@ -38,16 +32,14 @@
         .avatar-container img {
             width: 100%;
             height: 100%;
-            object-fit: cover; /* CHANGED from cover (was already cover, but double check) */
-            object-position: center; /* Add this to center the crop */
+            object-fit: cover;
+            object-position: center;
         }
 
     .avatar-large-text {
         color: white;
         font-weight: 600;
         font-size: 3rem;
-        letter-spacing: -1px;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
         width: 100%;
         height: 100%;
         display: flex;
@@ -64,282 +56,295 @@
         margin-bottom: 0.25rem;
     }
 
-    .detail-value {
-        font-size: 1.1rem;
-        color: var(--bs-body-color);
-        font-weight: 500;
+    /* --- 5-Star Rating Styles --- */
+    .avg-rating-display {
+        font-size: 3.5rem;
+        font-weight: 800;
+        color: #ffc107;
+        line-height: 1;
     }
 
-    /* --- HORIZONTAL SCROLL BIT STYLES --- */
+    .star-rating-container {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+    }
+
+    .btn-star {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 2.25rem;
+        color: var(--bs-border-color);
+        transition: transform 0.1s, color 0.1s;
+        cursor: pointer;
+    }
+
+        .btn-star:hover {
+            transform: scale(1.15);
+        }
+
+        .btn-star.active {
+            color: #ffc107;
+        }
+
+    /* --- Component Scroller --- */
     .scrolling-wrapper {
         display: flex;
         flex-wrap: nowrap;
         overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
         padding-bottom: 1rem;
         gap: 1rem;
     }
 
-        .scrolling-wrapper::-webkit-scrollbar {
-            height: 8px;
-        }
-
-        .scrolling-wrapper::-webkit-scrollbar-track {
-            background: var(--bs-border-color-translucent);
-            border-radius: 4px;
-        }
-
-        .scrolling-wrapper::-webkit-scrollbar-thumb {
-            background: var(--bs-secondary);
-            border-radius: 4px;
-        }
-
     .component-card {
         flex: 0 0 auto;
-        width: 160px;
-        transition: transform 0.2s, box-shadow 0.2s;
+        width: 140px;
         border: 1px solid var(--bs-border-color);
-        background: var(--bs-body-bg);
         text-decoration: none;
+        transition: transform 0.2s;
     }
 
         .component-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 .5rem 1rem rgba(0,0,0,0.15) !important;
             border-color: var(--bs-primary);
         }
 
     .component-card-img {
-        height: 100px;
+        height: 90px;
+        background: var(--bs-tertiary-bg);
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: var(--bs-tertiary-bg);
         overflow: hidden;
     }
 
         .component-card-img img {
             width: 100%;
             height: 100%;
-            object-fit: contain; /* Markers look better contained */
-            padding: 8px;
+            object-fit: contain;
+            padding: 5px;
         }
 </style>
 
 <div class="container py-4">
-
-    @* --- Header Section --- *@
+    @* --- Hero Header --- *@
     <div class="card border-0 shadow-sm mb-4 overflow-hidden">
-        <div class="card-body p-0">
-            <div class="d-flex flex-column flex-md-row align-items-center bg-body-tertiary p-4 p-md-5">
-
-                @* Main Avatar (Cover Image) *@
-                <div class="me-md-5 mb-3 mb-md-0">
-                    <div class="avatar-container">
-                        @if (!string.IsNullOrEmpty(Model.BoardGameFrontImageUrl))
-                        {
-                            <img src="@Model.BoardGameFrontImageUrl" alt="@Model.BoardGame.BoardGameName" />
-                        }
-                        else
-                        {
-                            <div class="avatar-large-text" style="background-color: @Model.GetAvatarColor(Model.BoardGame.BoardGameName);">
-                                @Model.GetInitials(Model.BoardGame.BoardGameName)
-                            </div>
-                        }
-                    </div>
-                </div>
-
-                @* Title & Info *@
-                <div class="text-center text-md-start">
-                    <h1 class="display-5 fw-bold mb-1">@Model.BoardGame.BoardGameName</h1>
-                    <div class="d-flex align-items-center justify-content-center justify-content-md-start gap-2 mb-2">
-                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">
-                            @(Model.BoardGame.ReleaseDate?.Year.ToString() ?? "Unknown Year")
-                        </span>
-                        @if (!string.IsNullOrEmpty(shelfName))
-                        {
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">
-                                <i class="bi bi-bookshelf me-1"></i> @shelfName
-                            </span>
-                        }
-                    </div>
-                </div>
-
-                @* Action Buttons *@
-                <div class="ms-md-auto mt-4 mt-md-0 d-flex gap-2">
-                    @if (isAdmin)
+        <div class="card-body p-4 p-md-5 bg-body-tertiary d-flex flex-column flex-md-row align-items-center">
+            <div class="me-md-5 mb-3 mb-md-0">
+                <div class="avatar-container">
+                    @if (!string.IsNullOrEmpty(Model.BoardGameFrontImageUrl))
                     {
-                        <a asp-page="./Edit" asp-route-id="@Model.BoardGame.Id" class="btn btn-primary px-4">
-                            <i class="bi bi-pencil me-1"></i> Edit Game
-                        </a>
+                        <img src="@Model.BoardGameFrontImageUrl" alt="Cover" />
                     }
-                    <a asp-page="./Index" class="btn btn-outline-secondary">
-                        Back to List
-                    </a>
+                    else
+                    {
+                        <div class="avatar-large-text" style="background-color: @Model.GetAvatarColor(Model.BoardGame.BoardGameName);">
+                            @Model.GetInitials(Model.BoardGame.BoardGameName)
+                        </div>
+                    }
                 </div>
+            </div>
+            <div class="text-center text-md-start">
+                <h1 class="display-5 fw-bold mb-1">@Model.BoardGame.BoardGameName</h1>
+                <div class="d-flex gap-2 justify-content-center justify-content-md-start">
+                    <span class="badge bg-secondary-subtle text-secondary border rounded-pill">@(Model.BoardGame.ReleaseDate?.Year)</span>
+                    @if (!string.IsNullOrEmpty(shelfName))
+                    {
+                        <span class="badge bg-primary-subtle text-primary border rounded-pill"><i class="bi bi-bookshelf me-1"></i> @shelfName</span>
+                    }
+                </div>
+            </div>
+            <div class="ms-md-auto mt-4 mt-md-0 d-flex gap-2">
+                @if (isAdmin)
+                {
+                    <a asp-page="./Edit" asp-route-id="@Model.BoardGame.Id" class="btn btn-primary px-4">Edit Game</a>
+                }
+                <a asp-page="./Index" class="btn btn-outline-secondary">Back</a>
             </div>
         </div>
     </div>
 
-    @* --- Key Stats Grid --- *@
-    <div class="row g-3 mb-5">
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm h-100 text-center">
-                <div class="card-body p-3">
-                    <i class="bi bi-people fs-3 text-primary mb-2"></i>
-                    <div class="text-muted small text-uppercase fw-bold">Players</div>
-                    <div class="fs-5 fw-bold">
-                        @Model.BoardGame.PlayerCountMin@(Model.BoardGame.PlayerCountMax != Model.BoardGame.PlayerCountMin ? "–" + Model.BoardGame.PlayerCountMax : "")
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm h-100 text-center">
-                <div class="card-body p-3">
-                    <i class="bi bi-clock fs-3 text-primary mb-2"></i>
-                    <div class="text-muted small text-uppercase fw-bold">Time</div>
-                    <div class="fs-5 fw-bold">
-                        @(Model.BoardGame.PlayingTimeMinInMinutes ?? 0)m @(Model.BoardGame.PlayingTimeMaxInMinutes != Model.BoardGame.PlayingTimeMinInMinutes ? "– " + Model.BoardGame.PlayingTimeMaxInMinutes + "m" : "")
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm h-100 text-center">
-                <div class="card-body p-3">
-                    <i class="bi bi-diagram-3 fs-3 text-primary mb-2"></i>
-                    <div class="text-muted small text-uppercase fw-bold">Complexity</div>
-                    <div class="fs-5 fw-bold">
-                        @((Model.BoardGame.ComplexityRating ?? 0).ToString("0.0"))<span class="text-muted small fw-normal">/5</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm h-100 text-center">
-                <div class="card-body p-3">
-                    <i class="bi bi-trophy fs-3 text-primary mb-2"></i>
-                    <div class="text-muted small text-uppercase fw-bold">Victory</div>
-                    <div class="fs-6 fw-bold text-truncate" title="@(Model.BoardGame.FkBgdBoardGameVictoryConditionTypeNavigation?.TypeDesc)">
-                        @(Model.BoardGame.FkBgdBoardGameVictoryConditionTypeNavigation?.TypeDesc ?? "-")
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    @* --- Details & Info --- *@
     <div class="row g-4 mb-5">
-        <div class="col-md-8">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-transparent border-0 pt-4 px-4">
-                    <h5 class="card-title mb-0">About this Game</h5>
+        @* --- Left Column: Info --- *@
+        <div class="col-lg-8">
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100">
+                        <i class="bi bi-people text-primary fs-3 mb-1"></i>
+                        <div class="detail-label">Players</div>
+                        <div class="fw-bold">@Model.BoardGame.PlayerCountMin@((Model.BoardGame.PlayerCountMax != Model.BoardGame.PlayerCountMin) ? "-" + Model.BoardGame.PlayerCountMax : "")</div>
+                    </div>
                 </div>
-                <div class="card-body p-4">
-                    <p class="text-secondary lh-lg mb-4" style="white-space: pre-line;">
-                        @(!string.IsNullOrWhiteSpace(Model.BoardGame.BoardGameSummary) ? Model.BoardGame.BoardGameSummary : "No summary available for this title.")
-                    </p>
-
-                    <hr class="text-secondary-subtle my-4" />
-
-                    <div class="row g-4">
-                        <div class="col-sm-6">
-                            <div class="detail-label">Publisher</div>
-                            <div class="detail-value">
-                                <a asp-page="/DataSetup/Publishers/Details" asp-route-id="@Model.BoardGame.FkBgdPublisherNavigation?.Id" class="text-decoration-none">
-                                    @(Model.BoardGame.FkBgdPublisherNavigation?.PublisherName ?? "-")
-                                </a>
-                            </div>
-                        </div>
-                        <div class="col-sm-6">
-                            <div class="detail-label">Game Type</div>
-                            <div class="detail-value">@(Model.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc ?? "-")</div>
-                        </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100">
+                        <i class="bi bi-clock text-primary fs-3 mb-1"></i>
+                        <div class="detail-label">Time</div>
+                        <div class="fw-bold">@Model.BoardGame.PlayingTimeMinInMinutes</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100">
+                        <i class="bi bi-diagram-3 text-primary fs-3 mb-1"></i>
+                        <div class="detail-label">Weight</div>
+                        <div class="fw-bold">@Model.BoardGame.ComplexityRating?.ToString("0.0") / 5</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100">
+                        <i class="bi bi-trophy text-primary fs-3 mb-1"></i>
+                        <div class="detail-label">Victory</div>
+                        <div class="fw-bold text-truncate small">@(Model.BoardGame.FkBgdBoardGameVictoryConditionTypeNavigation?.TypeDesc ?? "-")</div>
                     </div>
                 </div>
             </div>
+
+            <div class="card border-0 shadow-sm p-4 h-100">
+                <h5>About the Game</h5>
+                <p class="text-secondary lh-lg mb-4" style="white-space: pre-line;">@Model.BoardGame.BoardGameSummary</p>
+            </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-transparent border-0 pt-4 px-4">
-                    <h5 class="card-title mb-0">Physical Specs</h5>
-                </div>
-                <div class="card-body p-4">
-                    <div class="mb-3">
-                        <div class="detail-label">Dimensions (H x W)</div>
-                        <div class="detail-value">
-                            @(Model.BoardGame.HeightCm?.ToString("0.##") ?? "-") cm
-                            <span class="text-muted mx-1">x</span>
-                            @(Model.BoardGame.WidthCm?.ToString("0.##") ?? "-") cm
-                        </div>
-                    </div>
+        @* --- Right Column: Rating Sidebar --- *@
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4 text-center p-4">
+                <div class="detail-label">Community Rating</div>
+                @* Changed "0.1" to "0.0" to fix the trailing '1' issue *@
+                <div class="avg-rating-display mb-1">@Model.AverageRating.ToString("0.0")</div>
 
-                    @if (!string.IsNullOrWhiteSpace(Model.BoardGame.HowToPlayHyperlink) && Model.BoardGame.HowToPlayHyperlink.ToLower() != "null")
+                @* Visual Star Display (supports half stars) *@
+                <div class="mb-3">
+                    @for (int i = 1; i <= 5; i++)
                     {
-                        <hr class="text-secondary-subtle" />
-                        <a href="@Model.BoardGame.HowToPlayHyperlink" target="_blank" class="btn btn-outline-primary w-100">
-                            <i class="bi bi-youtube me-2"></i> Watch Tutorial
-                        </a>
-                    }
-                </div>
-            </div>
-        </div>
-    </div>
-
-    @* --- "The Scroll Bit" (Game Components/Markers) --- *@
-    <div class="d-flex align-items-center mb-3">
-        <h4 class="m-0">Game Components</h4>
-        <span class="badge bg-secondary ms-2 rounded-pill">@Model.BoardGame.BoardGameMarkers.Count()</span>
-    </div>
-
-    @if (Model.BoardGame.BoardGameMarkers.Any())
-    {
-        <div class="scrolling-wrapper">
-            @foreach (var marker in Model.BoardGame.BoardGameMarkers.OrderBy(m => m.FkBgdBoardGameMarkerTypeNavigation?.TypeDesc))
-            {
-                var markerType = marker.FkBgdBoardGameMarkerTypeNavigation;
-                var markerName = markerType?.TypeDesc ?? "Unknown Component";
-                var markerId = markerType?.Id;
-                var cardImg = (markerType != null && Model.MarkerImagesBase64.ContainsKey(markerType.Id))
-                ? Model.MarkerImagesBase64[markerType.Id]
-                : null;
-
-                // Card links to Marker Type Details
-                <a asp-page="/DataSetup/Markers/Details" asp-route-id="@markerId"
-                   class="card component-card shadow-sm rounded-3">
-
-                    @* Card Image Area *@
-                    <div class="component-card-img rounded-top-3">
-                        @if (!string.IsNullOrEmpty(cardImg))
+                        if (Model.AverageRating >= i)
                         {
-                            <img src="@cardImg" alt="@markerName" />
+                            <i class="bi bi-star-fill text-warning fs-5"></i>
+                        }
+                        else if (Model.AverageRating >= (i - 0.5m))
+                        {
+                            <i class="bi bi-star-half text-warning fs-5"></i>
                         }
                         else
                         {
-                            <div class="text-center text-white p-2 w-100 h-100 d-flex align-items-center justify-content-center fw-bold fs-4"
-                                 style="background-color: @Model.GetAvatarColor(markerName);">
-                                @Model.GetInitials(markerName)
-                            </div>
+                            <i class="bi bi-star text-warning fs-5"></i>
                         }
-                    </div>
+                    }
+                </div>
+                <div class="small text-muted mb-4">Based on @Model.TotalRatings ratings</div>
 
-                    @* Card Body *@
-                    <div class="card-body p-3">
-                        <h6 class="card-title text-truncate mb-0 text-body" title="@markerName">
-                            @markerName
-                        </h6>
-                    </div>
-                </a>
-            }
+                <hr class="mb-4" />
+
+                @if (SignInManager.IsSignedIn(User))
+                {
+                    @if (Model.CurrentUserClaimedPlayerId.HasValue)
+                    {
+                        <div class="detail-label mb-2">Rate this Game</div>
+                        <div class="star-rating-container" id="userStarContainer">
+                            @for (int i = 1; i <= 5; i++)
+                            {
+                                <form method="post" asp-page-handler="Rate" asp-route-id="@Model.BoardGame.Id" asp-route-ratingValue="@i" class="d-inline">
+                                    <button type="submit" class="btn-star @(Model.UserRating >= (decimal)i ? "active" : "")" data-value="@i">
+                                        <i class="bi @(Model.UserRating >= (decimal)i ? "bi-star-fill" : "bi-star")"></i>
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                        @if (Model.UserRating.HasValue)
+                        {
+                            <div class="mt-2 small text-success fw-bold">You gave it @Model.UserRating.Value.ToString("0") stars</div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning small py-2 mb-0">
+                            <i class="bi bi-person-exclamation me-1"></i> Claim a profile to rate.
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-light border small py-2 mb-0">Sign in to leave a rating</div>
+                }
+            </div>
+
+            @* Specifications *@
+            <div class="card border-0 shadow-sm p-4">
+                <h5>Specifications</h5>
+                <div class="mt-3">
+                    <div class="detail-label">Dimensions</div>
+                    <div class="fw-bold">@Model.BoardGame.HeightCm x @Model.BoardGame.WidthCm cm</div>
+                </div>
+                @if (!string.IsNullOrEmpty(Model.BoardGame.HowToPlayHyperlink))
+                {
+                    <a href="@Model.BoardGame.HowToPlayHyperlink" target="_blank" class="btn btn-outline-danger w-100 mt-4"><i class="bi bi-youtube me-2"></i>How to Play</a>
+                }
+            </div>
         </div>
-    }
-    else
-    {
-        <div class="alert alert-light border shadow-sm text-center py-5">
-            <i class="bi bi-box-seam text-secondary display-4 d-block mb-3"></i>
-            <p class="text-muted">No components listed for this game.</p>
-        </div>
-    }
+    </div>
+
+    @* --- Component Scroller --- *@
+    <h4 class="mb-3">Box Components <span class="badge bg-secondary rounded-pill">@Model.BoardGame.BoardGameMarkers.Count</span></h4>
+    <div class="scrolling-wrapper">
+        @foreach (var marker in Model.BoardGame.BoardGameMarkers.OrderBy(m => m.FkBgdBoardGameMarkerTypeNavigation?.TypeDesc))
+        {
+            var mType = marker.FkBgdBoardGameMarkerTypeNavigation;
+            var mImg = (mType != null && Model.MarkerImagesBase64.ContainsKey(mType.Id)) ? Model.MarkerImagesBase64[mType.Id] : null;
+            <a asp-page="/DataSetup/Markers/Details" asp-route-id="@mType?.Id" class="card component-card shadow-sm rounded-3 overflow-hidden">
+                <div class="component-card-img">
+                    @if (!string.IsNullOrEmpty(mImg))
+                    {
+                        <img src="@mImg" alt="Marker" />
+                    }
+                    else
+                    {
+                        <div class="w-100 h-100 d-flex align-items-center justify-content-center text-white fw-bold" style="background-color: @Model.GetAvatarColor(mType?.TypeDesc);">@Model.GetInitials(mType?.TypeDesc)</div>
+                    }
+                </div>
+                <div class="card-body p-2 text-center text-truncate small fw-bold">@mType?.TypeDesc</div>
+            </a>
+        }
+    </div>
 </div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const container = document.getElementById('userStarContainer');
+            if (!container) return;
+            const buttons = container.querySelectorAll('.btn-star');
+
+            buttons.forEach(btn => {
+                // Fluid Hover Effect
+                btn.addEventListener('mouseenter', function () {
+                    const val = parseInt(this.dataset.value);
+                    buttons.forEach(b => {
+                        const bVal = parseInt(b.dataset.value);
+                        const icon = b.querySelector('i');
+                        if (bVal <= val) {
+                            icon.classList.replace('bi-star', 'bi-star-fill');
+                            icon.style.color = '#ffca2c'; // Temporary hover color
+                        } else {
+                            icon.classList.replace('bi-star-fill', 'bi-star');
+                            icon.style.color = '';
+                        }
+                    });
+                });
+            });
+
+            // Reset stars to actual user rating on mouse leave
+            container.addEventListener('mouseleave', function () {
+                buttons.forEach(b => {
+                    const icon = b.querySelector('i');
+                    const isActive = b.classList.contains('active');
+                    if (isActive) {
+                        icon.classList.replace('bi-star', 'bi-star-fill');
+                        icon.style.color = ''; // Returns to gold from CSS
+                    } else {
+                        icon.classList.replace('bi-star-fill', 'bi-star');
+                        icon.style.color = '';
+                    }
+                });
+            });
+        });
+    </script>
+}

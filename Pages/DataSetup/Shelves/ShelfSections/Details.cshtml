@@ -98,9 +98,14 @@
                     <a href="/DataSetup/Shelves/Details/@Model.ShelfSection.FkBgdShelf" class="btn btn-sm btn-outline-secondary px-3">
                         <i class="bi bi-arrow-left me-2"></i>Back to Shelf
                     </a>
-                    <a asp-page="./AddGame" asp-route-id="@Model.ShelfSection.Id" class="btn btn-sm btn-primary px-3">
-                        <i class="bi bi-plus-lg me-2"></i>Add Game
-                    </a>
+                    @if (Model.ShelfSection?.Blocked != true)
+                    {
+                        <a asp-page="./AddGame" asp-route-id="@Model.ShelfSection.Id" class="btn btn-primary">Add Game</a>
+                    }
+                    else
+                    {
+                        <button class="btn btn-secondary" disabled title="Shelf is blocked">Add Game</button>
+                    }
                 </div>
             </div>
         </div>

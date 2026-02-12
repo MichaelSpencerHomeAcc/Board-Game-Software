@@ -66,6 +66,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
             GameWidths = allGames.ToDictionary(bg => bg.Id, bg => bg.WidthCm ?? 0m);
 
+            if (ShelfSection?.Blocked == true)
+            {
+                // Redirect or return an error if the shelf is blocked
+                return RedirectToPage("./Details", new { id = id });
+            }
+
             return Page();
         }
 
@@ -81,6 +87,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
             var gameToMove = await _context.BoardGames.FirstOrDefaultAsync(bg => bg.Id == SelectedGameId);
 
             if (section == null || gameToMove == null) return NotFound();
+
+            if (ShelfSection?.Blocked == true)
+            {
+                ModelState.AddModelError(string.Empty, "Cannot add games to a blocked shelf.");
+                return Page();
+            }
 
             // Validation: Width check
             if (gameToMove.WidthCm == null || gameToMove.WidthCm <= 0)

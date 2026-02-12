@@ -1,0 +1,184 @@
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.DataSetup.Players.ManageTopTenModel
+@{
+    ViewData["Title"] = "Manage Top 10";
+}
+
+<style>
+    .cursor-move {
+        cursor: grab;
+    }
+
+        .cursor-move:active {
+            cursor: grabbing;
+        }
+
+    .sortable-item {
+        position: relative;
+        background-color: var(--bs-body-bg);
+        overflow: hidden;
+        z-index: 1;
+        border: 2px solid var(--bs-border-color);
+        transition: all 0.2s;
+    }
+
+    .item-bg-overlay {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        background-size: cover;
+        background-position: center;
+        opacity: 0.15;
+        z-index: -1;
+    }
+
+    .rank-1 {
+        border-color: #FFD700 !important;
+        box-shadow: 0 0 12px rgba(255, 215, 0, 0.3);
+    }
+
+    .rank-2 {
+        border-color: #C0C0C0 !important;
+        box-shadow: 0 0 12px rgba(192, 192, 192, 0.3);
+    }
+
+    .rank-3 {
+        border-color: #CD7F32 !important;
+        box-shadow: 0 0 12px rgba(205, 127, 50, 0.3);
+    }
+
+    #searchResultsList {
+        padding-right: 1.5rem;
+    }
+
+    .add-btn-wrapper {
+        margin-left: 1rem;
+    }
+</style>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="text-body">Manage Top 10: @Model.Player.FirstName</h1>
+        <div id="save-status" class="badge bg-success d-none">Saved!</div>
+        <a asp-page="./Details" asp-route-id="@Model.Player.Id" class="btn btn-outline-secondary">Finished</a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-5">
+            <div class="card shadow-sm bg-body border h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title text-body mb-3">Find a Game</h5>
+                    <div class="position-relative">
+                        <input type="text" id="gameSearchInput" class="form-control mb-3" placeholder="Search board games..." autocomplete="off" />
+                        <div id="searchSpinner" class="spinner-border spinner-border-sm text-primary position-absolute d-none" style="top: 10px; right: 10px;"></div>
+                    </div>
+                    <ul id="searchResultsList" class="list-group list-group-flush mb-3 flex-grow-1" style="max-height: 600px; overflow-y: auto;"></ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card shadow-sm bg-body border h-100">
+                <div class="card-body">
+                    <h5 class="card-title mb-4 text-body">Drag to Reorder</h5>
+                    <div id="sortable-list">
+                        @foreach (var ranked in Model.CurrentTopTen)
+                        {
+                            var medal = ranked.Rank == 1 ? "rank-1" : ranked.Rank == 2 ? "rank-2" : ranked.Rank == 3 ? "rank-3" : "";
+                            Model.GameImages.TryGetValue(ranked.Id, out var imgUrl);
+
+                            <div class="sortable-item d-flex align-items-center p-3 mb-2 rounded cursor-move @medal" data-id="@ranked.Id">
+                                @if (!string.IsNullOrEmpty(imgUrl))
+                                {
+                                    <div class="item-bg-overlay" style="background-image: url('@imgUrl');"></div>
+                                }
+                                <div class="rank-number fw-bold me-3 fs-3 text-primary" style="width: 55px; white-space: nowrap;">#@ranked.Rank</div>
+                                <div class="flex-grow-1 overflow-hidden pe-2">
+                                    <div class="fw-bold text-body text-truncate">@ranked.BoardGame.BoardGameName</div>
+                                    <div class="small text-secondary">@ranked.BoardGame.ReleaseDate?.Year</div>
+                                </div>
+                                <form method="post" asp-page-handler="Remove">
+                                    <input type="hidden" name="entryId" value="@ranked.Id" />
+                                    <button type="submit" class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-circle-fill fs-5"></i></button>
+                                </form>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>
+        let searchTimer = null;
+        const input = document.getElementById('gameSearchInput');
+        const list = document.getElementById('searchResultsList');
+        const spinner = document.getElementById('searchSpinner');
+
+        input.oninput = () => {
+            spinner.classList.remove('d-none');
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => { fetchResults(); }, 300);
+        };
+
+        async function fetchResults() {
+            const searchTerm = input.value;
+            const res = await fetch(`?handler=SearchGames&term=${encodeURIComponent(searchTerm)}`);
+            const data = await res.json();
+
+            list.innerHTML = '';
+            if (data.games.length === 0) {
+                list.innerHTML = '<li class="list-group-item text-muted">No games found</li>';
+            }
+
+            data.games.forEach(g => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center bg-transparent border-bottom px-1 py-2';
+                li.innerHTML = `
+                    <div class="overflow-hidden text-body text-truncate pe-2">
+                        <div class="fw-bold text-truncate">${g.boardGameName}</div>
+                        <div class="small text-muted">${g.releaseYear}</div>
+                    </div>
+                    <form method="post" action="?handler=AddGame&id=@Model.Player.Id">
+                        <input type="hidden" name="boardGameId" value="${g.id}" />
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-success rounded-pill px-3">Add</button>
+                    </form>`;
+                list.appendChild(li);
+            });
+            spinner.classList.add('d-none');
+        }
+
+        const sortEl = document.getElementById('sortable-list');
+        if (sortEl) {
+            Sortable.create(sortEl, { animation: 200, handle: '.sortable-item', onEnd: syncOrder });
+        }
+
+        async function syncOrder() {
+            const items = document.querySelectorAll('.sortable-item');
+            const payload = Array.from(items).map((item, idx) => {
+                const rank = idx + 1;
+                item.querySelector('.rank-number').innerText = '#' + rank;
+                item.classList.remove('rank-1', 'rank-2', 'rank-3');
+                if (rank === 1) item.classList.add('rank-1');
+                else if (rank === 2) item.classList.add('rank-2');
+                else if (rank === 3) item.classList.add('rank-3');
+                return { id: parseInt(item.dataset.id), rank: rank };
+            });
+
+            await fetch('?handler=UpdateOrder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value },
+                body: JSON.stringify(payload)
+            });
+            document.getElementById('save-status').classList.remove('d-none');
+            setTimeout(() => document.getElementById('save-status').classList.add('d-none'), 2000);
+        }
+        fetchResults(); // Initial load
+    </script>
+}
