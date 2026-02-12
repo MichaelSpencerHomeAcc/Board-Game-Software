@@ -4,7 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
+using Microsoft.Extensions.Configuration;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.Browsing.BoardGames
@@ -19,17 +22,19 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             _context = context;
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
-
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
-        public BoardGame BoardGame { get; set; }
+        public BoardGame BoardGame { get; set; } = default!;
         public string BoardGameFrontImageUrl { get; set; } = string.Empty;
 
+        // Dictionary for Marker Type Images
         public Dictionary<long, string?> MarkerImagesBase64 { get; set; } = new();
 
-        public async Task<IActionResult> OnGetAsync(int id)
+        public async Task<IActionResult> OnGetAsync(long? id)
         {
+            if (id == null) return NotFound();
+
             BoardGame = await _context.BoardGames
                 .Include(bg => bg.FkBgdBoardGameTypeNavigation)
                 .Include(bg => bg.FkBgdBoardGameVictoryConditionTypeNavigation)
@@ -45,6 +50,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 return NotFound();
             }
 
+            // 1. Fetch Front Image
             var frontImageType = await _context.BoardGameImageTypes
                 .FirstOrDefaultAsync(bgit => bgit.TypeDesc == "Board Game Front");
 
@@ -56,35 +62,67 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
                 if (image?.ImageBytes != null)
                 {
-                    var base64 = Convert.ToBase64String(image.ImageBytes);
-                    BoardGameFrontImageUrl = $"data:{image.ContentType};base64,{base64}";
+                    BoardGameFrontImageUrl = $"data:{image.ContentType};base64,{Convert.ToBase64String(image.ImageBytes)}";
                 }
             }
 
-            foreach (var marker in BoardGame.BoardGameMarkers)
+            // 2. Fetch Marker Images
+            // Optimization: Fetch all unique marker type GIDs first, then query Mongo once
+            if (BoardGame.BoardGameMarkers.Any())
             {
-                var markerType = marker.FkBgdBoardGameMarkerTypeNavigation;
-                if (markerType != null && !MarkerImagesBase64.ContainsKey(markerType.Id))
+                var markerTypeGids = BoardGame.BoardGameMarkers
+                   .Select(m => (Guid?)m.FkBgdBoardGameMarkerTypeNavigation?.Gid)
+                   .Where(g => g.HasValue)
+                   .Distinct()
+                   .ToList();
+
+                if (markerTypeGids.Any())
                 {
                     var filter = Builders<BoardGameImages>.Filter.And(
                         Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
-                        Builders<BoardGameImages>.Filter.Eq(x => x.GID, markerType.Gid)
+                        Builders<BoardGameImages>.Filter.In(x => x.GID, markerTypeGids)
                     );
 
-                    var imageDoc = await _boardGameImages.Find(filter).FirstOrDefaultAsync();
+                    var images = await _boardGameImages.Find(filter).ToListAsync();
 
-                    if (imageDoc != null && imageDoc.ImageBytes != null)
+                    foreach (var marker in BoardGame.BoardGameMarkers)
                     {
-                        MarkerImagesBase64[markerType.Id] = $"data:{imageDoc.ContentType};base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
-                    }
-                    else
-                    {
-                        MarkerImagesBase64[markerType.Id] = null;
+                        var type = marker.FkBgdBoardGameMarkerTypeNavigation;
+                        if (type != null && !MarkerImagesBase64.ContainsKey(type.Id))
+                        {
+                            var img = images.FirstOrDefault(x => x.GID == type.Gid);
+                            if (img != null && img.ImageBytes != null)
+                            {
+                                MarkerImagesBase64[type.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                            }
+                            else
+                            {
+                                MarkerImagesBase64[type.Id] = null;
+                            }
+                        }
                     }
                 }
             }
 
             return Page();
+        }
+
+        // --- Helper Methods ---
+        public string GetInitials(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return "?";
+            var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 1) return text.Substring(0, Math.Min(2, text.Length)).ToUpper();
+            return (parts[0][0].ToString() + parts[1][0].ToString()).ToUpper();
+        }
+
+        public string GetAvatarColor(string? name)
+        {
+            if (string.IsNullOrEmpty(name)) return "#6c757d";
+            int hash = 0;
+            foreach (char c in name) hash = c + ((hash << 5) - hash);
+            var colors = new[] { "#d32f2f", "#c2185b", "#7b1fa2", "#512da8", "#303f9f", "#1976d2", "#0288d1", "#0097a7", "#00796b", "#388e3c", "#689f38", "#fbc02d", "#ffa000", "#f57c00", "#e64a19", "#5d4037", "#616161", "#455a64" };
+            return colors[Math.Abs(hash) % colors.Length];
         }
     }
 }

@@ -1,148 +1,230 @@
 ﻿@page
 @model Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes.DetailsModel
+
 @{
     ViewData["Title"] = "Marker Details";
 }
 
-<div class="container-fluid pb-5">
-    <div class="d-flex align-items-center mb-4">
-        <a asp-page="Index" class="btn btn-outline-secondary me-3 shadow-sm">
-            <i class="bi bi-arrow-left"></i>
-        </a>
-        <h1 class="text-body m-0">Marker Details</h1>
-    </div>
+<style>
+    /* --- HERO AVATAR STYLES --- */
+    .avatar-container {
+        width: 128px;
+        height: 128px;
+        border-radius: 16px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 4px solid white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        background-color: var(--bs-tertiary-bg);
+    }
 
-    <div class="row g-4">
-        <div class="col-md-7">
-            <div class="card shadow-sm border-0 bg-body-tertiary">
-                <div class="card-body p-4">
-                    <h4 class="card-title mb-4 text-primary-emphasis">General Information</h4>
-                    <dl class="row mb-0">
-                        <dt class="col-sm-4 text-body-secondary fw-medium">Name</dt>
-                        <dd class="col-sm-8 text-body-emphasis fw-bold">@Model.MarkerType.TypeDesc</dd>
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
-                        <hr class="my-3 opacity-25">
+    .avatar-large-text {
+        color: white;
+        font-weight: 600;
+        font-size: 3rem;
+        letter-spacing: -1px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
-                        <dt class="col-sm-4 text-body-secondary fw-medium">Alignment Type</dt>
-                        <dd class="col-sm-8 text-body">@(Model.MarkerType.FkBgdMarkerAlignmentTypeNavigation?.TypeDesc ?? "N/A")</dd>
+    .detail-label {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--bs-secondary);
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
 
-                        <hr class="my-3 opacity-25">
+    .detail-value {
+        font-size: 1.1rem;
+        color: var(--bs-body-color);
+        font-weight: 500;
+    }
 
-                        <dt class="col-sm-4 text-body-secondary fw-medium">Additional Typing</dt>
-                        <dd class="col-sm-8 text-body">@(Model.MarkerType.FkBgdMarkerAdditionalTypeNavigation?.TypeDesc ?? "N/A")</dd>
-                    </dl>
+    /* --- HORIZONTAL SCROLL BIT STYLES --- */
+    .scrolling-wrapper {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 1rem;
+        gap: 1rem;
+    }
+
+        .scrolling-wrapper::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .scrolling-wrapper::-webkit-scrollbar-track {
+            background: var(--bs-border-color-translucent);
+            border-radius: 4px;
+        }
+
+        .scrolling-wrapper::-webkit-scrollbar-thumb {
+            background: var(--bs-secondary);
+            border-radius: 4px;
+        }
+
+    .marker-card {
+        flex: 0 0 auto;
+        width: 180px;
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: 1px solid var(--bs-border-color);
+        background: var(--bs-body-bg);
+        text-decoration: none; /* remove link underline */
+    }
+
+        .marker-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,0.15) !important;
+            border-color: var(--bs-primary);
+        }
+
+    .marker-card-img {
+        height: 120px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--bs-tertiary-bg);
+        overflow: hidden;
+    }
+
+        .marker-card-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+</style>
+
+<div class="container py-4">
+
+    @* --- Header Section --- *@
+    <div class="card border-0 shadow-sm mb-4 overflow-hidden">
+        <div class="card-body p-0">
+            <div class="d-flex flex-column flex-md-row align-items-center bg-body-tertiary p-4 p-md-5">
+
+                @* Main Avatar *@
+                <div class="me-md-5 mb-3 mb-md-0">
+                    <div class="avatar-container">
+                        @if (!string.IsNullOrEmpty(Model.MarkerTypeImageBase64))
+                        {
+                            <img src="@Model.MarkerTypeImageBase64" alt="@Model.BoardGameMarkerType.TypeDesc" />
+                        }
+                        else
+                        {
+                            <div class="avatar-large-text" style="background-color: @Model.GetAvatarColor(Model.BoardGameMarkerType.TypeDesc);">
+                                @Model.GetInitials(Model.BoardGameMarkerType.TypeDesc)
+                            </div>
+                        }
+                    </div>
                 </div>
-                <div class="card-footer bg-transparent border-0 p-4 pt-0">
-                    <a asp-page="Edit" asp-route-id="@Model.MarkerType.Id" class="btn btn-primary px-4 shadow-sm">
-                        <i class="bi bi-pencil-square me-1"></i> Edit Details
+
+                @* Title & Subtitle *@
+                <div class="text-center text-md-start">
+                    <h1 class="display-5 fw-bold mb-1">@Model.BoardGameMarkerType.TypeDesc</h1>
+                    <p class="text-muted fs-5 mb-0">Marker Type Definition</p>
+                </div>
+
+                @* Action Buttons *@
+                <div class="ms-md-auto mt-4 mt-md-0 d-flex gap-2">
+                    <a asp-page="./Edit" asp-route-id="@Model.BoardGameMarkerType.Id" class="btn btn-primary px-4">
+                        <i class="bi bi-pencil me-1"></i> Edit Type
+                    </a>
+                    <a asp-page="./Index" class="btn btn-outline-secondary">
+                        Back to List
                     </a>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="col-md-5">
-            <div class="card shadow-sm border-0 h-100 bg-body-tertiary text-center d-flex align-items-center justify-content-center p-3">
-                @if (!string.IsNullOrEmpty(Model.MarkerImageBase64))
-                {
-                    <img src="@Model.MarkerImageBase64" alt="Marker Image" class="img-fluid rounded shadow-sm" style="max-height: 300px; object-fit: contain;" />
-                }
-                else
-                {
-                    <div class="text-body-secondary p-5">
-                        <i class="bi bi-image text-secondary opacity-50" style="font-size: 4rem;"></i>
-                        <p class="mt-2 mb-0">No image available.</p>
+    @* --- Configuration Details --- *@
+    <div class="card border-0 shadow-sm mb-5">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+            <h5 class="card-title mb-0">Configuration Details</h5>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="detail-label">Alignment Type</div>
+                    <div class="detail-value">
+                        @(Model.BoardGameMarkerType.FkBgdMarkerAlignmentTypeNavigation?.TypeDesc ?? "N/A")
                     </div>
-                }
+                </div>
+                <div class="col-md-6">
+                    <div class="detail-label">Additional Type</div>
+                    <div class="detail-value">
+                        @(Model.BoardGameMarkerType.FkBgdMarkerAdditionalTypeNavigation?.TypeDesc ?? "N/A")
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="related-games-tray bg-body-tertiary border-top shadow-lg">
-    <div class="container-fluid py-3">
-        <h5 class="mb-3 px-2 text-body-emphasis fw-bold">
-            <i class="bi bi-controller me-2"></i>Board Games Using this Marker
-        </h5>
-        <div class="d-flex overflow-x-auto pb-2 custom-scrollbar">
-            @foreach (var (game, img) in Model.RelatedBoardGamesWithImages)
+    @* --- "The Scroll Bit" (Associated Games) --- *@
+    <div class="d-flex align-items-center mb-3">
+        <h4 class="m-0">Games using this Marker</h4>
+        <span class="badge bg-secondary ms-2 rounded-pill">@Model.BoardGameMarkers.Count</span>
+    </div>
+
+    @if (Model.BoardGameMarkers.Any())
+    {
+        <div class="scrolling-wrapper">
+            @foreach (var marker in Model.BoardGameMarkers)
             {
-                <div class="related-game-card me-3">
-                    <div class="card h-100 shadow-sm border-0">
-                        @if (!string.IsNullOrEmpty(img))
+                var gameName = marker.FkBgdBoardGameNavigation?.BoardGameName ?? "Unknown Game";
+                var gameId = marker.FkBgdBoardGameNavigation?.Id;
+                var cardImg = Model.BoardGameImagesBase64.ContainsKey(marker.Id) ? Model.BoardGameImagesBase64[marker.Id] : null;
+
+                @* FIX: Use asp-page and asp-route-id. 
+                   This correctly generates the URL (e.g., /Browsing/BoardGames/BoardGameDetails?id=123)
+                *@
+                <a asp-page="/Browsing/BoardGames/BoardGameDetails" asp-route-id="@gameId"
+                   class="card marker-card shadow-sm rounded-3">
+
+                    @* Card Image Area *@
+                    <div class="marker-card-img rounded-top-3">
+                        @if (!string.IsNullOrEmpty(cardImg))
                         {
-                            <img src="@img" class="card-img-top" alt="@game.BoardGameName" />
+                            <img src="@cardImg" alt="@gameName" />
                         }
                         else
                         {
-                            <div class="card-img-top bg-secondary-subtle" style="height: 80px; overflow: hidden;">
-                                @if (!string.IsNullOrEmpty(img))
-                                {
-                                    <img src="@img" class="w-100 h-100" style="object-fit: cover;" alt="@game.BoardGameName" />
-                                }
-                                else
-                                {
-                                    <i class="bi bi-camera-video"></i>
-                                }
+                            <div class="text-center text-white p-2 w-100 h-100 d-flex align-items-center justify-content-center fw-bold fs-4"
+                                 style="background-color: @Model.GetAvatarColor(gameName);">
+                                @Model.GetInitials(gameName)
                             </div>
                         }
-                        <div class="card-body p-2 d-flex flex-column">
-                            <span class="game-title text-truncate fw-semibold text-body" title="@game.BoardGameName">@game.BoardGameName</span>
-                            <a asp-page="/Browsing/BoardGames/BoardGameDetails" asp-route-id="@game.Id" class="btn btn-sm btn-link p-0 text-start text-decoration-none mt-1">
-                                View Details <i class="bi bi-arrow-right small"></i>
-                            </a>
-                        </div>
                     </div>
-                </div>
+
+                    @* Card Body *@
+                    <div class="card-body p-3">
+                        <h6 class="card-title text-truncate mb-0 text-body" title="@gameName">
+                            @gameName
+                        </h6>
+                    </div>
+                </a>
             }
         </div>
-    </div>
+    }
+    else
+    {
+        <div class="alert alert-light border shadow-sm text-center py-5">
+            <i class="bi bi-box-seam text-secondary display-4 d-block mb-3"></i>
+            <p class="text-muted">No games are currently linked to this marker type.</p>
+        </div>
+    }
 </div>
-
-<style>
-    /* 1. Force the tray height so the browser knows the exact footprint */
-    :root {
-        --tray-height: 220px;
-    }
-
-    /* 2. Apply padding to the main container instead of the body
-              to prevent the "jumping" background effect */
-    .details-container {
-        padding-bottom: var(--tray-height);
-    }
-
-    /* 3. Refined Tray Styles */
-    .related-games-tray {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: var(--tray-height);
-        z-index: 1030;
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        /* Ensure it starts off-screen or invisible if it's still jumping,
-               but usually, a fixed height is enough */
-    }
-
-    .related-game-card {
-        min-width: 160px;
-        max-width: 160px;
-        height: 150px; /* Fixed height for inner cards */
-        transition: transform 0.2s;
-    }
-
-        .related-game-card .card-img-top {
-            height: 80px;
-            object-fit: cover;
-        }
-
-    /* Clean scrollbar */
-    .custom-scrollbar::-webkit-scrollbar {
-        height: 6px;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: var(--bs-secondary-bg);
-        border-radius: 10px;
-    }
-</style>

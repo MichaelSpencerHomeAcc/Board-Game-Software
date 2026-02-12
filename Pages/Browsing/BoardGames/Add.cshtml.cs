@@ -1,14 +1,12 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Pages.Admin.BoardGames;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
-using System;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
@@ -32,6 +30,10 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         [BindProperty]
         public IFormFile? ImageUpload { get; set; }
 
+        [BindProperty]
+        public List<long> MarkerTypeIds { get; set; } = new();
+
+        public List<MarkerTypeViewModel> AvailableMarkerTypes { get; set; } = new();
         public SelectList BoardGameTypes { get; set; }
         public SelectList VictoryConditions { get; set; }
         public SelectList Publishers { get; set; }
@@ -39,79 +41,128 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         public async Task<IActionResult> OnGet()
         {
             await LoadSelectLists();
+            await LoadAvailableMarkerTypes();
             return Page();
         }
 
         public async Task<IActionResult> OnPostAsync()
         {
-            BoardGame.CreatedBy = User.Identity?.Name ?? "system";
-            BoardGame.TimeCreated = DateTime.UtcNow;
-            BoardGame.ModifiedBy = BoardGame.CreatedBy;
-            BoardGame.TimeModified = BoardGame.TimeCreated;
+            // 1. Set Audit and Identity Fields
+            string user = User.Identity?.Name ?? "system";
+            BoardGame.CreatedBy = user;
+            BoardGame.ModifiedBy = user;
+            BoardGame.TimeCreated = DateTime.Now;
+            BoardGame.TimeModified = DateTime.Now;
+            BoardGame.Gid = Guid.NewGuid();
+
+            // 2. Bypass Validation for background-set fields
+            ModelState.Remove("BoardGame.CreatedBy");
+            ModelState.Remove("BoardGame.ModifiedBy");
+            ModelState.Remove("BoardGame.Gid");
 
             if (!ModelState.IsValid)
             {
-                // Collect all errors
-                var errors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-
-                // For debugging, either log or throw or show on page
-                foreach (var error in errors)
-                {
-                    Console.WriteLine($"ModelState error: {error}");
-                }
-
-                // Optionally, pass errors to the ViewData so you can display them on the page
-                ViewData["ModelErrors"] = errors;
-
                 await LoadSelectLists();
+                await LoadAvailableMarkerTypes();
                 return Page();
             }
 
-            // Add new board game to SQL DB
-            BoardGame.Gid = Guid.NewGuid();
-            _context.BoardGames.Add(BoardGame);
-            await _context.SaveChangesAsync();
+            // Using a transaction to ensure SQL and MongoDB stay in sync
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-            // Handle image upload to MongoDB
-            if (ImageUpload != null && ImageUpload.Length > 0)
+            try
             {
-                using var ms = new MemoryStream();
-                await ImageUpload.CopyToAsync(ms);
-                var imageBytes = ms.ToArray();
+                // 3. Add Game to SQL
+                _context.BoardGames.Add(BoardGame);
+                await _context.SaveChangesAsync();
 
-                var frontImageType = await _context.BoardGameImageTypes
-                    .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-
-                if (frontImageType != null)
+                // 4. Handle Bulk Marker Addition
+                if (BoardGame.HasMarkers && MarkerTypeIds != null && MarkerTypeIds.Any())
                 {
-                    // Remove existing images if any (just in case)
-                    await _boardGameImages.DeleteManyAsync(img =>
-                        img.GID == BoardGame.Gid && img.ImageTypeGID == frontImageType.Gid);
-
-                    var newImage = new BoardGameImages
+                    var markersToAdd = MarkerTypeIds.Distinct().Select(typeId => new BoardGameMarker
                     {
-                        GID = BoardGame.Gid,
-                        ImageTypeGID = frontImageType.Gid,
-                        ImageBytes = imageBytes,
-                        ContentType = ImageUpload.ContentType,
-                        Description = "Board Game Front Image"
-                    };
+                        Gid = Guid.NewGuid(),
+                        FkBgdBoardGame = BoardGame.Id,
+                        FkBgdBoardGameMarkerType = typeId,
+                        CreatedBy = user,
+                        ModifiedBy = user,
+                        TimeCreated = DateTime.Now,
+                        TimeModified = DateTime.Now
+                    });
 
-                    await _boardGameImages.InsertOneAsync(newImage);
+                    _context.BoardGameMarkers.AddRange(markersToAdd);
+                    await _context.SaveChangesAsync();
                 }
-            }
 
-            return RedirectToPage("./Index");
+                // 5. Handle Box Art Upload (MongoDB)
+                if (ImageUpload != null && ImageUpload.Length > 0)
+                {
+                    using var ms = new MemoryStream();
+                    await ImageUpload.CopyToAsync(ms);
+
+                    var frontImageType = await _context.BoardGameImageTypes
+                        .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+
+                    if (frontImageType != null)
+                    {
+                        var newImage = new BoardGameImages
+                        {
+                            GID = BoardGame.Gid,
+                            ImageTypeGID = frontImageType.Gid,
+                            SQLTable = "BoardGames",
+                            ImageBytes = ms.ToArray(),
+                            ContentType = ImageUpload.ContentType,
+                            Description = $"Front image for {BoardGame.BoardGameName}"
+                        };
+
+                        await _boardGameImages.InsertOneAsync(newImage);
+                    }
+                }
+
+                await transaction.CommitAsync();
+                return RedirectToPage("./Index");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+
+                // Extract inner exception message if available for better error trapping
+                var errorMsg = ex.InnerException?.Message ?? ex.Message;
+                ModelState.AddModelError(string.Empty, $"Critical Error: {errorMsg}");
+
+                await LoadSelectLists();
+                await LoadAvailableMarkerTypes();
+                return Page();
+            }
         }
 
         private async Task LoadSelectLists()
         {
-            BoardGameTypes = new SelectList(await _context.BoardGameTypes.Where(t => !t.Inactive).ToListAsync(), "Id", "TypeDesc");
-            VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).ToListAsync(), "Id", "TypeDesc");
-            Publishers = new SelectList(await _context.Publishers.Where(p => !p.Inactive).ToListAsync(), "Id", "PublisherName");
+            BoardGameTypes = new SelectList(await _context.BoardGameTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
+            VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
+            Publishers = new SelectList(await _context.Publishers.Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
+        }
+
+        private async Task LoadAvailableMarkerTypes()
+        {
+            var types = await _context.BoardGameMarkerTypes
+                .Where(t => !t.Inactive)
+                .OrderBy(t => t.TypeDesc)
+                .ToListAsync();
+
+            foreach (var t in types)
+            {
+                var img = await _boardGameImages
+                    .Find(x => x.SQLTable == "bgd.BoardGameMarkerType" && x.GID == t.Gid)
+                    .FirstOrDefaultAsync();
+
+                AvailableMarkerTypes.Add(new MarkerTypeViewModel
+                {
+                    Id = t.Id,
+                    TypeDesc = t.TypeDesc,
+                    ImageBase64 = img != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
+                });
+            }
         }
     }
 }
