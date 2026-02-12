@@ -29,7 +29,7 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
         }
 
         [BindProperty]
-        public BoardGame BoardGame { get; set; }
+        public BoardGame BoardGame { get; set; } = default!;
 
         [BindProperty]
         public IFormFile? ImageUpload { get; set; }
@@ -40,9 +40,9 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
         public List<BoardGameMarker> ExistingMarkers { get; set; } = new();
         public List<MarkerTypeViewModel> AvailableMarkerTypes { get; set; } = new();
 
-        public SelectList BoardGameTypes { get; set; }
-        public SelectList VictoryConditions { get; set; }
-        public SelectList Publishers { get; set; }
+        public SelectList BoardGameTypes { get; set; } = default!;
+        public SelectList VictoryConditions { get; set; } = default!;
+        public SelectList Publishers { get; set; } = default!;
         public string? CurrentImageUrl { get; set; }
 
         public async Task<IActionResult> OnGetAsync(long id)
@@ -55,14 +55,7 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
 
             if (BoardGame == null) return NotFound();
 
-            ExistingMarkers = await _context.BoardGameMarkers
-                .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
-                .Where(m => m.FkBgdBoardGame == BoardGame.Id)
-                .ToListAsync();
-
-            await LoadSelectLists();
-            await LoadMarkerTypes();
-            await LoadCurrentImageUrl(BoardGame.Gid);
+            await ReloadPageData(id);
 
             return Page();
         }
@@ -72,28 +65,39 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
             var gameToUpdate = await _context.BoardGames.FindAsync(id);
             if (gameToUpdate == null) return NotFound();
 
-            // 1. Update the main game properties 
-            // Explicitly listing fields prevents "Over-Posting" attacks
+            // 1. Update the main game properties via TryUpdateModel to include new fields
             if (await TryUpdateModelAsync<BoardGame>(gameToUpdate, "BoardGame",
-                b => b.BoardGameName, b => b.FkBgdBoardGameType, b => b.PlayerCountMin, b => b.PlayerCountMax, b => b.ReleaseDate, 
-                b => b.PlayingTimeMinInMinutes, b => b.PlayingTimeMaxInMinutes, b => b.HasMarkers, b => b.FkBgdBoardGameVictoryConditionType, 
-                b => b.HeightCm, b => b.WidthCm,
-                b => b.FkBgdBoardGameVictoryConditionType, b => b.FkBgdPublisher))
+                b => b.BoardGameName,
+                b => b.FkBgdBoardGameType,
+                b => b.PlayerCountMin,
+                b => b.PlayerCountMax,
+                b => b.ReleaseDate,
+                b => b.PlayingTimeMinInMinutes,
+                b => b.PlayingTimeMaxInMinutes,
+                b => b.HasMarkers,
+                b => b.ComplexityRating,
+                b => b.HeightCm,
+                b => b.WidthCm,
+                b => b.BoardGameSummary,           // Added
+                b => b.HowToPlayHyperlink,         // Added
+                b => b.FkBgdBoardGameVictoryConditionType,
+                b => b.FkBgdPublisher))
             {
-                // 2. Handle Image logic (placeholder for your MongoDB logic)
+                gameToUpdate.ModifiedBy = User.Identity?.Name ?? "system";
+                gameToUpdate.TimeModified = DateTime.Now;
+
+                // 2. Handle Image logic (MongoDB)
                 if (ImageUpload != null && ImageUpload.Length > 0)
                 {
                     using var ms = new MemoryStream();
                     await ImageUpload.CopyToAsync(ms);
                     var imageBytes = ms.ToArray();
 
-                    // Find the "Board Game Front" type GID from SQL
                     var frontImageType = await _context.BoardGameImageTypes
                         .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
 
                     if (frontImageType != null)
                     {
-                        // Remove existing front images for this GID to avoid duplicates
                         await _boardGameImages.DeleteManyAsync(img =>
                             img.GID == gameToUpdate.Gid && img.ImageTypeGID == frontImageType.Gid);
 
@@ -136,10 +140,10 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
                             Gid = Guid.NewGuid(),
                             FkBgdBoardGame = id,
                             FkBgdBoardGameMarkerType = newId,
-                            CreatedBy = User.Identity?.Name ?? "system",
-                            TimeCreated = DateTime.UtcNow,
+                            CreatedBy = gameToUpdate.CreatedBy,
+                            TimeCreated = gameToUpdate.TimeCreated,
                             ModifiedBy = User.Identity?.Name ?? "system",
-                            TimeModified = DateTime.UtcNow
+                            TimeModified = DateTime.Now
                         });
 
                     _context.BoardGameMarkers.AddRange(toAdd);
@@ -149,15 +153,17 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
                 return RedirectToPage("./BoardGameDetails", new { id = gameToUpdate.Id });
             }
 
-            // IMPORTANT: If we reach here, validation failed. 
-            // We MUST reload the data so the UI doesn't break.
             await ReloadPageData(id);
             return Page();
         }
 
         private async Task ReloadPageData(long id)
         {
-            ExistingMarkers = await _context.BoardGameMarkers.Include(m => m.FkBgdBoardGameMarkerTypeNavigation).Where(m => m.FkBgdBoardGame == id).ToListAsync();
+            ExistingMarkers = await _context.BoardGameMarkers
+                .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
+                .Where(m => m.FkBgdBoardGame == id)
+                .ToListAsync();
+
             await LoadSelectLists();
             await LoadMarkerTypes();
             await LoadCurrentImageUrl(BoardGame.Gid);
@@ -165,15 +171,19 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
 
         private async Task LoadSelectLists()
         {
-            BoardGameTypes = new SelectList(await _context.BoardGameTypes.Where(t => !t.Inactive).ToListAsync(), "Id", "TypeDesc");
-            VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).ToListAsync(), "Id", "TypeDesc");
-            Publishers = new SelectList(await _context.Publishers.Where(p => !p.Inactive).ToListAsync(), "Id", "PublisherName");
+            BoardGameTypes = new SelectList(await _context.BoardGameTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
+            VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
+            Publishers = new SelectList(await _context.Publishers.Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
         }
 
         private async Task LoadMarkerTypes()
         {
+            AvailableMarkerTypes.Clear();
             var existingIds = ExistingMarkers.Select(m => m.FkBgdBoardGameMarkerType).ToHashSet();
-            var types = await _context.BoardGameMarkerTypes.Where(t => !t.Inactive && !existingIds.Contains(t.Id)).OrderBy(t => t.TypeDesc).ToListAsync();
+            var types = await _context.BoardGameMarkerTypes
+                .Where(t => !t.Inactive && !existingIds.Contains(t.Id))
+                .OrderBy(t => t.TypeDesc)
+                .ToListAsync();
 
             foreach (var type in types)
             {
@@ -201,7 +211,7 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
     public class MarkerTypeViewModel
     {
         public long Id { get; set; }
-        public string TypeDesc { get; set; }
+        public string TypeDesc { get; set; } = string.Empty;
         public string? ImageBase64 { get; set; }
     }
 }

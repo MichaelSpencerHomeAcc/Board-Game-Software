@@ -98,9 +98,9 @@
                     <a href="/DataSetup/Shelves/Details/@Model.ShelfSection.FkBgdShelf" class="btn btn-sm btn-outline-secondary px-3">
                         <i class="bi bi-arrow-left me-2"></i>Back to Shelf
                     </a>
-                    <button class="btn btn-sm btn-primary px-3">
+                    <a asp-page="./AddGame" asp-route-id="@Model.ShelfSection.Id" class="btn btn-sm btn-primary px-3">
                         <i class="bi bi-plus-lg me-2"></i>Add Game
-                    </button>
+                    </a>
                 </div>
             </div>
         </div>
@@ -189,9 +189,16 @@
                                                class="btn btn-sm btn-outline-secondary border-0" title="View">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <button type="button" class="btn btn-sm btn-outline-danger border-0" title="Remove">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
+
+                                            <form method="post" asp-page-handler="RemoveGame"
+                                                  asp-route-sectionId="@Model.ShelfSection.Id"
+                                                  asp-route-gameId="@bgss.FkBgdBoardGame"
+                                                  onsubmit="return confirm('Are you sure you want to remove this game from the shelf?');"
+                                                  style="display:inline;">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0" title="Remove">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
                                         </div>
                                     </td>
                                 </tr>

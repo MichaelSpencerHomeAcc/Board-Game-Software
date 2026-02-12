@@ -1,0 +1,170 @@
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections.AddGameModel
+@{
+    ViewData["Title"] = "Add Game to Section";
+}
+
+<style>
+    .form-hero {
+        background-color: var(--bs-tertiary-bg);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid var(--bs-border-color);
+    }
+
+    .form-card {
+        background-color: var(--bs-body-bg);
+        border-radius: 12px;
+        border: 1px solid var(--bs-border-color);
+    }
+</style>
+
+<div class="container py-4">
+    @* --- Breadcrumbs --- *@
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/DataSetup/Shelves/Index">Shelves</a></li>
+            <li class="breadcrumb-item">
+                <a href="/DataSetup/Shelves/Details/@Model.ShelfSection.FkBgdShelf">
+                    Shelf @Model.ShelfSection.FkBgdShelfNavigation?.ShelfName
+                </a>
+            </li>
+            <li class="breadcrumb-item">
+                <a asp-page="./Details" asp-route-id="@Model.ShelfSection.Id">
+                    Section @Model.ShelfSection.SectionName
+                </a>
+            </li>
+            <li class="breadcrumb-item active">Add Game</li>
+        </ol>
+    </nav>
+
+    <div class="form-hero shadow-sm">
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <div class="bg-primary text-white rounded-3 p-3 me-3">
+                    <i class="bi bi-plus-square h3 mb-0"></i>
+                </div>
+                <div>
+                    <h1 class="display-6 fw-bold mb-1">Assign Game</h1>
+                    <p class="text-muted mb-0">Section <strong>@Model.ShelfSection.SectionName</strong> (@Model.RemainingWidth.ToString("N1")cm free)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+
+            @* --- Status Display Box --- *@
+            <div id="jsStatusBox" class="alert d-none shadow-sm mb-4 border-0" role="alert">
+                <div class="d-flex align-items-center">
+                    <i id="jsStatusIcon" class="bi h4 mb-0 me-3"></i>
+                    <div>
+                        <strong id="jsStatusTitle"></strong><br />
+                        <small id="jsStatusMessage"></small>
+                    </div>
+                </div>
+            </div>
+
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div asp-validation-summary="All" class="alert alert-danger shadow-sm py-2 px-3 small fw-bold mb-4" style="border-left: 5px solid darkred;">
+                    <i class="bi bi-bug me-2"></i> Error Details:
+                </div>
+            }
+
+            <div class="card form-card shadow-sm p-4">
+                <form method="post" id="addGameForm">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Select Board Game</label>
+                        <select asp-for="SelectedGameId" asp-items="Model.AvailableGames"
+                                class="form-select form-select-lg shadow-sm"
+                                onchange="validateSelection(this)">
+                            <option value="">-- Choose a Game --</option>
+                        </select>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4 pt-3 border-top">
+                        <a asp-page="./Details" asp-route-id="@Model.ShelfSection.Id" class="btn btn-outline-secondary px-4">Cancel</a>
+                        <button type="submit" id="submitBtn" class="btn btn-primary px-4 shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Add to Shelf
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const occupiedData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.OccupiedGames));
+        const gameWidths = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.GameWidths));
+        const remainingSpace = @Model.RemainingWidth;
+
+                function validateSelection(select) {
+            const gameId = select.value;
+            const statusBox = document.getElementById('jsStatusBox');
+            const title = document.getElementById('jsStatusTitle');
+            const msg = document.getElementById('jsStatusMessage');
+            const icon = document.getElementById('jsStatusIcon');
+            const btn = document.getElementById('submitBtn');
+
+            if (!gameId) {
+                statusBox.classList.add('d-none');
+                btn.disabled = false;
+                btn.className = "btn btn-primary px-4 shadow-sm";
+                btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Add to Shelf';
+                return;
+            }
+
+            const selectedWidth = gameWidths[gameId];
+
+            // 1. Check for MISSING DIMENSIONS (New Block)
+            if (selectedWidth === null || selectedWidth === undefined || selectedWidth <= 0) {
+                statusBox.classList.remove('d-none', 'alert-warning');
+                statusBox.classList.add('alert-danger');
+                icon.className = "bi bi-geo-alt-fill text-danger h4 mb-0 me-3";
+                title.innerText = "Missing Dimensions";
+                msg.innerText = "This game has no width recorded. You must edit the game details and add its dimensions before it can be placed on a shelf.";
+
+                btn.disabled = true;
+                btn.className = "btn btn-secondary px-4 shadow-sm";
+                btn.innerHTML = '<i class="bi bi-exclamation-octagon me-1"></i> Cannot Add';
+                return;
+            }
+
+            // 2. Check for OVERCAPACITY
+            if (parseFloat(selectedWidth) > remainingSpace) {
+                statusBox.classList.remove('d-none', 'alert-warning');
+                statusBox.classList.add('alert-danger');
+                icon.className = "bi bi-x-circle-fill text-danger h4 mb-0 me-3";
+                title.innerText = "No Space Available";
+                msg.innerText = `This game is ${selectedWidth}cm wide, but only ${remainingSpace.toFixed(1)}cm is available here.`;
+
+                btn.disabled = true;
+                btn.className = "btn btn-danger px-4 shadow-sm";
+                btn.innerHTML = '<i class="bi bi-slash-circle me-1"></i> Shelf Full';
+                return;
+            }
+
+            // 3. Check for RELOCATION (Yellow Warning)
+            btn.disabled = false;
+            if (occupiedData[gameId]) {
+                statusBox.classList.remove('d-none', 'alert-danger');
+                statusBox.classList.add('alert-warning');
+                icon.className = "bi bi-exclamation-triangle-fill text-warning h4 mb-0 me-3";
+                title.innerText = "Relocation Warning";
+                msg.innerText = `Currently on ${occupiedData[gameId]}. Moving it here will consume ${selectedWidth}cm of ${remainingSpace.toFixed(1)}cm.`;
+
+                btn.className = "btn btn-warning px-4 shadow-sm text-dark fw-bold";
+                btn.innerHTML = '<i class="bi bi-arrow-left-right me-1"></i> Relocate Game';
+            } else {
+                statusBox.classList.add('d-none');
+                btn.className = "btn btn-primary px-4 shadow-sm";
+                btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Add to Shelf';
+            }
+        }
+    </script>
+}

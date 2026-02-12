@@ -18,6 +18,9 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
         public Shelf Shelf { get; set; } = default!;
         public List<ShelfSection> ActiveSections { get; set; } = new();
         public int MaxSections { get; set; }
+        public int MaxRows { get; set; }
+        public int NextRow { get; set; }
+        public int NextColumn { get; set; }
 
         public async Task<IActionResult> OnGetAsync(long? id)
         {
@@ -26,7 +29,6 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
             Shelf = await _context.Shelves
                 .Include(s => s.ShelfSections)
                     .ThenInclude(ss => ss.BoardGameShelfSections)
-                        // FIX: Use the Navigation Property (the object), not the FK (the long)
                         .ThenInclude(bgss => bgss.FkBgdBoardGameNavigation)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
@@ -36,11 +38,51 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
                 .Where(ss => !ss.Inactive)
                 .ToList();
 
+            // Calculate Grid Dimensions
             MaxSections = ActiveSections.Any()
                 ? (ActiveSections.Max(s => (int?)s.SectionNumber) ?? 1)
                 : 1;
 
+            // FIX: Dynamic Row Calculation so B1 (Row 2) shows up
+            int recordedRows = (int?)(Shelf.TotalRows) ?? 1;
+            int actualMaxRow = ActiveSections.Any() ? ActiveSections.Max(s => (int)s.RowNumber) : 1;
+            MaxRows = Math.Max(recordedRows, actualMaxRow);
+
+            // Button Logic
+            if (ActiveSections.Any())
+            {
+                var maxR = ActiveSections.Max(s => (int?)s.RowNumber) ?? 1;
+                var maxC = ActiveSections.Where(s => (int)s.RowNumber == maxR).Max(s => (int?)s.SectionNumber) ?? 0;
+                NextRow = (int)maxR;
+                NextColumn = (int)maxC + 1;
+            }
+            else
+            {
+                NextRow = 1;
+                NextColumn = 1;
+            }
+
             return Page();
+        }
+
+        public async Task<IActionResult> OnPostDeleteSectionAsync(long sectionId)
+        {
+            var section = await _context.ShelfSections
+                .Include(ss => ss.BoardGameShelfSections)
+                .FirstOrDefaultAsync(ss => ss.Id == sectionId);
+
+            if (section == null) return NotFound();
+
+            if (section.BoardGameShelfSections.Any())
+            {
+                TempData["Error"] = "Cannot delete a section that contains games.";
+                return RedirectToPage(new { id = section.FkBgdShelf });
+            }
+
+            _context.ShelfSections.Remove(section);
+            await _context.SaveChangesAsync();
+
+            return RedirectToPage(new { id = section.FkBgdShelf });
         }
 
         public string GetInitials(string name) => string.IsNullOrWhiteSpace(name) ? "S" : (name.Length > 1 ? name.Substring(0, 2).ToUpper() : name.ToUpper());

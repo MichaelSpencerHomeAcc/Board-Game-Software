@@ -82,5 +82,18 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
             return Page();
         }
+        public async Task<IActionResult> OnPostRemoveGameAsync(long sectionId, long gameId)
+        {
+            var link = await _context.BoardGameShelfSections
+                .FirstOrDefaultAsync(x => x.FkBgdShelfSection == sectionId && x.FkBgdBoardGame == gameId);
+
+            if (link != null)
+            {
+                _context.BoardGameShelfSections.Remove(link);
+                await _context.SaveChangesAsync();
+            }
+
+            return RedirectToPage(new { id = sectionId });
+        }
     }
 }

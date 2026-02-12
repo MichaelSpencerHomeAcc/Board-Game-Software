@@ -4,93 +4,280 @@
     ViewData["Title"] = "Add New Board Game";
 }
 
-<h2>Add New Board Game</h2>
+<style>
+    /* Marker Pill Styles */
+    .marker-pills-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        background: #1e2125;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #343a40;
+        min-height: 100px;
+    }
 
-<form method="post" enctype="multipart/form-data" id="addForm">
-    <div class="mb-3">
-        <label asp-for="BoardGame.BoardGameName" class="form-label"></label>
-        <input asp-for="BoardGame.BoardGameName" class="form-control" />
-        <span asp-validation-for="BoardGame.BoardGameName" class="text-danger"></span>
+    .marker-pill {
+        display: inline-flex;
+        align-items: center;
+        background: #ffffff;
+        color: #000;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        border: 1px solid #dee2e6;
+    }
+
+    .btn-remove-pill {
+        background: none;
+        border: none;
+        color: #6c757d;
+        margin-left: 8px;
+        padding: 0;
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+        .btn-remove-pill:hover {
+            color: #dc3545;
+        }
+
+    /* Bulk Modal Styles */
+    .bulk-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 12px;
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 10px;
+    }
+
+    .bulk-tile {
+        cursor: pointer;
+        border: 2px solid #343a40;
+        border-radius: 8px;
+        background: #212529;
+        padding: 8px;
+        text-align: center;
+        transition: 0.2s;
+        position: relative;
+    }
+
+        .bulk-tile:hover {
+            border-color: #495057;
+        }
+
+        .bulk-tile.selected {
+            border-color: #0d6efd;
+            background: #0d6efd20;
+        }
+
+            .bulk-tile.selected::after {
+                content: "\2713";
+                position: absolute;
+                top: 2px;
+                right: 5px;
+                color: #0d6efd;
+                font-weight: bold;
+            }
+
+    .tile-img {
+        height: 60px;
+        object-fit: contain;
+        margin-bottom: 5px;
+        max-width: 100%;
+    }
+
+    .tile-text {
+        font-size: 0.75rem;
+        color: #fff;
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center mb-4">
+        <a asp-page="Index" class="btn btn-outline-secondary me-3 shadow-sm">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h1 class="text-body m-0">Add New Board Game</h1>
     </div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.FkBgdBoardGameType" class="form-label">Game Type</label>
-        <select asp-for="BoardGame.FkBgdBoardGameType" asp-items="Model.BoardGameTypes" class="form-select">
-            <option value="">-- Select Type --</option>
-        </select>
-    </div>
+    <form method="post" enctype="multipart/form-data">
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card bg-dark text-white border-secondary mb-4 p-4 shadow-sm">
+                    <h5 class="text-info mb-3">Core Details</h5>
+                    <div class="mb-3">
+                        <label asp-for="BoardGame.BoardGameName" class="form-label text-muted small">Game Name</label>
+                        <input asp-for="BoardGame.BoardGameName" class="form-control bg-dark text-white border-secondary" placeholder="e.g. Scythe" />
+                    </div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.PlayerCountMin" class="form-label"></label>
-        <input asp-for="BoardGame.PlayerCountMin" type="number" class="form-control" />
-    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Publisher</label>
+                            <select asp-for="BoardGame.FkBgdPublisher" asp-items="Model.Publishers" class="form-select bg-dark text-white border-secondary">
+                                <option value="">-- Select Publisher --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Game Type</label>
+                            <select asp-for="BoardGame.FkBgdBoardGameType" asp-items="Model.BoardGameTypes" class="form-select bg-dark text-white border-secondary">
+                                <option value="">-- Select Type --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Victory Condition</label>
+                            <select asp-for="BoardGame.FkBgdBoardGameVictoryConditionType" asp-items="Model.VictoryConditions" class="form-select bg-dark text-white border-secondary">
+                                <option value="">-- Select Victory Condition --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Release Date</label>
+                            <input asp-for="BoardGame.ReleaseDate" type="date" class="form-control bg-dark text-white border-secondary" />
+                        </div>
+                    </div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.PlayerCountMax" class="form-label"></label>
-        <input asp-for="BoardGame.PlayerCountMax" type="number" class="form-control" />
-    </div>
+                    <hr class="border-secondary my-4">
+                    <h5 class="text-info mb-3">Gameplay & Physical Statistics</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-3 mb-3"><label class="small text-muted">Min Players</label><input asp-for="BoardGame.PlayerCountMin" type="number" class="form-control bg-dark text-white border-secondary" /></div>
+                        <div class="col-md-3 mb-3"><label class="small text-muted">Max Players</label><input asp-for="BoardGame.PlayerCountMax" type="number" class="form-control bg-dark text-white border-secondary" /></div>
+                        <div class="col-md-3 mb-3"><label class="small text-muted">Min Time (m)</label><input asp-for="BoardGame.PlayingTimeMinInMinutes" type="number" class="form-control bg-dark text-white border-secondary" /></div>
+                        <div class="col-md-3 mb-3"><label class="small text-muted">Max Time (m)</label><input asp-for="BoardGame.PlayingTimeMaxInMinutes" type="number" class="form-control bg-dark text-white border-secondary" /></div>
+                    </div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.PlayingTimeMinInMinutes" class="form-label"></label>
-        <input asp-for="BoardGame.PlayingTimeMinInMinutes" type="number" class="form-control" />
-    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4 mb-3">
+                            <label class="small text-muted">Complexity Rating (1-5)</label>
+                            <input asp-for="BoardGame.ComplexityRating" class="form-control bg-dark text-white border-secondary" placeholder="e.g. 3.25" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="small text-muted">Height (cm)</label>
+                            <input asp-for="BoardGame.HeightCm" type="number" step="0.01" class="form-control bg-dark text-white border-secondary" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="small text-muted">Width (cm)</label>
+                            <input asp-for="BoardGame.WidthCm" type="number" step="0.01" class="form-control bg-dark text-white border-secondary" />
+                        </div>
+                    </div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.PlayingTimeMaxInMinutes" class="form-label"></label>
-        <input asp-for="BoardGame.PlayingTimeMaxInMinutes" type="number" class="form-control" />
-    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">How to Play (URL)</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-secondary border-secondary text-white"><i class="bi bi-link-45deg"></i></span>
+                            <input asp-for="BoardGame.HowToPlayHyperlink" class="form-control bg-dark text-white border-secondary" placeholder="https://youtube.com/..." />
+                        </div>
+                    </div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.HeightCm" class="form-label"></label>
-        <input asp-for="BoardGame.HeightCm" type="number" step="0.01" class="form-control" />
-        <span asp-validation-for="BoardGame.HeightCm" class="text-danger"></span>
-    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Game Summary</label>
+                        <textarea asp-for="BoardGame.BoardGameSummary" class="form-control bg-dark text-white border-secondary" rows="4" placeholder="Brief overview of the game theme and mechanics..."></textarea>
+                    </div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.WidthCm" class="form-label"></label>
-        <input asp-for="BoardGame.WidthCm" type="number" step="0.01" class="form-control" />
-        <span asp-validation-for="BoardGame.WidthCm" class="text-danger"></span>
-    </div>
+                    <hr class="border-secondary my-4">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" asp-for="BoardGame.HasMarkers" id="markerSwitch">
+                        <label class="form-check-label" for="markerSwitch">Includes Markers/Components?</label>
+                    </div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.ComplexityRating" class="form-label"></label>
-        <input asp-for="BoardGame.ComplexityRating" type="text" class="form-control" />
-        <span asp-validation-for="BoardGame.ComplexityRating" class="text-danger"></span>
-    </div>
+                    <div id="markerUI" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="small text-muted">Game Components</label>
+                            <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#bulkModal">+ Add Multiple</button>
+                        </div>
+                        <div class="marker-pills-container" id="pillBox"></div>
+                    </div>
+                </div>
+            </div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.FkBgdBoardGameVictoryConditionType" class="form-label">Victory Condition</label>
-        <select asp-for="BoardGame.FkBgdBoardGameVictoryConditionType" asp-items="Model.VictoryConditions" class="form-select">
-            <option value="">-- Select Victory Condition --</option>
-        </select>
-    </div>
+            <div class="col-lg-4">
+                <div class="card bg-dark text-white border-secondary mb-4">
+                    <div class="card-header border-secondary"><h5>Visuals</h5></div>
+                    <div class="card-body text-center">
+                        <div class="mb-3 border border-secondary rounded p-2 bg-black" style="min-height: 250px; display: flex; align-items: center; justify-content: center;">
+                            <img id="imgPrev" src="/images/no-thumb.png" class="img-fluid" style="max-height: 300px;" />
+                        </div>
+                        <input type="file" asp-for="ImageUpload" class="form-control form-control-sm bg-dark text-white border-secondary" onchange="preview(this)" />
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success w-100 py-3 mb-2">Add Board Game</button>
+                <a asp-page="./Index" class="btn btn-outline-secondary w-100">Cancel</a>
+            </div>
+        </div>
+    </form>
+</div>
 
-    <div class="mb-3">
-        <label asp-for="BoardGame.FkBgdPublisher" class="form-label">Publisher</label>
-        <select asp-for="BoardGame.FkBgdPublisher" asp-items="Model.Publishers" class="form-select">
-            <option value="">-- Select Publisher --</option>
-        </select>
+@* --- BULK MODAL --- *@
+<div class="modal fade" id="bulkModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Select Components</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="modalSearch" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Search markers..." onkeyup="filterBulk()">
+                <div class="bulk-container">
+                    @foreach (var item in Model.AvailableMarkerTypes)
+                    {
+                        <div class="bulk-tile" data-id="@item.Id" data-name="@item.TypeDesc" onclick="toggleTile(this)">
+                            @if (!string.IsNullOrEmpty(item.ImageBase64))
+                            {
+                                <img src="@item.ImageBase64" class="tile-img" />
+                            }
+                            <span class="tile-text">@item.TypeDesc</span>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-primary" onclick="commitBulk()" data-bs-dismiss="modal">Add Selected</button>
+            </div>
+        </div>
     </div>
-
-    <div class="mb-3">
-        <label asp-for="BoardGame.ReleaseDate" class="form-label"></label>
-        <input asp-for="BoardGame.ReleaseDate" type="date" class="form-control" />
-    </div>
-
-    <div class="mb-3">
-        <label asp-for="BoardGame.BoardGameSummary" class="form-label"></label>
-        <textarea asp-for="BoardGame.BoardGameSummary" class="form-control"></textarea>
-    </div>
-
-    <div class="mb-3">
-        <label for="ImageUpload" class="form-label">Upload Front Image</label>
-        <input type="file" id="ImageUpload" name="ImageUpload" accept="image/*" class="form-control" />
-    </div>
-
-    <button type="submit" class="btn btn-success">Add Board Game</button>
-    <a asp-page="./Index" class="btn btn-secondary ms-2">Cancel</a>
-</form>
+</div>
 
 @section Scripts {
-    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.getElementById('markerSwitch').addEventListener('change', function() {
+            document.getElementById('markerUI').style.display = this.checked ? 'block' : 'none';
+        });
+
+        function preview(input) {
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = e => document.getElementById('imgPrev').src = e.target.result;
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function toggleTile(el) { el.classList.toggle('selected'); }
+
+        function filterBulk() {
+            let val = document.getElementById('modalSearch').value.toLowerCase();
+            document.querySelectorAll('.bulk-tile').forEach(t => {
+                t.style.display = t.dataset.name.toLowerCase().includes(val) ? "block" : "none";
+            });
+        }
+
+        function commitBulk() {
+            const container = document.getElementById('pillBox');
+            document.querySelectorAll('.bulk-tile.selected').forEach(t => {
+                const id = t.dataset.id;
+                const name = t.dataset.name;
+                const pill = document.createElement('div');
+                pill.className = 'marker-pill';
+                pill.innerHTML = `${name} <input type="hidden" name="MarkerTypeIds" value="${id}" />
+                                  <button type="button" class="btn-remove-pill" onclick="this.parentElement.remove()">&times;</button>`;
+                container.appendChild(pill);
+                t.classList.remove('selected');
+            });
+        }
+    </script>
 }
