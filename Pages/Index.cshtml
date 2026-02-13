@@ -1,63 +1,74 @@
 ﻿@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Home";
 }
 
-@* Hero Section - Uses the new site.css logic for depth *@
-<div class="p-5 mb-4 bg-body-tertiary rounded-3 shadow-sm border border-secondary-subtle">
-    <div class="container-fluid py-5 text-center">
-        <h1 class="display-5 fw-bold text-body">Game Night Manager</h1>
-        <p class="col-md-8 fs-4 mx-auto text-body-secondary">
-            Track your collection, manage your shelves, and organize the perfect gaming session.
-        </p>
-        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
-            <a class="btn btn-primary btn-lg px-4 gap-3 shadow-sm" asp-page="/GameNight/Index">
-                <i class="bi bi-calendar-plus me-2"></i>Plan a Game Night
-            </a>
-            <a class="btn btn-outline-secondary btn-lg px-4 shadow-sm" asp-page="/Browsing/BoardGames/Index">
-                <i class="bi bi-collection me-2"></i>View Collection
-            </a>
-        </div>
-    </div>
-</div>
+<style>
+    .stat-box {
+        background: rgba(var(--bs-tertiary-bg-rgb), 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: all 0.2s ease-in-out;
+        text-decoration: none;
+        display: block;
+    }
 
-@* Dashboard Stats Section *@
-<div class="row g-4 text-center">
-    <div class="col-md-3">
-        <div class="card bg-body-tertiary border-secondary-subtle h-100 shadow-sm">
-            <div class="card-body">
-                <i class="bi bi-dice-5 text-primary-emphasis fs-1 mb-2"></i>
-                <h6 class="text-uppercase text-body-secondary small fw-bold">Games</h6>
-                <h2 class="display-6 fw-bold mb-0 text-body">24</h2>
-            </div>
-        </div>
+        .stat-box:hover {
+            background: rgba(var(--bs-primary-rgb), 0.1);
+            border-color: var(--bs-primary);
+            transform: translateY(-3px);
+        }
+</style>
+
+<div class="container py-4">
+    @* --- Hero Section --- *@
+    <div class="p-5 mb-5 bg-body-tertiary rounded-4 shadow-sm border border-secondary-subtle">
+        <h1 class="display-5 fw-bold">Board Game Tracker</h1>
+        <p class="col-md-8 fs-4 text-muted">Manage your collection, track your players, and record every epic game night victory.</p>
+        <a asp-page="/GameNight/Create" class="btn btn-primary btn-lg px-4 shadow">Start a Game Night</a>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-body-tertiary border-secondary-subtle h-100 shadow-sm">
-            <div class="card-body">
-                <i class="bi bi-people text-success-emphasis fs-1 mb-2"></i>
-                <h6 class="text-uppercase text-body-secondary small fw-bold">Players</h6>
-                <h2 class="display-6 fw-bold mb-0 text-body">12</h2>
-            </div>
+
+    @* --- Real Data Stats Boxes --- *@
+    <div class="row g-4">
+        <div class="col-md-4">
+            <a asp-page="/Browsing/BoardGames/Index" class="stat-box h-100">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-primary bg-opacity-10 p-2 rounded-3 me-3">
+                        <i class="bi bi-controller fs-3 text-primary"></i>
+                    </div>
+                    <h5 class="m-0 fw-bold text-body">Library</h5>
+                </div>
+                <div class="display-6 fw-bold text-body">@Model.TotalGames</div>
+                <p class="text-muted mb-0">Total Board Games</p>
+            </a>
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-body-tertiary border-secondary-subtle h-100 shadow-sm">
-            <div class="card-body">
-                <i class="bi bi-calendar-event text-warning-emphasis fs-1 mb-2"></i>
-                <h6 class="text-uppercase text-body-secondary small fw-bold">Upcoming</h6>
-                <h2 class="display-6 fw-bold mb-0 text-body">2</h2>
-            </div>
+
+        <div class="col-md-4">
+            <a asp-page="/DataSetup/Players/Index" class="stat-box h-100">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-success bg-opacity-10 p-2 rounded-3 me-3">
+                        <i class="bi bi-people fs-3 text-success"></i>
+                    </div>
+                    <h5 class="m-0 fw-bold text-body">Players</h5>
+                </div>
+                <div class="display-6 fw-bold text-body">@Model.TotalPlayers</div>
+                <p class="text-muted mb-0">Registered Competitors</p>
+            </a>
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-body-tertiary border-secondary-subtle h-100 shadow-sm">
-            <div class="card-body">
-                <i class="bi bi-bookshelf text-info-emphasis fs-1 mb-2"></i>
-                <h6 class="text-uppercase text-body-secondary small fw-bold">Shelves</h6>
-                <h2 class="display-6 fw-bold mb-0 text-body">4</h2>
-            </div>
+
+        <div class="col-md-4">
+            <a asp-page="/GameNight/Index" class="stat-box h-100">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-info bg-opacity-10 p-2 rounded-3 me-3">
+                        <i class="bi bi-calendar-event fs-3 text-info"></i>
+                    </div>
+                    <h5 class="m-0 fw-bold text-body">History</h5>
+                </div>
+                <div class="display-6 fw-bold text-body">@Model.TotalGameNights</div>
+                <p class="text-muted mb-0">Game Nights Recorded</p>
+            </a>
         </div>
     </div>
 </div>

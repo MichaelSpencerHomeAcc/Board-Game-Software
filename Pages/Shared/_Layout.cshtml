@@ -102,17 +102,17 @@
                                 <i class="bi bi-house-door me-2"></i> Home
                             </a>
                         </li>
-                        
+
                         @if (claimedPlayerId.HasValue)
                         {
                             <li class="nav-item ps-3 mt-1">
-                                <a class="nav-link py-1 small @IsActive("Player Details")" 
+                                <a class="nav-link py-1 small @IsActive("Player Details")"
                                    asp-page="/DataSetup/Players/Details" asp-route-id="@claimedPlayerId">
                                     <i class="bi bi-person-badge me-2"></i> My Profile
                                 </a>
                             </li>
                             <li class="nav-item ps-3">
-                                <a class="nav-link py-1 small @IsActive("Manage Top 10")" 
+                                <a class="nav-link py-1 small @IsActive("Manage Top 10")"
                                    asp-page="/DataSetup/Players/ManageTopTen" asp-route-id="@claimedPlayerId">
                                     <i class="bi bi-trophy me-2"></i> My Top 10
                                 </a>
@@ -138,6 +138,16 @@
                     <ul class="nav nav-pills flex-column mb-4">
                         <li><a class="nav-link @IsActive("Board Games")" asp-page="/Browsing/BoardGames/Index"><i class="bi bi-dice-5 me-2"></i> Board Games</a></li>
                         <li><a class="nav-link @IsActive("Game Night")" asp-page="/GameNight/Index"><i class="bi bi-calendar-check me-2"></i> Game Nights</a></li>
+                    </ul>
+
+                    @* Insights Section - Visible to everyone *@
+                    <h6 class="text-uppercase text-body-secondary fw-bold small mb-3">Insights</h6>
+                    <ul class="nav nav-pills flex-column mb-4">
+                        <li>
+                            <a class="nav-link @IsActive("Statistics")" asp-page="/Statistics/Index">
+                                <i class="bi bi-graph-up me-2"></i> Statistics
+                            </a>
+                        </li>
                     </ul>
 
                     @if (isAdmin)
