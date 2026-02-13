@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Board_Game_Software.Models;
 
@@ -13,11 +14,13 @@ public partial class PlayerBoardGameRating
 
     public byte[]? VersionStamp { get; set; }
 
-    public string CreatedBy { get; set; } = null!;
+    [BindNever]
+    public string CreatedBy { get; set; } = string.Empty;
 
     public DateTime TimeCreated { get; set; }
 
-    public string ModifiedBy { get; set; } = null!;
+    [BindNever]
+    public string ModifiedBy { get; set; } = string.Empty;
 
     public DateTime TimeModified { get; set; }
 
@@ -25,9 +28,11 @@ public partial class PlayerBoardGameRating
 
     public long FkBgdBoardGame { get; set; }
 
-    public decimal? Rating { get; set; }
+    public decimal RatingMu { get; set; }
 
-    public int? Constant { get; set; }
+    public decimal RatingSigma { get; set; }
+
+    public int MatchesPlayed { get; set; }
 
     public virtual BoardGame FkBgdBoardGameNavigation { get; set; } = null!;
 

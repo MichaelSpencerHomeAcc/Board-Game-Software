@@ -1,6 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Board_Game_Software.Models;
 
@@ -32,7 +32,15 @@ public partial class BoardGameMatchPlayerResult
 
     public bool Win { get; set; }
 
-    public FinalTeam? FinalTeam { get; set; } // nullable for matches without a team result
+    public FinalTeam? FinalTeam { get; set; }
+
+    public decimal? PreMatchRatingMu { get; set; }
+
+    public decimal? PreMatchRatingSigma { get; set; }
+
+    public decimal? RatingChangeMu { get; set; }
+
+    public decimal? RatingChangeSigma { get; set; }
 
     public virtual BoardGameMatchPlayer FkBgdBoardGameMatchPlayerNavigation { get; set; } = null!;
 

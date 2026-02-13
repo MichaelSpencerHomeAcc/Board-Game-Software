@@ -5,57 +5,187 @@
     var today = DateOnly.FromDateTime(DateTime.UtcNow);
 }
 
-<h1>Board Game Nights</h1>
+<style>
+    /* --- Card Aesthetics --- */
+    .gn-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 12px;
+        background-color: var(--bs-body-bg);
+    }
 
-<p>
-    <a class="btn btn-primary" asp-page="/GameNight/Create">Create Night</a>
-</p>
+        .gn-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3) !important;
+            border-color: var(--bs-primary);
+        }
 
-<table class="table table-hover align-middle">
-    <thead>
-        <tr>
-            <th>Date</th>
-            <th class="text-center">Players</th>
-            <th class="text-center">Matches</th>
-            <th>Status</th>
-            <th class="text-end">Actions</th>
-        </tr>
-    </thead>
-    <tbody>
+    /* --- Status Badge Positioning --- */
+    .status-badge {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        z-index: 10;
+    }
+
+    /* --- Calendar Date Icon --- */
+    .date-box {
+        background: var(--bs-primary);
+        color: white;
+        border-radius: 10px;
+        padding: 8px 12px;
+        display: inline-block;
+        font-weight: bold;
+        text-align: center;
+        min-width: 65px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+        .date-box .month {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            display: block;
+            line-height: 1;
+            opacity: 0.9;
+        }
+
+        .date-box .day {
+            font-size: 1.4rem;
+            display: block;
+            line-height: 1.2;
+        }
+
+    /* --- Stat Boxes (Dark Mode Fix) --- */
+    .stat-bucket {
+        background-color: var(--bs-body-tertiary);
+        border: 1px solid var(--bs-border-color-translucent);
+        border-radius: 8px;
+        padding: 12px 5px;
+        text-align: center;
+    }
+
+    .stat-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--bs-secondary);
+        margin-bottom: 2px;
+    }
+
+    .stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--bs-body-color);
+    }
+
+    /* --- Header Action Group --- */
+    .header-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+</style>
+
+<div class="container py-4">
+    @* --- Header Section --- *@
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-5">
+        <div class="mb-3 mb-md-0">
+            <h1 class="display-5 fw-bold mb-1">Game Nights</h1>
+            <p class="text-secondary mb-0">Track sessions, players, and match outcomes.</p>
+        </div>
+        <div class="header-actions">
+            <a class="btn btn-outline-secondary rounded-pill px-4" asp-page="Archive">
+                <i class="bi bi-archive me-2"></i>History
+            </a>
+            <a class="btn btn-primary rounded-pill shadow px-4" asp-page="/GameNight/Create">
+                <i class="bi bi-plus-lg me-2"></i>Schedule Night
+            </a>
+        </div>
+    </div>
+
+    @* --- Nights Grid --- *@
+    <div class="row g-4">
         @foreach (var n in Model.Nights)
         {
             var isPast = n.GameNightDate < today;
-            <tr class="@(n.Inactive ? "table-secondary" : "")">
-                <td>@n.GameNightDate.ToString("yyyy-MM-dd")</td>
-                <td class="text-center">@n.PlayerCount</td>
-                <td class="text-center">@n.MatchCount</td>
-                <td>
-                    @if (n.Inactive)
-                    {
-                        <span class="badge bg-secondary">Inactive</span>
-                    }
-                    else if (n.Finished)
-                    {
-                        <span class="badge bg-success">Finished</span>
-                    }
-                    else if (isPast)
-                    {
-                        <span class="badge bg-warning text-dark">Past (Unfinished)</span>
-                    }
-                    else
-                    {
-                        <span class="badge bg-info text-dark">Upcoming</span>
-                    }
-                </td>
-                <td class="text-end">
-                    <a asp-page="Details"
-                       asp-route-id="@n.Id"
-                       asp-route-returnUrl="@Url.Page("Index")">Details</a> |
-                    <a asp-page="Edit"
-                       asp-route-id="@n.Id"
-                       asp-route-returnUrl="@Url.Page("Index")">Edit</a>
-                </td>
-            </tr>
+
+            <div class="col-md-6 col-lg-4">
+                <div class="card gn-card h-100 @(n.Inactive ? "opacity-50" : "")">
+                    <div class="card-body position-relative d-flex flex-column p-4">
+
+                        @* Status Badge *@
+                        <div class="status-badge">
+                            @if (n.Inactive)
+                            {
+                                <span class="badge rounded-pill bg-secondary text-uppercase" style="font-size: 0.65rem;">Inactive</span>
+                            }
+                            else if (n.Finished)
+                            {
+                                <span class="badge rounded-pill bg-success text-uppercase" style="font-size: 0.65rem;">Finished</span>
+                            }
+                            else if (isPast)
+                            {
+                                <span class="badge rounded-pill bg-warning text-dark text-uppercase" style="font-size: 0.65rem;">Unfinished</span>
+                            }
+                            else
+                            {
+                                <span class="badge rounded-pill bg-info text-dark text-uppercase" style="font-size: 0.65rem;">Upcoming</span>
+                            }
+                        </div>
+
+                        @* Date Header *@
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="date-box me-3">
+                                <span class="month">@n.GameNightDate.ToString("MMM")</span>
+                                <span class="day">@n.GameNightDate.Day</span>
+                            </div>
+                            <div>
+                                <h5 class="mb-0 fw-bold text-body">Game Night</h5>
+                                <div class="text-muted small">@n.GameNightDate.ToString("dddd, yyyy")</div>
+                            </div>
+                        </div>
+
+                        @* Stats Row *@
+                        <div class="row g-3 mb-4">
+                            <div class="col-6">
+                                <div class="stat-bucket">
+                                    <div class="stat-label">Players</div>
+                                    <div class="stat-value">@n.PlayerCount</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-bucket">
+                                    <div class="stat-label">Matches</div>
+                                    <div class="stat-value">@n.MatchCount</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @* Action Footer *@
+                        <div class="mt-auto pt-3 d-flex gap-2">
+                            <a asp-page="Details" asp-route-id="@n.Id" class="btn btn-outline-primary flex-grow-1 rounded-pill">
+                                <i class="bi bi-eye-fill me-2"></i>Details
+                            </a>
+                            <a asp-page="Edit" asp-route-id="@n.Id" class="btn btn-outline-secondary rounded-circle" title="Edit">
+                                <i class="bi bi-pencil-fill"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         }
-    </tbody>
-</table>
+    </div>
+
+    @* --- Empty State --- *@
+    @if (!Model.Nights.Any())
+    {
+        <div class="text-center py-5 mt-5">
+            <div class="bg-body-tertiary rounded-circle d-inline-flex align-items-center justify-content-center mb-4" style="width: 100px; height: 100px;">
+                <i class="bi bi-calendar-event text-secondary fs-1"></i>
+            </div>
+            <h3 class="fw-bold">No sessions scheduled</h3>
+            <p class="text-secondary">Start a new game night to begin tracking matches.</p>
+            <a class="btn btn-primary px-4 mt-2" asp-page="/GameNight/Create">Schedule First Night</a>
+        </div>
+    }
+</div>

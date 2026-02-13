@@ -1,0 +1,56 @@
+﻿@page
+@model Board_Game_Software.Pages.GameNight.ArchiveModel
+@{
+    ViewData["Title"] = "Game Night Archive";
+}
+
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="Index">Game Nights</a></li>
+            <li class="breadcrumb-item active">Archive</li>
+        </ol>
+    </nav>
+
+    <div class="mb-5">
+        <h1 class="fw-bold">History Archive</h1>
+        <p class="text-secondary">Viewing finished sessions older than 3 months.</p>
+    </div>
+
+    @if (!Model.ArchivedNights.Any())
+    {
+        <div class="text-center py-5">
+            <p class="text-muted">No archived sessions found yet.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle border-top border-secondary-subtle">
+                <thead class="bg-body-tertiary">
+                    <tr>
+                        <th class="py-3">Date</th>
+                        <th class="py-3 text-center">Players</th>
+                        <th class="py-3 text-center">Matches</th>
+                        <th class="py-3 text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var n in Model.ArchivedNights)
+                    {
+                        <tr>
+                            <td class="fw-bold">@n.GameNightDate.ToString("MMMM dd, yyyy")</td>
+                            <td class="text-center">@n.PlayerCount</td>
+                            <td class="text-center">@n.MatchCount</td>
+                            <td class="text-end">
+                                <a asp-page="Details" asp-route-id="@n.Id" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                    View Report
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

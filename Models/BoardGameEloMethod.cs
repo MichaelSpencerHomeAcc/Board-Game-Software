@@ -31,5 +31,5 @@ public partial class BoardGameEloMethod
 
     public virtual BoardGame FkBgdBoardGameNavigation { get; set; } = null!;
 
-    public virtual EloMethod FkBgdEloMethodNavigation { get; set; } = null!;
+    public virtual EloMethod? FkBgdEloMethodNavigation { get; set; }
 }

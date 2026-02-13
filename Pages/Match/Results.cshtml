@@ -1,89 +1,321 @@
-﻿@page
+﻿@page "{id:long}"
 @model Board_Game_Software.Pages.Match.ResultsModel
 @using Board_Game_Software.Models
-@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Record Results";
+    var isLocked = Model.MatchComplete == true;
+}
 
-<h2>Results – @Model.MatchGameName (@Model.MatchDate?.ToString("dd/MM/yyyy"))</h2>
+<style>
+    .game-banner-header {
+        height: 220px;
+        position: relative;
+        overflow: hidden;
+        border-radius: 20px;
+        background: #1a1d20;
+    }
 
-<form method="post">
-    <input type="hidden" asp-for="Input.MatchId" />
-    <input type="hidden" asp-for="Input.NightId" />
+    .banner-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: brightness(0.4) blur(1px);
+    }
 
-    <table class="table table-striped align-middle">
-        <thead>
-            <tr>
-                <th>Player</th>
-                <th>Result Type</th>
-                <th>Score</th>
-                <th>Winner</th>
-                <th>Final Team</th>
-            </tr>
-        </thead>
-        <tbody>
+    .banner-content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 2.5rem;
+    }
+
+    .player-card {
+        background: var(--bs-body-tertiary);
+        border: 1px solid var(--bs-border-color);
+        border-radius: 15px;
+        transition: all 0.2s;
+        position: relative;
+    }
+
+        .player-card:hover {
+            border-color: var(--bs-primary);
+        }
+
+    .player-avatar-circle {
+        width: 50px;
+        height: 50px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 2px solid var(--bs-primary);
+    }
+
+    .marker-overlay {
+        width: 24px;
+        height: 24px;
+        position: absolute;
+        bottom: -2px;
+        right: -2px;
+        background: #1a1d20;
+        border: 1px solid #3d4246;
+        border-radius: 4px;
+        padding: 2px;
+        object-fit: contain;
+    }
+
+    .score-input {
+        font-size: 1.5rem;
+        font-weight: 800;
+        text-align: center;
+        color: var(--bs-primary);
+    }
+
+    .winner-checkbox:checked + .winner-btn {
+        background: #ffc107;
+        border-color: #ffc107;
+        color: #000;
+        box-shadow: 0 0 15px rgba(255,193,7,0.4);
+    }
+
+    .winner-btn {
+        border-radius: 50px;
+        font-weight: bold;
+        transition: all 0.3s;
+    }
+
+    .player-card.border-warning {
+        border-color: #ffc107 !important;
+        border-width: 2px;
+    }
+
+    .extra-small {
+        font-size: 0.65rem;
+    }
+
+    .locked-badge {
+        position: absolute;
+        top: 15px;
+        right: 20px;
+        background: #dc3545;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: bold;
+        z-index: 5;
+    }
+</style>
+
+<div class="container py-4" style="max-width: 960px;">
+    @if (isLocked)
+    {
+        <div class="alert alert-danger rounded-4 shadow-sm mb-4 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-lock-fill fs-4 me-3"></i>
+                <div>
+                    <strong>Match Locked!</strong> This match has been completed and editing is disabled.
+                </div>
+            </div>
+            @if (User.IsInRole("Admin"))
+            {
+                <form method="post" asp-page-handler="Unlock">
+                    <input type="hidden" asp-for="Input.MatchId" />
+                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                        <i class="bi bi-unlock-fill me-1"></i> Unlock Match
+                    </button>
+                </form>
+            }
+        </div>
+    }
+
+    <form method="post">
+        <input type="hidden" asp-for="Input.MatchId" />
+        <input type="hidden" asp-for="Input.NightId" />
+
+        <div class="game-banner-header mb-5 shadow-lg">
+            <img src="@(Model.GameBannerUrl ?? "/images/default-banner.png")" class="banner-img" />
+            <div class="banner-content">
+                @if (isLocked)
+                {
+                    <div class="locked-badge"><i class="bi bi-lock-fill"></i> LOCKED</div>
+                }
+                <span class="badge bg-primary align-self-start mb-2 rounded-pill px-3">RECORD RESULTS</span>
+                <h1 class="display-5 fw-bold text-white mb-1">@Model.MatchGameName</h1>
+                <p class="text-white-50 mb-0">@Model.MatchDate?.ToString("dddd, MMMM dd, yyyy")</p>
+                <div class="mt-3 bg-dark bg-opacity-50 p-2 rounded-4 d-inline-flex align-items-center" style="max-width: fit-content;">
+                    <label class="text-white small fw-bold text-uppercase mx-3 opacity-75">Finish Time</label>
+                    <input asp-for="Input.FinishedDate" type="datetime-local" class="form-control form-control-sm border-0 bg-transparent text-white fw-bold" disabled="@(isLocked ? "disabled" : null)" />
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3">
             @for (var i = 0; i < Model.Input.PlayerResults.Count; i++)
             {
                 var pr = Model.Input.PlayerResults[i];
                 var player = Model.Players.First(p => p.MatchPlayerId == pr.MatchPlayerId);
-                <tr>
-                    <td>
-                        <div class="d-flex align-items-center gap-2">
-                            @* bigger marker image *@
-                            @if (!string.IsNullOrWhiteSpace(player.MarkerImageDataUrl))
-                            {
-                                <img src="@player.MarkerImageDataUrl"
-                                     alt="@player.MarkerTypeName"
-                                     class="marker-img-lg" />
-                            }
 
-                            <div class="d-flex flex-column">
-                                <span class="fw-semibold">@player.PlayerName</span>
-                                @if (!string.IsNullOrWhiteSpace(player.MarkerTypeName))
+                <div class="col-12">
+                    <div class="player-card p-3 shadow-sm border-start border-4 @(pr.IsWinner ? "border-warning" : "border-secondary") @(isLocked ? "opacity-75" : "")">
+                        <input type="hidden" asp-for="Input.PlayerResults[i].MatchPlayerId" />
+                        <div class="row align-items-center">
+                            <div class="col-md-4">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="position-relative">
+                                        <img src="@(player.PlayerAvatarUrl ?? "/images/default-avatar.png")" class="player-avatar-circle" />
+                                        @if (!string.IsNullOrWhiteSpace(player.MarkerImageDataUrl))
+                                        {
+                                            <img src="@player.MarkerImageDataUrl" class="marker-overlay shadow-sm" />
+                                        }
+                                    </div>
+                                    <div class="overflow-hidden">
+                                        <h5 class="fw-bold mb-0 text-truncate">@player.PlayerName</h5>
+                                        <span class="text-primary small fw-semibold">@player.MarkerTypeName</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="row g-2">
+                                    <div class="@(Model.ShowTeams ? "col-6" : "col-12")">
+                                        <label class="extra-small fw-bold opacity-50 text-uppercase mb-1">Result Type</label>
+                                        <select asp-for="Input.PlayerResults[i].ResultTypeId"
+                                                class="form-select form-select-sm result-type-select"
+                                                data-index="@i"
+                                                disabled="@(isLocked ? "disabled" : null)">
+                                            @foreach (var rt in Model.ResultTypes)
+                                            {
+                                                @if (!Model.IsTeamVictoryGame || rt.Name.Contains("Team"))
+                                                {
+                                                    <option value="@rt.Id"
+                                                            data-victory="@rt.IsVictory.ToString().ToLower()"
+                                                            data-defeat="@rt.IsDefeat.ToString().ToLower()">
+                                                        @rt.Name
+                                                    </option>
+                                                }
+                                            }
+                                        </select>
+                                    </div>
+                                    @if (Model.ShowTeams)
+                                    {
+                                        <div class="col-6">
+                                            <label class="extra-small fw-bold opacity-50 text-uppercase mb-1">Team</label>
+                                            <select asp-for="Input.PlayerResults[i].FinalTeam" class="form-select form-select-sm"
+                                                    asp-items="Html.GetEnumSelectList<FinalTeam>()"
+                                                    disabled="@(isLocked ? "disabled" : null)">
+                                                <option value="">None</option>
+                                            </select>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="col-md-2 text-center">
+                                @if (Model.ShowPoints)
                                 {
-                                    <span class="small text-muted">@player.MarkerTypeName</span>
+                                    <label class="small fw-bold opacity-50 text-uppercase mb-1">Score</label>
+                                    <input asp-for="Input.PlayerResults[i].Score" class="form-control score-input bg-transparent border-0 p-0 score-field" data-index="@i" disabled="@(isLocked ? "disabled" : null)" />
+                                }
+                            </div>
+
+                            <div class="col-md-2 text-end">
+                                <input type="checkbox" class="btn-check winner-checkbox" id="win-@i"
+                                       asp-for="Input.PlayerResults[i].IsWinner" disabled="@(isLocked || Model.ShowPoints ? "disabled" : null)" />
+                                <label class="btn btn-outline-secondary btn-sm winner-btn px-4" for="win-@i">
+                                    <i class="bi bi-trophy-fill me-1"></i> Win
+                                </label>
+                                @if (Model.ShowPoints)
+                                {
+                                    <input type="hidden" asp-for="Input.PlayerResults[i].IsWinner" class="hidden-winner" data-index="@i" />
                                 }
                             </div>
                         </div>
-
-                        <input type="hidden" asp-for="Input.PlayerResults[@i].MatchPlayerId" />
-                    </td>
-
-                    <td>
-                        <select class="form-select"
-                                asp-for="Input.PlayerResults[@i].ResultTypeId"
-                                asp-items="@(new SelectList(Model.ResultTypes, nameof(ResultsModel.ResultTypeRow.Id), nameof(ResultsModel.ResultTypeRow.Name)))">
-                            <option value="">-- select --</option>
-                        </select>
-                    </td>
-
-                    <td>
-                        <input class="form-control" asp-for="Input.PlayerResults[@i].Score" />
-                    </td>
-
-                    <td class="text-center">
-                        <input class="form-check-input" asp-for="Input.PlayerResults[@i].IsWinner" />
-                    </td>
-
-                    <td>
-                        <select class="form-select"
-                                asp-for="Input.PlayerResults[@i].FinalTeam"
-                                asp-items="Html.GetEnumSelectList<FinalTeam>()">
-                            <option value="">-- none --</option>
-                        </select>
-                    </td>
-                </tr>
+                    </div>
+                </div>
             }
-        </tbody>
-    </table>
+        </div>
 
-    <button type="submit" class="btn btn-primary">Save Results</button>
-    <a asp-page="/GameNight/Details" asp-route-id="@Model.NightId" class="btn btn-secondary">Cancel</a>
-</form>
-<style>
-    .marker-img-lg {
-        width: 40px;
-        height: 40px;
-        object-fit: contain;
-        border-radius: 6px;
-        border: 1px solid rgba(0,0,0,.1);
-    }
-</style>
+        <div class="mt-5 text-center d-flex flex-column align-items-center gap-3">
+            @if (!isLocked)
+            {
+                <div class="d-flex gap-3">
+                    <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 shadow-lg">Save Draft</button>
+                    <button type="submit" asp-page-handler="Complete" class="btn btn-success btn-lg rounded-pill px-5 shadow-lg">
+                        <i class="bi bi-check-circle-fill me-2"></i>Complete Match
+                    </button>
+                </div>
+            }
+            <div class="mt-2">
+                <a asp-page="/GameNight/Details" asp-route-id="@Model.NightId" class="text-secondary text-decoration-none small">
+                    <i class="bi bi-arrow-left me-1"></i> Return to Game Night
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            const isPointGame = @Model.ShowPoints.ToString().ToLower();
+
+            $('.result-type-select').on('change', function() {
+                const $select = $(this);
+                const index = $select.data('index');
+                const $selectedOption = $select.find('option:selected');
+
+                const isVictory = $selectedOption.data('victory') === true;
+                const isDefeat = $selectedOption.data('defeat') === true;
+
+                const $checkbox = $(`#win-${index}`);
+                const $hiddenWinner = $(`.hidden-winner[data-index="${index}"]`);
+                const $card = $select.closest('.player-card');
+
+                if (isVictory) {
+                    $checkbox.prop('checked', true);
+                    $hiddenWinner.val('true');
+                    $card.removeClass('border-secondary').addClass('border-warning');
+                } else if (isDefeat) {
+                    $checkbox.prop('checked', false);
+                    $hiddenWinner.val('false');
+                    $card.removeClass('border-warning').addClass('border-secondary');
+                }
+            });
+
+            if (isPointGame) {
+                $('.score-field').on('input', function() {
+                    let maxScore = -Infinity;
+                    let winnerIndices = [];
+
+                    $('.score-field').each(function() {
+                        const val = parseFloat($(this).val());
+                        if (!isNaN(val)) {
+                            if (val > maxScore) {
+                                maxScore = val;
+                                winnerIndices = [$(this).data('index')];
+                            } else if (val === maxScore) {
+                                winnerIndices.push($(this).data('index'));
+                            }
+                        }
+                    });
+
+                    $('.winner-checkbox').prop('checked', false);
+                    $('.hidden-winner').val('false');
+                    $('.player-card').removeClass('border-warning').addClass('border-secondary');
+
+                    if (winnerIndices.length > 0 && maxScore !== -Infinity) {
+                        winnerIndices.forEach(idx => {
+                            $(`#win-${idx}`).prop('checked', true);
+                            $(`.hidden-winner[data-index="${idx}"]`).val('true');
+                            $(`#win-${idx}`).closest('.player-card').removeClass('border-secondary').addClass('border-warning');
+                        });
+                    }
+                });
+            }
+        });
+    </script>
+}

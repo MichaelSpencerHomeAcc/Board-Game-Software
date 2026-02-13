@@ -1,6 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 using Board_Game_Software.Data;
-using Board_Game_Software.Models; // Assuming BoardGameDbContext is here
+using Board_Game_Software.Models;
 using Board_Game_Software.Services;
 using Board_Game_Software.Settings;
 using Microsoft.AspNetCore.Identity;
@@ -15,20 +15,13 @@ var builder = WebApplication.CreateBuilder(args);
 static string MaskSqlPassword(string conn)
 {
     if (string.IsNullOrWhiteSpace(conn)) return conn;
-
-    // Mask Password=...;
     conn = Regex.Replace(conn, @"(?i)(Password\s*=\s*)([^;]*)(;|$)", "$1***$3");
-
-    // Also mask Pwd=...;
     conn = Regex.Replace(conn, @"(?i)(Pwd\s*=\s*)([^;]*)(;|$)", "$1***$3");
-
     return conn;
 }
 
-// Log which environment we think we are
 Console.WriteLine($"DEBUG: ASPNETCORE_ENVIRONMENT = {builder.Environment.EnvironmentName}");
 
-// Log SQL connection string that config resolves (password masked)
 var resolvedSql = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrWhiteSpace(resolvedSql))
 {
@@ -39,7 +32,6 @@ else
     Console.WriteLine("DEBUG: SQL DefaultConnection = " + MaskSqlPassword(resolvedSql));
 }
 
-// Log Mongo settings presence (do not dump full connection string)
 var resolvedMongoConn = builder.Configuration["MongoDbSettings:ConnectionString"];
 var resolvedMongoDb = builder.Configuration["MongoDbSettings:Database"];
 
@@ -71,7 +63,6 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 builder.Services.AddScoped<IUserClaimsPrincipalFactory<IdentityUser>,
     UserClaimsPrincipalFactory<IdentityUser, IdentityRole>>();
 
-// Razor Pages
 builder.Services.AddRazorPages();
 
 // =========================
@@ -92,7 +83,16 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
     return new MongoClient(settings.ConnectionString);
 });
 
+// =========================
+// Application Services
+// =========================
 builder.Services.AddSingleton<BoardGameImagesService>();
+
+// Added the RatingService for ELO calculations
+builder.Services.AddScoped<RatingService>();
+
+// NEW: Added the GameNightService for night-specific scoring and management
+builder.Services.AddScoped<GameNightService>();
 
 var app = builder.Build();
 
@@ -127,7 +127,6 @@ try
 }
 catch (Exception ex)
 {
-    // IMPORTANT: don’t crash the entire app if DB is unreachable on startup
     app.Logger.LogError(ex, "Startup seeding failed (DB/Identity). App will continue to start.");
     Console.WriteLine("DEBUG: Startup seeding failed: " + ex.Message);
 }
@@ -150,4 +149,5 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthorization();
 app.MapRazorPages();
+
 app.Run();

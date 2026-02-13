@@ -125,6 +125,10 @@ public partial class BoardGameDbContext : DbContext
 
     public virtual DbSet<PlayerNameResult> PlayerNameResults { get; set; }
 
+    public virtual DbSet<PlayerBoardGame> PlayerBoardGames { get; set; }
+
+    public virtual DbSet<PlayerBoardGameStarRating> PlayerBoardGameStarRatings { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseSqlServer("Server=sql.bsite.net\\MSSQL2016;Database=tironicus_BoardGames;User Id=tironicus_BoardGames;Password=Crash454!;TrustServerCertificate=True;");
@@ -359,6 +363,7 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.MatchComplete).HasColumnName("MatchComplete");
 
             entity.HasOne(d => d.FkBgdBoardGameNavigation).WithMany(p => p.BoardGameMatches)
                 .HasForeignKey(d => d.FkBgdBoardGame)
@@ -442,7 +447,14 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.PreMatchRatingMu).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.PreMatchRatingSigma).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.RatingChangeMu).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.RatingChangeSigma).HasColumnType("decimal(12, 4)");
 
+            entity.Property(e => e.FinalScore).HasColumnType("decimal(9, 2)");
+
+            entity.Property(e => e.FinalTeam).HasConversion<short?>();
             entity.HasOne(d => d.FkBgdBoardGameMatchPlayerNavigation).WithMany(p => p.BoardGameMatchPlayerResults)
                 .HasForeignKey(d => d.FkBgdBoardGameMatchPlayer)
                 .OnDelete(DeleteBehavior.ClientSetNull)
@@ -725,6 +737,11 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.InitialMu).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.InitialSigma).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.KFactor).HasColumnName("KFactor");
+
+            entity.Property(e => e.MethodName).HasMaxLength(128);
         });
 
         modelBuilder.Entity<MarkerAlignmentType>(entity =>
@@ -823,12 +840,14 @@ public partial class BoardGameDbContext : DbContext
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("GID");
             entity.Property(e => e.ModifiedBy).HasMaxLength(128);
-            entity.Property(e => e.Rating).HasColumnType("decimal(9, 2)");
             entity.Property(e => e.TimeCreated).HasColumnType("datetime");
             entity.Property(e => e.TimeModified).HasColumnType("datetime");
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.RatingMu).HasColumnType("decimal(12, 4)").HasDefaultValue(25.0000);
+            entity.Property(e => e.RatingSigma).HasColumnType("decimal(12, 4)").HasDefaultValue(8.3333);
+            entity.Property(e => e.MatchesPlayed).HasDefaultValue(0);
 
             entity.HasOne(d => d.FkBgdBoardGameNavigation).WithMany(p => p.PlayerBoardGameRatings)
                 .HasForeignKey(d => d.FkBgdBoardGame)
@@ -1684,6 +1703,67 @@ public partial class BoardGameDbContext : DbContext
                 .IsRowVersion()
                 .IsConcurrencyToken();
             entity.Property(e => e.WidthCm).HasColumnType("decimal(5, 2)");
+        });
+
+        modelBuilder.Entity<PlayerBoardGame>(entity =>
+        {
+            entity.ToTable("PlayerBoardGame", "bgd");
+
+            entity.HasIndex(e => e.Gid, "AK_bgd_PlayerBoardGame_GID").IsUnique();
+            entity.HasIndex(e => new { e.FkBgdPlayer, e.Rank }).IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.Gid).HasColumnName("GID").HasDefaultValueSql("(newid())");
+            entity.Property(e => e.FkBgdBoardGame).HasColumnName("FK_bgd_BoardGame");
+            entity.Property(e => e.FkBgdPlayer).HasColumnName("FK_bgd_Player");
+            entity.Property(e => e.VersionStamp).IsRowVersion();
+
+            entity.HasOne(d => d.BoardGame)
+                .WithMany() 
+                .HasForeignKey(d => d.FkBgdBoardGame);
+
+            entity.HasOne(d => d.Player)
+                .WithMany(p => p.PlayerBoardGames) 
+                .HasForeignKey(d => d.FkBgdPlayer);
+        });
+
+        modelBuilder.Entity<PlayerBoardGameStarRating>(entity =>
+        {
+            entity.ToTable("PlayerBoardGameStarRating", "bgd");
+
+            entity.HasIndex(e => e.Gid, "AK_bgd_PlayerBoardGameStarRating_GID")
+                .IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("ID");
+
+            entity.Property(e => e.Gid)
+                .HasColumnName("GID")
+                .HasDefaultValueSql("(newid())");
+
+            entity.Property(e => e.CreatedBy).HasMaxLength(256);
+            entity.Property(e => e.ModifiedBy).HasMaxLength(256);
+
+            entity.Property(e => e.FkBgdBoardGame).HasColumnName("FK_bgd_BoardGame");
+            entity.Property(e => e.FkBgdPlayer).HasColumnName("FK_bgd_Player");
+
+            entity.Property(e => e.StarRating).HasColumnType("decimal(9, 2)");
+
+            entity.Property(e => e.TimeCreated).HasColumnType("datetime");
+            entity.Property(e => e.TimeModified).HasColumnType("datetime");
+
+            entity.Property(e => e.VersionStamp)
+                .IsRowVersion()
+                .IsConcurrencyToken();
+
+            entity.HasOne(d => d.FkBgdBoardGameNavigation)
+                .WithMany(p => p.PlayerBoardGameStarRatings)
+                .HasForeignKey(d => d.FkBgdBoardGame)
+                .HasConstraintName("FK_bgd_PlayerBoardGameStarRating__bgd_BoardGame");
+
+            entity.HasOne(d => d.FkBgdPlayerNavigation)
+                .WithMany(p => p.PlayerBoardGameStarRatings)
+                .HasForeignKey(d => d.FkBgdPlayer)
+                .HasConstraintName("FK_bgd_PlayerBoardGameStarRating__bgd_Player");
         });
 
         modelBuilder.Entity<PlayerNameResult>(entity =>

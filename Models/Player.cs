@@ -41,5 +41,9 @@ public partial class Player
 
     public virtual ICollection<PlayerBoardGameRating> PlayerBoardGameRatings { get; set; } = new List<PlayerBoardGameRating>();
 
+    public virtual ICollection<PlayerBoardGame> PlayerBoardGames { get; set; } = new List<PlayerBoardGame>();
+
+    public virtual ICollection<PlayerBoardGameStarRating> PlayerBoardGameStarRatings { get; set; } = new List<PlayerBoardGameStarRating>();
+
     public virtual IdentityUser? User { get; set; }
 }
