@@ -129,6 +129,8 @@ public partial class BoardGameDbContext : DbContext
 
     public virtual DbSet<PlayerBoardGameStarRating> PlayerBoardGameStarRatings { get; set; }
 
+    public virtual DbSet<VwEloRanking> VwEloRankings { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseSqlServer("Server=sql.bsite.net\\MSSQL2016;Database=tironicus_BoardGames;User Id=tironicus_BoardGames;Password=Crash454!;TrustServerCertificate=True;");
@@ -1764,6 +1766,18 @@ public partial class BoardGameDbContext : DbContext
                 .WithMany(p => p.PlayerBoardGameStarRatings)
                 .HasForeignKey(d => d.FkBgdPlayer)
                 .HasConstraintName("FK_bgd_PlayerBoardGameStarRating__bgd_Player");
+        });
+
+        modelBuilder.Entity<VwEloRanking>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("VwEloRanking", "bgd");
+
+            entity.Property(e => e.FkBgdBoardGame).HasColumnName("Fk_Bgd_BoardGame");
+            entity.Property(e => e.FkBgdPlayer).HasColumnName("Fk_Bgd_Player");
+            entity.Property(e => e.AlignmentWins).HasColumnName("AlignmentWins");
+            entity.Property(e => e.MostPlayedToken).HasColumnName("MostPlayedToken");
+            entity.Property(e => e.MainTokenAlignment).HasColumnName("MainTokenAlignment");
         });
 
         modelBuilder.Entity<PlayerNameResult>(entity =>
