@@ -363,6 +363,7 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.MatchComplete).HasColumnName("MatchComplete");
 
             entity.HasOne(d => d.FkBgdBoardGameNavigation).WithMany(p => p.BoardGameMatches)
                 .HasForeignKey(d => d.FkBgdBoardGame)
@@ -446,7 +447,14 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.PreMatchRatingMu).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.PreMatchRatingSigma).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.RatingChangeMu).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.RatingChangeSigma).HasColumnType("decimal(12, 4)");
 
+            entity.Property(e => e.FinalScore).HasColumnType("decimal(9, 2)");
+
+            entity.Property(e => e.FinalTeam).HasConversion<short?>();
             entity.HasOne(d => d.FkBgdBoardGameMatchPlayerNavigation).WithMany(p => p.BoardGameMatchPlayerResults)
                 .HasForeignKey(d => d.FkBgdBoardGameMatchPlayer)
                 .OnDelete(DeleteBehavior.ClientSetNull)
@@ -729,6 +737,11 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.InitialMu).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.InitialSigma).HasColumnType("decimal(12, 4)");
+            entity.Property(e => e.KFactor).HasColumnName("KFactor");
+
+            entity.Property(e => e.MethodName).HasMaxLength(128);
         });
 
         modelBuilder.Entity<MarkerAlignmentType>(entity =>
@@ -827,12 +840,14 @@ public partial class BoardGameDbContext : DbContext
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("GID");
             entity.Property(e => e.ModifiedBy).HasMaxLength(128);
-            entity.Property(e => e.Rating).HasColumnType("decimal(9, 2)");
             entity.Property(e => e.TimeCreated).HasColumnType("datetime");
             entity.Property(e => e.TimeModified).HasColumnType("datetime");
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.RatingMu).HasColumnType("decimal(12, 4)").HasDefaultValue(25.0000);
+            entity.Property(e => e.RatingSigma).HasColumnType("decimal(12, 4)").HasDefaultValue(8.3333);
+            entity.Property(e => e.MatchesPlayed).HasDefaultValue(0);
 
             entity.HasOne(d => d.FkBgdBoardGameNavigation).WithMany(p => p.PlayerBoardGameRatings)
                 .HasForeignKey(d => d.FkBgdBoardGame)

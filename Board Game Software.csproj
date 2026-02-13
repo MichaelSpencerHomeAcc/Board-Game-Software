@@ -14,6 +14,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.18" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.7" />
     <PackageReference Include="MongoDB.Driver" Version="3.4.2" />
+    <PackageReference Include="OpenSkillSharp" Version="1.1.0" />
   </ItemGroup>
 
 </Project>

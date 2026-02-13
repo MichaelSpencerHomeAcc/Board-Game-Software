@@ -12,9 +12,9 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Board_Game_Software.Pages.Admin.BoardGames
+namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
-    [Authorize(Roles = "Admin")]
+    // If you want this restricted, use [Authorize] without the Role check first to test
     public class EditModel : PageModel
     {
         private readonly BoardGameDbContext _context;
@@ -37,116 +37,79 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
         [BindProperty]
         public List<long> MarkerTypeIds { get; set; } = new();
 
+        [BindProperty]
+        public long? SelectedEloMethodId { get; set; }
+
         public List<BoardGameMarker> ExistingMarkers { get; set; } = new();
         public List<MarkerTypeViewModel> AvailableMarkerTypes { get; set; } = new();
 
         public SelectList BoardGameTypes { get; set; } = default!;
         public SelectList VictoryConditions { get; set; } = default!;
         public SelectList Publishers { get; set; } = default!;
+        public SelectList EloMethods { get; set; } = default!;
         public string? CurrentImageUrl { get; set; }
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
             BoardGame = await _context.BoardGames
-                .Include(bg => bg.FkBgdBoardGameTypeNavigation)
-                .Include(bg => bg.FkBgdBoardGameVictoryConditionTypeNavigation)
-                .Include(bg => bg.FkBgdPublisherNavigation)
-                .FirstOrDefaultAsync(bg => bg.Id == id);
+                .Include(bg => bg.BoardGameEloMethods)
+                .FirstOrDefaultAsync(m => m.Id == id);
 
             if (BoardGame == null) return NotFound();
 
-            await ReloadPageData(id);
+            SelectedEloMethodId = BoardGame.BoardGameEloMethods
+                .FirstOrDefault(x => !x.Inactive)?.FkBgdEloMethod;
 
+            await ReloadPageData(id);
             return Page();
         }
 
         public async Task<IActionResult> OnPostAsync(long id)
         {
-            var gameToUpdate = await _context.BoardGames.FindAsync(id);
+            var gameToUpdate = await _context.BoardGames
+                .Include(bg => bg.BoardGameEloMethods)
+                .FirstOrDefaultAsync(x => x.Id == id);
+
             if (gameToUpdate == null) return NotFound();
 
-            // 1. Update the main game properties via TryUpdateModel to include new fields
             if (await TryUpdateModelAsync<BoardGame>(gameToUpdate, "BoardGame",
-                b => b.BoardGameName,
-                b => b.FkBgdBoardGameType,
-                b => b.PlayerCountMin,
-                b => b.PlayerCountMax,
-                b => b.ReleaseDate,
-                b => b.PlayingTimeMinInMinutes,
-                b => b.PlayingTimeMaxInMinutes,
-                b => b.HasMarkers,
-                b => b.ComplexityRating,
-                b => b.HeightCm,
-                b => b.WidthCm,
-                b => b.BoardGameSummary,           // Added
-                b => b.HowToPlayHyperlink,         // Added
-                b => b.FkBgdBoardGameVictoryConditionType,
+                b => b.BoardGameName, b => b.FkBgdBoardGameType, b => b.PlayerCountMin,
+                b => b.PlayerCountMax, b => b.ReleaseDate, b => b.PlayingTimeMinInMinutes,
+                b => b.PlayingTimeMaxInMinutes, b => b.HasMarkers, b => b.ComplexityRating,
+                b => b.HeightCm, b => b.WidthCm, b => b.BoardGameSummary,
+                b => b.HowToPlayHyperlink, b => b.FkBgdBoardGameVictoryConditionType,
                 b => b.FkBgdPublisher))
             {
                 gameToUpdate.ModifiedBy = User.Identity?.Name ?? "system";
                 gameToUpdate.TimeModified = DateTime.Now;
 
-                // 2. Handle Image logic (MongoDB)
-                if (ImageUpload != null && ImageUpload.Length > 0)
+                // Handle Elo Logic
+                var currentEloLink = gameToUpdate.BoardGameEloMethods.FirstOrDefault(x => !x.Inactive);
+                if (SelectedEloMethodId.HasValue)
                 {
-                    using var ms = new MemoryStream();
-                    await ImageUpload.CopyToAsync(ms);
-                    var imageBytes = ms.ToArray();
-
-                    var frontImageType = await _context.BoardGameImageTypes
-                        .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-
-                    if (frontImageType != null)
+                    if (currentEloLink == null)
                     {
-                        await _boardGameImages.DeleteManyAsync(img =>
-                            img.GID == gameToUpdate.Gid && img.ImageTypeGID == frontImageType.Gid);
-
-                        var newImage = new BoardGameImages
-                        {
-                            GID = gameToUpdate.Gid,
-                            ImageTypeGID = frontImageType.Gid,
-                            SQLTable = "BoardGames",
-                            ImageBytes = imageBytes,
-                            ContentType = ImageUpload.ContentType,
-                            Description = $"Updated front image for {gameToUpdate.BoardGameName}"
-                        };
-
-                        await _boardGameImages.InsertOneAsync(newImage);
-                    }
-                }
-
-                // 3. SMART SYNC for Markers
-                var currentMarkersInDb = await _context.BoardGameMarkers
-                    .Where(m => m.FkBgdBoardGame == id)
-                    .ToListAsync();
-
-                if (!gameToUpdate.HasMarkers)
-                {
-                    _context.BoardGameMarkers.RemoveRange(currentMarkersInDb);
-                }
-                else
-                {
-                    var selectedIds = (MarkerTypeIds ?? new List<long>()).Distinct().ToHashSet();
-
-                    // Remove markers no longer selected
-                    var toRemove = currentMarkersInDb.Where(m => !selectedIds.Contains(m.FkBgdBoardGameMarkerType ?? 0));
-                    _context.BoardGameMarkers.RemoveRange(toRemove);
-
-                    // Add new markers
-                    var currentIds = currentMarkersInDb.Select(m => m.FkBgdBoardGameMarkerType ?? 0).ToHashSet();
-                    var toAdd = selectedIds.Where(sid => !currentIds.Contains(sid))
-                        .Select(newId => new BoardGameMarker
+                        _context.BoardGameEloMethods.Add(new BoardGameEloMethod
                         {
                             Gid = Guid.NewGuid(),
                             FkBgdBoardGame = id,
-                            FkBgdBoardGameMarkerType = newId,
-                            CreatedBy = gameToUpdate.CreatedBy,
-                            TimeCreated = gameToUpdate.TimeCreated,
-                            ModifiedBy = User.Identity?.Name ?? "system",
+                            FkBgdEloMethod = SelectedEloMethodId.Value,
+                            CreatedBy = gameToUpdate.ModifiedBy,
+                            TimeCreated = DateTime.Now,
+                            ModifiedBy = gameToUpdate.ModifiedBy,
                             TimeModified = DateTime.Now
                         });
-
-                    _context.BoardGameMarkers.AddRange(toAdd);
+                    }
+                    else if (currentEloLink.FkBgdEloMethod != SelectedEloMethodId.Value)
+                    {
+                        currentEloLink.FkBgdEloMethod = SelectedEloMethodId.Value;
+                        currentEloLink.ModifiedBy = gameToUpdate.ModifiedBy;
+                        currentEloLink.TimeModified = DateTime.Now;
+                    }
+                }
+                else if (currentEloLink != null)
+                {
+                    currentEloLink.Inactive = true;
                 }
 
                 await _context.SaveChangesAsync();
@@ -161,12 +124,11 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
         {
             ExistingMarkers = await _context.BoardGameMarkers
                 .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
-                .Where(m => m.FkBgdBoardGame == id)
-                .ToListAsync();
+                .Where(m => m.FkBgdBoardGame == id).ToListAsync();
 
             await LoadSelectLists();
             await LoadMarkerTypes();
-            await LoadCurrentImageUrl(BoardGame.Gid);
+            if (BoardGame != null) await LoadCurrentImageUrl(BoardGame.Gid);
         }
 
         private async Task LoadSelectLists()
@@ -174,6 +136,7 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
             BoardGameTypes = new SelectList(await _context.BoardGameTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
             VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
             Publishers = new SelectList(await _context.Publishers.Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
+            EloMethods = new SelectList(await _context.EloMethods.Where(e => !e.Inactive).OrderBy(e => e.MethodName).ToListAsync(), "Id", "MethodName");
         }
 
         private async Task LoadMarkerTypes()
@@ -182,8 +145,7 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
             var existingIds = ExistingMarkers.Select(m => m.FkBgdBoardGameMarkerType).ToHashSet();
             var types = await _context.BoardGameMarkerTypes
                 .Where(t => !t.Inactive && !existingIds.Contains(t.Id))
-                .OrderBy(t => t.TypeDesc)
-                .ToListAsync();
+                .OrderBy(t => t.TypeDesc).ToListAsync();
 
             foreach (var type in types)
             {
@@ -192,7 +154,7 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
                 {
                     Id = type.Id,
                     TypeDesc = type.TypeDesc,
-                    ImageBase64 = img != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
+                    ImageBase64 = img?.ImageBytes != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
                 });
             }
         }
@@ -203,7 +165,7 @@ namespace Board_Game_Software.Pages.Admin.BoardGames
             if (frontType != null)
             {
                 var img = await _boardGameImages.Find(i => i.GID == gid && i.ImageTypeGID == frontType.Gid).FirstOrDefaultAsync();
-                if (img != null) CurrentImageUrl = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                if (img?.ImageBytes != null) CurrentImageUrl = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
             }
         }
     }

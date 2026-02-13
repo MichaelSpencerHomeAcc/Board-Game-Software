@@ -1,6 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Board_Game_Software.Pages.Admin.BoardGames;
+using Board_Game_Software.Pages.Browsing.BoardGames;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;

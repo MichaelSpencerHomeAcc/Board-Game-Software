@@ -1,6 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Microsoft.AspNetCore.Identity; // Standard using
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +16,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
     {
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _imagesCollection;
-        // Explicitly type this to avoid ambiguity errors (CS0104)
         private readonly Microsoft.AspNetCore.Identity.UserManager<IdentityUser> _userManager;
 
         public BoardGameDetailsModel(
@@ -40,6 +39,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         public int TotalRatings { get; set; }
         public decimal? UserRating { get; set; }
         public long? CurrentUserClaimedPlayerId { get; set; }
+        public string? EloMethodName { get; set; }
 
         public async Task<IActionResult> OnGetAsync(long? id)
         {
@@ -54,19 +54,26 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .Include(bg => bg.BoardGameShelfSections)
                     .ThenInclude(ss => ss.FkBgdShelfSectionNavigation)
                 .Include(bg => bg.PlayerBoardGameStarRatings)
+                .Include(bg => bg.BoardGameEloMethods)
+                    .ThenInclude(bem => bem.FkBgdEloMethodNavigation)
                 .FirstOrDefaultAsync(bg => bg.Id == id);
 
             if (BoardGame == null) return NotFound();
 
+            // Defensive check for Elo Method
+            EloMethodName = BoardGame.BoardGameEloMethods?
+                .FirstOrDefault(x => !x.Inactive)?
+                .FkBgdEloMethodNavigation?.MethodName;
+
             // Calculate Community Stats
-            var activeRatings = BoardGame.PlayerBoardGameStarRatings.Where(r => !r.Inactive).ToList();
+            var activeRatings = BoardGame.PlayerBoardGameStarRatings?.Where(r => !r.Inactive).ToList() ?? new();
             if (activeRatings.Any())
             {
                 AverageRating = activeRatings.Average(r => r.StarRating);
                 TotalRatings = activeRatings.Count;
             }
 
-            // Identify User and check for claimed profile
+            // Identify User
             var user = await _userManager.GetUserAsync(User);
             if (user != null)
             {
@@ -137,7 +144,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     BoardGameFrontImageUrl = $"data:{image.ContentType};base64,{Convert.ToBase64String(image.ImageBytes)}";
             }
 
-            if (BoardGame.BoardGameMarkers.Any())
+            if (BoardGame.BoardGameMarkers?.Any() == true)
             {
                 var markerTypeGids = BoardGame.BoardGameMarkers
                    .Select(m => (Guid?)m.FkBgdBoardGameMarkerTypeNavigation?.Gid)

@@ -26,11 +26,13 @@ public partial class BoardGameMatch
 
     public long FkBgdBoardGame { get; set; }
 
-    public DateOnly? MatchDate { get; set; }
+    public DateTime? MatchDate { get; set; }
 
     public long? FkBgdResultType { get; set; }
 
-    public DateOnly? FinishedDate { get; set; }
+    public DateTime? FinishedDate { get; set; }
+
+    public bool? MatchComplete { get; set; }
 
     public virtual ICollection<BoardGameMatchPlayer> BoardGameMatchPlayers { get; set; } = new List<BoardGameMatchPlayer>();
 

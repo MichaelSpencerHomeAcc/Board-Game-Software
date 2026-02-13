@@ -10,7 +10,7 @@ namespace Board_Game_Software.Pages.GameNight
 {
     public class IndexModel : PageModel
     {
-        private readonly BoardGameDbContext _db; // Replace with your actual DbContext type
+        private readonly BoardGameDbContext _db;
 
         public IndexModel(BoardGameDbContext db)
         {
@@ -22,16 +22,24 @@ namespace Board_Game_Software.Pages.GameNight
         public async Task OnGetAsync()
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            // Calculate the date 3 months ago
+            var cutoffDate = today.AddMonths(-3);
 
-            var items = await _db.VwBoardGameNights
-                .AsNoTracking()
+            var query = _db.VwBoardGameNights.AsNoTracking();
+
+            // Filter out Finished games that are older than 3 months
+            // Logic: Keep it if it's NOT finished OR if it's newer than the cutoff
+            var items = await query
+                .Where(n => !n.Finished || n.GameNightDate >= cutoffDate)
                 .ToListAsync();
 
+            // Sorting logic remains the same to keep Upcoming at the top
             Nights = items
-                .OrderByDescending(n => !n.Finished && n.GameNightDate >= today) // upcoming first
-                .ThenByDescending(n => !n.Finished && n.GameNightDate < today)   // past unfinished
-                .ThenBy(n => n.Finished)                                        // finished last
-                .ThenBy(n => n.GameNightDate)                                   // sort within bucket
+                .OrderBy(n => n.Inactive)
+                .ThenByDescending(n => !n.Finished && n.GameNightDate >= today)
+                .ThenByDescending(n => !n.Finished && n.GameNightDate < today)
+                .ThenBy(n => n.Finished)
+                .ThenByDescending(n => n.GameNightDate)
                 .ToList();
         }
     }
