@@ -1,14 +1,8 @@
-using Board_Game_Software.Data;
 using Board_Game_Software.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
-using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.DataSetup.Players
 {
@@ -26,41 +20,45 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         }
 
         public IList<VwPlayer> Players { get; set; } = default!;
-
-        // Holds the Base64 strings for the frontend
         public Dictionary<long, string> PlayerImagesBase64 { get; set; } = new();
 
-        // --- NEW: Search Property ---
+        // Holds the CSS object-position string for the circle avatars
+        public Dictionary<long, string> PlayerFocusStyles { get; set; } = new();
+
         [BindProperty(SupportsGet = true)]
         public string? SearchTerm { get; set; }
 
         public async Task OnGetAsync()
         {
-            // 1. Start the query
             var query = _context.VwPlayers.AsQueryable();
 
-            // 2. Apply Search Filter (if text exists)
             if (!string.IsNullOrEmpty(SearchTerm))
             {
-                // specific filtering on FullName
                 query = query.Where(p => p.FullName.Contains(SearchTerm));
             }
 
-            // 3. Execute Query
-            Players = await query
-                .OrderBy(p => p.FullName)
-                .ToListAsync();
+            Players = await query.OrderBy(p => p.FullName).ToListAsync();
 
-            // 4. Fetch Images for the *Filtered* list only
             foreach (var player in Players)
             {
                 var img = await _boardGameImages
                     .Find(x => x.SQLTable == "bgd.Player" && x.GID == player.Gid)
                     .FirstOrDefaultAsync();
 
-                if (img != null && img.ImageBytes != null)
+                if (img != null)
                 {
-                    PlayerImagesBase64[player.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                    if (img.ImageBytes != null)
+                    {
+                        PlayerImagesBase64[player.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                    }
+
+                    // Store the focal point percentage
+                    PlayerFocusStyles[player.Id] = $"{img.AvatarFocusX}% {img.AvatarFocusY}%";
+                }
+                else
+                {
+                    // Fallback to center
+                    PlayerFocusStyles[player.Id] = "50% 50%";
                 }
             }
         }
@@ -71,7 +69,6 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             if (player == null) return NotFound();
 
             await _boardGameImages.DeleteManyAsync(img => img.GID == player.Gid && img.SQLTable == "bgd.Player");
-
             _context.Players.Remove(player);
             await _context.SaveChangesAsync();
 

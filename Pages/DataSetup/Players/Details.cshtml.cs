@@ -5,10 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.DataSetup.Players
 {
@@ -37,6 +33,14 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         public List<PlayerBoardGame> TopTenGames { get; set; } = new();
         public Dictionary<long, string> GameImages { get; set; } = new();
 
+        // Focal points and Zoom levels
+        public int AvatarX { get; set; } = 50;
+        public int AvatarY { get; set; } = 50;
+        public int AvatarZoom { get; set; } = 100;
+        public int PodiumX { get; set; } = 50;
+        public int PodiumY { get; set; } = 50;
+        public int PodiumZoom { get; set; } = 100;
+
         public async Task<IActionResult> OnGetAsync(long id)
         {
             Player = await _context.Players
@@ -52,6 +56,7 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                 .Take(10)
                 .ToList();
 
+            // Load Game Box Art for Top 10
             if (TopTenGames.Any())
             {
                 var frontImageType = await _context.BoardGameImageTypes
@@ -59,21 +64,12 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
                 if (frontImageType != null)
                 {
-                    var gidStrings = TopTenGames
-                        .Where(x => x.BoardGame != null)
-                        .Select(x => x.BoardGame.Gid.ToString())
-                        .ToList();
-
-                    var images = await _imagesCollection.Find(img =>
-                        gidStrings.Contains(img.GID.ToString()) &&
-                        img.ImageTypeGID == frontImageType.Gid)
-                        .ToListAsync();
+                    var gidStrings = TopTenGames.Where(x => x.BoardGame != null).Select(x => x.BoardGame.Gid.ToString()).ToList();
+                    var images = await _imagesCollection.Find(img => gidStrings.Contains(img.GID.ToString()) && img.ImageTypeGID == frontImageType.Gid).ToListAsync();
 
                     foreach (var item in TopTenGames)
                     {
-                        var itemGidString = item.BoardGame.Gid.ToString();
-                        var img = images.FirstOrDefault(x => x.GID.ToString() == itemGidString);
-
+                        var img = images.FirstOrDefault(x => x.GID.ToString() == item.BoardGame.Gid.ToString());
                         if (img?.ImageBytes != null)
                         {
                             GameImages[item.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
@@ -87,8 +83,7 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             var user = await _userManager.GetUserAsync(User);
             if (user != null)
             {
-                var claimedPlayer = await _context.Players
-                    .FirstOrDefaultAsync(p => p.FkdboAspNetUsers == user.Id);
+                var claimedPlayer = await _context.Players.FirstOrDefaultAsync(p => p.FkdboAspNetUsers == user.Id);
                 CurrentUserClaimedPlayerId = claimedPlayer?.Id;
             }
 
@@ -103,10 +98,43 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             );
 
             var imageDoc = await _imagesCollection.Find(filter).FirstOrDefaultAsync();
-            if (imageDoc?.ImageBytes != null)
+            if (imageDoc != null)
             {
-                ProfileImageBase64 = $"data:image/png;base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
+                if (imageDoc.ImageBytes != null)
+                {
+                    ProfileImageBase64 = $"data:{imageDoc.ContentType};base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
+                }
+
+                AvatarX = imageDoc.AvatarFocusX;
+                AvatarY = imageDoc.AvatarFocusY;
+                AvatarZoom = imageDoc.AvatarZoom;
+                PodiumX = imageDoc.PodiumFocusX;
+                PodiumY = imageDoc.PodiumFocusY;
+                PodiumZoom = imageDoc.PodiumZoom;
             }
+        }
+
+        public async Task<IActionResult> OnPostUpdateFocusAsync(long id, int AvatarX, int AvatarY, int AvatarZoom, int PodiumX, int PodiumY, int PodiumZoom)
+        {
+            var player = await _context.Players.FirstOrDefaultAsync(p => p.Id == id);
+            if (player == null) return NotFound();
+
+            var filter = Builders<BoardGameImages>.Filter.And(
+                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player"),
+                Builders<BoardGameImages>.Filter.Eq(x => x.GID, player.Gid)
+            );
+
+            var update = Builders<BoardGameImages>.Update
+                .Set(x => x.AvatarFocusX, AvatarX)
+                .Set(x => x.AvatarFocusY, AvatarY)
+                .Set(x => x.AvatarZoom, AvatarZoom)
+                .Set(x => x.PodiumFocusX, PodiumX)
+                .Set(x => x.PodiumFocusY, PodiumY)
+                .Set(x => x.PodiumZoom, PodiumZoom);
+
+            await _imagesCollection.UpdateOneAsync(filter, update);
+
+            return RedirectToPage(new { id });
         }
 
         public string GetInitials(string? f, string? l) => $"{(f?.Length > 0 ? f[0] : ' ')}{(l?.Length > 0 ? l[0] : ' ')}".ToUpper().Trim();

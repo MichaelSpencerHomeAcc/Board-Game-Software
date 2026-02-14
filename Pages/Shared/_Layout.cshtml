@@ -134,22 +134,29 @@
                         </ul>
                     }
 
+                    @* --- Browsing Section (Existing) --- *@
                     <h6 class="text-uppercase text-body-secondary fw-bold small mb-3">Browsing</h6>
                     <ul class="nav nav-pills flex-column mb-4">
                         <li><a class="nav-link @IsActive("Board Games")" asp-page="/Browsing/BoardGames/Index"><i class="bi bi-dice-5 me-2"></i> Board Games</a></li>
                         <li><a class="nav-link @IsActive("Game Night")" asp-page="/GameNight/Index"><i class="bi bi-calendar-check me-2"></i> Game Nights</a></li>
                     </ul>
 
-                    @* Insights Section - Visible to everyone *@
-                    <h6 class="text-uppercase text-body-secondary fw-bold small mb-3">Insights</h6>
+                    @* --- NEW: Unified Analytics Section --- *@
+                    <h6 class="text-uppercase text-body-secondary fw-bold small mb-3">Analytics</h6>
                     <ul class="nav nav-pills flex-column mb-4">
-                        <li>
+                        <li class="nav-item">
                             <a class="nav-link @IsActive("Statistics")" asp-page="/Statistics/Index">
-                                <i class="bi bi-graph-up me-2"></i> Statistics
+                                <i class="bi bi-cpu me-2"></i> Global Stats
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @IsActive("Game Rankings")" asp-page="/Statistics/GameRankings">
+                                <i class="bi bi-trophy me-2"></i> Game Rankings
                             </a>
                         </li>
                     </ul>
 
+                    @* --- Admin Section (Existing) --- *@
                     @if (isAdmin)
                     {
                         <h6 class="text-uppercase text-danger-emphasis fw-bold small mb-3">Admin</h6>

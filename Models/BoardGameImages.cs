@@ -27,6 +27,30 @@ namespace Board_Game_Software.Models
         public byte[]? ImageBytes { get; set; }
 
         [BsonElement("ContentType")]
-        public string ContentType { get; set; } = "image/jpeg"; 
+        public string ContentType { get; set; } = "image/jpeg";
+
+        [BsonElement("AvatarFocusX")]
+        public int AvatarFocusX { get; set; } = 50;
+
+        [BsonElement("AvatarFocusY")]
+        public int AvatarFocusY { get; set; } = 50;
+
+        [BsonElement("PodiumFocusX")]
+        public int PodiumFocusX { get; set; } = 50;
+
+        [BsonElement("PodiumFocusY")]
+        public int PodiumFocusY { get; set; } = 50;
+
+        [BsonElement("CardFocusX")]
+        public int CardFocusX { get; set; } = 50;
+
+        [BsonElement("CardFocusY")]
+        public int CardFocusY { get; set; } = 50;
+
+        [BsonElement("AvatarZoom")]
+        public int AvatarZoom { get; set; } = 100;
+
+        [BsonElement("PodiumZoom")]
+        public int PodiumZoom { get; set; } = 100;
     }
 }

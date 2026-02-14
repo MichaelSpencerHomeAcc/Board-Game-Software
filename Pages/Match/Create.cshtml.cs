@@ -151,7 +151,8 @@ namespace Board_Game_Software.Pages.Match
                 TimeCreated = now,
                 TimeModified = now,
                 CreatedBy = who,
-                ModifiedBy = who
+                ModifiedBy = who,
+                MatchComplete = false
             };
 
             _db.BoardGameMatches.Add(match);
@@ -183,7 +184,7 @@ namespace Board_Game_Software.Pages.Match
                     TimeCreated = now,
                     TimeModified = now,
                     CreatedBy = who,
-                    ModifiedBy = who
+                    ModifiedBy = who,
                 };
                 _db.BoardGameMatchPlayers.Add(newPlayer);
                 await _db.SaveChangesAsync(); // Get ID for result record
