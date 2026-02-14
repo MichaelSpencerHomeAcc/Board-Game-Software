@@ -28,6 +28,7 @@ namespace Board_Game_Software.Pages.Match
         }
 
         public string MatchGameName { get; private set; } = string.Empty;
+        public long MatchGameId { get; private set; }
         public string? GameBannerUrl { get; private set; }
         public DateTime? MatchDate { get; private set; }
         public bool ShowPoints { get; private set; }
@@ -35,9 +36,9 @@ namespace Board_Game_Software.Pages.Match
         public bool IsTeamVictoryGame { get; private set; }
         public bool? MatchComplete { get; private set; }
         public long NightId { get; private set; }
+        public string? GameBoxArt { get; private set; }
 
         [BindProperty] public InputModel Input { get; set; } = new();
-
         public List<ResultTypeRow> ResultTypes { get; private set; } = new();
         public List<PlayerRow> Players { get; private set; } = new();
 
@@ -91,15 +92,17 @@ namespace Board_Game_Software.Pages.Match
             if (match == null) return NotFound();
 
             var game = match.FkBgdBoardGameNavigation;
+            MatchGameId = game?.Id ?? 0;
             ShowPoints = game?.FkBgdBoardGameVictoryConditionTypeNavigation?.Points ?? false;
             IsTeamVictoryGame = game?.FkBgdBoardGameVictoryConditionTypeNavigation?.TypeDesc == "Team Victory";
             MatchComplete = match.MatchComplete;
 
-            var bannerTypeId = await _db.BoardGameImageTypes.Where(t => t.TypeDesc == "Board Game Front").Select(t => t.Gid).FirstOrDefaultAsync();
             if (game != null)
             {
+                var bannerTypeId = await _db.BoardGameImageTypes.Where(t => t.TypeDesc == "Board Game Front").Select(t => t.Gid).FirstOrDefaultAsync();
                 var bannerMap = await _imagesService.GetFrontImagesAsync(new[] { game.Gid }, bannerTypeId);
                 GameBannerUrl = bannerMap.GetValueOrDefault(game.Gid);
+                GameBoxArt = GameBannerUrl;
             }
 
             var link = await _db.BoardGameNightBoardGameMatches
@@ -151,7 +154,6 @@ namespace Board_Game_Software.Pages.Match
                     PlayerName = $"{mp.FkBgdPlayerNavigation?.FirstName} {mp.FkBgdPlayerNavigation?.LastName}",
                     ExistingResultTypeId = res?.FkBgdResultType,
                     ExistingScore = res?.FinalScore,
-                    // TREATING AS BOOL
                     ExistingIsWinner = res?.Win ?? false,
                     ExistingFinalTeam = res?.FinalTeam,
                     MarkerTypeName = markerType?.TypeDesc,
@@ -199,8 +201,6 @@ namespace Board_Game_Software.Pages.Match
             var match = await _db.BoardGameMatches.FindAsync(Input.MatchId);
             if (match == null || match.MatchComplete == true) return RedirectToPage(new { id = Input.MatchId });
 
-            if (!ModelState.IsValid) return await OnGetAsync(Input.MatchId);
-
             match.FinishedDate = Input.FinishedDate ?? match.MatchDate;
             match.TimeModified = DateTime.UtcNow;
 
@@ -211,7 +211,6 @@ namespace Board_Game_Software.Pages.Match
                 {
                     existing.FkBgdResultType = row.ResultTypeId ?? 1;
                     existing.FinalScore = row.Score;
-                    // SAVING AS BOOL
                     existing.Win = row.IsWinner;
                     existing.FinalTeam = row.FinalTeam;
                     existing.TimeModified = DateTime.UtcNow;
@@ -234,12 +233,18 @@ namespace Board_Game_Software.Pages.Match
                 }
             }
             await _db.SaveChangesAsync();
-            return RedirectToPage("/GameNight/Details", new { id = Input.NightId });
+            return RedirectToPage(new { id = Input.MatchId });
         }
 
         public async Task<IActionResult> OnPostCompleteAsync()
         {
-            var match = await _db.BoardGameMatches.FindAsync(Input.MatchId);
+            var match = await _db.BoardGameMatches
+                .Include(m => m.FkBgdBoardGameNavigation)
+                    .ThenInclude(bg => bg.BoardGameShelfSections)
+                        .ThenInclude(bgss => bgss.FkBgdShelfSectionNavigation)
+                            .ThenInclude(ss => ss.FkBgdShelfNavigation)
+                .FirstOrDefaultAsync(m => m.Id == Input.MatchId);
+
             if (match == null || match.MatchComplete == true) return NotFound();
 
             await OnPostAsync();
@@ -249,7 +254,15 @@ namespace Board_Game_Software.Pages.Match
             match.TimeModified = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
-            return RedirectToPage("/GameNight/Details", new { id = Input.NightId });
+            // Store Location in TempData for the "One-Time" popup
+            var section = match.FkBgdBoardGameNavigation?.BoardGameShelfSections.FirstOrDefault(x => !x.Inactive);
+            if (section?.FkBgdShelfSectionNavigation != null)
+            {
+                var shelf = section.FkBgdShelfSectionNavigation.FkBgdShelfNavigation?.ShelfName ?? "Unknown Shelf";
+                TempData["FlashShelfLocation"] = $"{shelf} — {section.FkBgdShelfSectionNavigation.SectionName}";
+            }
+
+            return RedirectToPage(new { id = Input.MatchId });
         }
 
         public async Task<IActionResult> OnPostUnlockAsync()

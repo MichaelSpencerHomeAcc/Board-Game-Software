@@ -7,6 +7,7 @@
 }
 
 <style>
+    /* Main Avatar with dynamic positioning and zoom */
     .avatar-container {
         width: 150px;
         height: 150px;
@@ -25,6 +26,9 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            /* Applies both saved focus and zoom scale */
+            object-position: @(Model.AvatarX) % @(Model.AvatarY) %;
+            transform: scale( @(Model.AvatarZoom / 100.0) );
         }
 
     .avatar-large-text {
@@ -36,6 +40,56 @@
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+
+    /* Positioning Studio UI */
+    .focus-studio {
+        background: rgba(var(--bs-tertiary-bg-rgb), 0.5);
+        border-radius: 15px;
+        padding: 20px;
+        border: 1px solid var(--bs-border-color);
+    }
+
+    .picker-container {
+        position: relative;
+        cursor: crosshair;
+        overflow: hidden;
+        border: 2px solid #333;
+        background: #000;
+        border-radius: 8px;
+    }
+
+    .picker-avatar {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        max-width: 200px;
+        margin: 0 auto;
+    }
+
+    .picker-podium {
+        width: 100%;
+        aspect-ratio: 21 / 9;
+    }
+
+    .picker-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+        transition: transform 0.1s ease-out; /* Smooth zoom transition */
+    }
+
+    .focus-pin {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        background: #0dcaf0;
+        border: 2px solid white;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        pointer-events: none;
+        z-index: 10;
     }
 
     .game-rank-card {
@@ -98,10 +152,9 @@
 
 <div class="container-fluid py-4 px-md-5">
     <div class="row g-5">
-        @* Left Column: Profile & Info *@
         <div class="col-lg-3 border-end">
             <div class="d-flex flex-column align-items-center text-center mb-4">
-                <div class="avatar-container">
+                <div class="avatar-container shadow-sm">
                     @if (!string.IsNullOrEmpty(Model.ProfileImageBase64))
                     {
                         <img src="@Model.ProfileImageBase64" alt="Profile" />
@@ -113,7 +166,7 @@
                         </div>
                     }
                 </div>
-                <h2 class="fw-bold">@fullName</h2>
+                <h2 class="fw-bold mb-1">@fullName</h2>
                 @if (isOwner)
                 {
                     <span class="badge bg-success-subtle text-success border border-success rounded-pill px-3 mb-3">
@@ -122,12 +175,57 @@
                 }
 
                 <div class="d-grid gap-2 w-100 mt-2">
-                    <a asp-page="./Edit" asp-route-id="@Model.Player.Id" class="btn btn-primary btn-sm">Edit Profile</a>
+                    <a asp-page="./Edit" asp-route-id="@Model.Player.Id" class="btn btn-primary btn-sm fw-bold">Edit Core Details</a>
+                    @if (isOwner && !string.IsNullOrEmpty(Model.ProfileImageBase64))
+                    {
+                        <button class="btn btn-outline-info btn-sm fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#positioningStudio">
+                            <i class="bi bi-camera-reposition me-2"></i>Adjust Photo Crop
+                        </button>
+                    }
                     <a asp-page="./Index" class="btn btn-outline-secondary btn-sm">All Players</a>
                 </div>
             </div>
 
             <hr />
+
+            <div class="collapse mb-4" id="positioningStudio">
+                <div class="focus-studio">
+                    <h6 class="fw-bold mb-3 text-info small text-uppercase tracking-wider text-center">Positioning Studio</h6>
+                    <form method="post" asp-page-handler="UpdateFocus">
+                        <input type="hidden" name="id" value="@Model.Player.Id" />
+
+                        <div class="mb-4">
+                            <label class="detail-label d-block text-center">Avatar Focus</label>
+                            <div class="picker-container picker-avatar mb-2" onclick="setFocus(event, 'Avatar')">
+                                <img src="@Model.ProfileImageBase64" class="picker-img" id="imgAvatar" style="object-position: @Model.AvatarX% @Model.AvatarY%; transform: scale(@(Model.AvatarZoom / 100.0));">
+                                <div class="focus-pin" id="pinAvatar" style="left: @Model.AvatarX%; top: @Model.AvatarY%;"></div>
+                            </div>
+                            <label class="detail-label">Zoom: <span id="lblAvatarZoom">@Model.AvatarZoom</span>%</label>
+                            <input type="range" class="form-range" min="100" max="300" step="5" id="inputAvatarZoom" name="AvatarZoom" value="@Model.AvatarZoom" oninput="updateZoom('Avatar')">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="detail-label d-block mb-2">Podium Focus (Wide)</label>
+                            <div class="picker-container picker-podium mb-2" onclick="setFocus(event, 'Podium')">
+                                <img src="@Model.ProfileImageBase64" class="picker-img" id="imgPodium" style="object-position: @Model.PodiumX% @Model.PodiumY%; transform: scale(@(Model.PodiumZoom / 100.0));">
+                                <div class="focus-pin" id="pinPodium" style="left: @Model.PodiumX%; top: @Model.PodiumY%;"></div>
+                            </div>
+                            <label class="detail-label">Zoom: <span id="lblPodiumZoom">@Model.PodiumZoom</span>%</label>
+                            <input type="range" class="form-range" min="100" max="300" step="5" id="inputPodiumZoom" name="PodiumZoom" value="@Model.PodiumZoom" oninput="updateZoom('Podium')">
+                        </div>
+
+                        <input type="hidden" id="inputAvatarX" name="AvatarX" value="@Model.AvatarX" />
+                        <input type="hidden" id="inputAvatarY" name="AvatarY" value="@Model.AvatarY" />
+                        <input type="hidden" id="inputPodiumX" name="PodiumX" value="@Model.PodiumX" />
+                        <input type="hidden" id="inputPodiumY" name="PodiumY" value="@Model.PodiumY" />
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-info btn-sm fw-bold">Save Crops</button>
+                            <button type="button" class="btn btn-dark btn-sm" onclick="resetFocus()">Reset</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             <div class="mt-4">
                 <div class="mb-4">
@@ -140,14 +238,9 @@
                         @(Model.Player.Inactive ? "Inactive" : "Active")
                     </div>
                 </div>
-                <div class="mb-4">
-                    <div class="detail-label">Claimed</div>
-                    <div class="h5 fw-normal">@(string.IsNullOrEmpty(Model.Player.FkdboAspNetUsers) ? "No" : "Yes")</div>
-                </div>
             </div>
         </div>
 
-        @* Right Column: Top 10 Games *@
         <div class="col-lg-9">
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
@@ -158,7 +251,7 @@
                 </div>
                 @if (isOwner)
                 {
-                    <a asp-page="./ManageTopTen" asp-route-id="@Model.Player.Id" class="btn btn-sm btn-outline-primary px-4">
+                    <a asp-page="./ManageTopTen" asp-route-id="@Model.Player.Id" class="btn btn-sm btn-outline-primary px-4 fw-bold">
                         Manage List
                     </a>
                 }
@@ -177,29 +270,24 @@
                             {
                                 <div class="item-bg-overlay" style="background-image: url('@imgUrl');"></div>
                             }
-
                             <div class="rank-number me-3">#@game.Rank</div>
-
                             <div class="flex-grow-1">
-                                <h4 class="mb-0 fw-bold">@game.BoardGame?.BoardGameName</h4>
+                                <h4 class="mb-0 fw-bold text-body-emphasis">@game.BoardGame?.BoardGameName</h4>
                                 <div class="text-secondary small fw-bold">Released @(game.BoardGame?.ReleaseDate?.Year.ToString() ?? "N/A")</div>
                             </div>
-
-                            <a asp-page="/Browsing/BoardGames/BoardGameDetails" asp-route-id="@game.FkBgdBoardGame" class="btn btn-sm btn-dark rounded-pill px-4">
-                                View Game
-                            </a>
+                            <a asp-page="/Browsing/BoardGames/BoardGameDetails" asp-route-id="@game.FkBgdBoardGame" class="btn btn-sm btn-dark rounded-pill px-4 fw-bold">View Game</a>
                         </div>
                     }
                 }
                 else
                 {
-                    <div class="card border-dashed py-5 text-center bg-body-tertiary">
+                    <div class="card border-dashed py-5 text-center bg-body-tertiary shadow-sm">
                         <i class="bi bi-dice-5 text-secondary display-1 opacity-25"></i>
                         <p class="mt-3 text-muted h5">No games have been ranked yet.</p>
                         @if (isOwner)
                         {
                             <div class="mt-3">
-                                <a asp-page="./ManageTopTen" asp-route-id="@Model.Player.Id" class="btn btn-primary px-4">Create Your List</a>
+                                <a asp-page="./ManageTopTen" asp-route-id="@Model.Player.Id" class="btn btn-primary px-4 fw-bold">Create Your List</a>
                             </div>
                         }
                     </div>
@@ -208,3 +296,42 @@
         </div>
     </div>
 </div>
+
+<script>
+    function setFocus(event, type) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = Math.round(((event.clientX - rect.left) / rect.width) * 100);
+        const y = Math.round(((event.clientY - rect.top) / rect.height) * 100);
+
+        // Update Pins & Previews
+        document.getElementById('pin' + type).style.left = x + '%';
+        document.getElementById('pin' + type).style.top = y + '%';
+        document.getElementById('img' + type).style.objectPosition = x + '% ' + y + '%';
+
+        // Update Hidden Inputs
+        document.getElementById('input' + type + 'X').value = x;
+        document.getElementById('input' + type + 'Y').value = y;
+    }
+
+    function updateZoom(type) {
+        const zoomValue = document.getElementById('input' + type + 'Zoom').value;
+        // Update the percentage label
+        document.getElementById('lbl' + type + 'Zoom').innerText = zoomValue;
+        // Apply the zoom scale to the preview image
+        document.getElementById('img' + type).style.transform = `scale(${zoomValue / 100})`;
+    }
+
+    function resetFocus() {
+        ['Avatar', 'Podium'].forEach(type => {
+            document.getElementById('pin' + type).style.left = '50%';
+            document.getElementById('pin' + type).style.top = '50%';
+            document.getElementById('img' + type).style.objectPosition = '50% 50%';
+            document.getElementById('img' + type).style.transform = 'scale(1)';
+
+            document.getElementById('input' + type + 'X').value = 50;
+            document.getElementById('input' + type + 'Y').value = 50;
+            document.getElementById('input' + type + 'Zoom').value = 100;
+            document.getElementById('lbl' + type + 'Zoom').innerText = '100';
+        });
+    }
+</script>

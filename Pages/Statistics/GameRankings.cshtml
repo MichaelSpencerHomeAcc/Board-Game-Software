@@ -1,0 +1,208 @@
+﻿@page "{id:long?}"
+@model Board_Game_Software.Pages.Statistics.GameRankingsModel
+@{
+    ViewData["Title"] = "Game Rankings";
+}
+
+<style>
+    .game-header {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        margin-bottom: 3rem;
+        background: rgba(255,255,255,0.02);
+        padding: 2rem;
+        border-radius: 15px;
+    }
+
+    .game-art-lockdown {
+        width: 140px;
+        height: 140px;
+        border-radius: 12px;
+        object-fit: cover;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .podium-window {
+        position: relative;
+        height: 200px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.1);
+        background-color: #1a1d21;
+    }
+
+    .player-bg-art {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.25;
+        z-index: 1;
+        filter: grayscale(100%);
+        /* Dynamically set from the user's "Positioning Studio" choice */
+        transition: object-position 0.3s ease;
+    }
+
+    .window-overlay {
+        position: relative;
+        z-index: 2;
+        padding: 1.25rem;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        background: linear-gradient(45deg, rgba(0,0,0,0.9) 30%, transparent 100%);
+    }
+
+    .player-name-text {
+        font-weight: 700;
+        font-size: 1.2rem;
+        color: #fff;
+        margin: 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
+    }
+
+    .glow-1 {
+        border: 1px solid #ffd700 !important;
+        box-shadow: 0 0 20px rgba(255,215,0,0.2);
+    }
+
+    .glow-2 {
+        border: 1px solid #c0c0c0 !important;
+        box-shadow: 0 0 20px rgba(192,192,192,0.15);
+    }
+
+    .glow-3 {
+        border: 1px solid #cd7f32 !important;
+        box-shadow: 0 0 20px rgba(205,127,50,0.1);
+    }
+
+    .fixed-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+
+        .fixed-table tr {
+            height: 92px !important;
+        }
+
+    .avatar-table-wrapper {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+
+    .player-avatar-small {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.2s ease-in-out;
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="mb-4">
+        <form method="get">
+            <div class="input-group shadow-sm border border-secondary border-opacity-25 rounded-3 overflow-hidden">
+                <span class="input-group-text bg-body border-0 text-muted"><i class="bi bi-controller"></i></span>
+                <select asp-for="SelectedGameId" asp-items="Model.GameList" class="form-select border-0 bg-body" onchange="this.form.submit()">
+                    <option value="">Switch Game Module...</option>
+                </select>
+                <button class="btn btn-primary px-4 fw-bold">Load Rankings</button>
+            </div>
+        </form>
+    </div>
+
+    @if (Model.SelectedGameId.HasValue)
+    {
+        <div class="game-header shadow-sm">
+            @if (!string.IsNullOrEmpty(Model.GameBoxArt))
+            {
+                <img src="@Model.GameBoxArt" class="game-art-lockdown" alt="Box Art" />
+            }
+            <div>
+                <h1 class="display-5 fw-black m-0 text-white">@Model.Game.BoardGameName</h1>
+                <p class="text-info tracking-widest text-uppercase fw-bold mb-0">@Model.Game.FkBgdPublisherNavigation?.PublisherName Leaderboard</p>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-5">
+            @for (int i = 0; i < Math.Min(3, Model.Leaderboard.Count); i++)
+            {
+                var p = Model.Leaderboard[i];
+                var rank = i + 1;
+                <div class="col-md-4">
+                    <div class="podium-window glow-@rank">
+                        @if (!string.IsNullOrEmpty(p.ProfileImage))
+                        {
+                            <img src="@p.ProfileImage"
+                                 class="player-bg-art"
+                                 style="object-position: @(p.FocusX)% @(p.FocusY)%; transform: scale(@(p.Zoom / 100.0));" alt="" />
+                        }
+                        <div class="window-overlay p-4">
+                            <div>
+                                <h1 class="display-3 fw-black m-0 @(rank == 1 ? "text-warning" : "text-white")">#@rank</h1>
+                                <span class="text-uppercase tracking-widest small fw-bold text-muted">Global Position</span>
+                            </div>
+                            <div class="mt-auto">
+                                <h4 class="player-name-text">@p.PlayerName</h4>
+                                <span class="fs-5 text-info fw-bold">@p.Score.ToString("N0") PTS</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="card shadow-sm border-0 bg-transparent">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 fixed-table">
+                    <thead class="border-bottom border-secondary-subtle text-muted small text-uppercase">
+                        <tr>
+                            <th class="ps-4" style="width: 10%;">Rank</th>
+                            <th style="width: 40%;">Personnel</th>
+                            <th class="text-center" style="width: 25%;">High Score</th>
+                            <th class="text-end pe-4" style="width: 25%;">Date Set</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in Model.Leaderboard.Select((val, idx) => new { val, idx }))
+                        {
+                            <tr class="border-bottom border-secondary-subtle">
+                                <td class="ps-4 fw-black fs-4 text-muted">#@(entry.idx + 1)</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        @if (!string.IsNullOrEmpty(entry.val.ProfileImage))
+                                        {
+                                            @* WRAPPER handles the cropping/containment *@
+                                            <div class="avatar-table-wrapper me-3 shadow-sm">
+                                                <img src="@entry.val.ProfileImage"
+                                                     class="player-avatar-small"
+                                                     style="object-position: @(entry.val.AvatarX)% @(entry.val.AvatarY)%;
+                                                transform: scale(@(entry.val.AvatarZoom / 100.0));"
+                                                     alt="" />
+                                            </div>
+                                        }
+                                        <span class="fw-bold text-white">@entry.val.PlayerName</span>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-4 text-muted small">@entry.val.Date.ToString("yyyy-MM-dd")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>

@@ -1,0 +1,233 @@
+﻿@page
+@model Board_Game_Software.Pages.Statistics.IndexModel
+@{
+    ViewData["Title"] = "Statistics";
+}
+
+<style>
+    /* PERSONNEL HUD */
+    .personnel-header {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 2rem;
+    }
+
+    .player-avatar-large {
+        width: 80px;
+        height: 80px;
+        border-radius: 12px;
+        object-fit: cover;
+        border: 2px solid #0dcaf0;
+        box-shadow: 0 0 15px rgba(13, 202, 240, 0.3);
+    }
+
+    /* RANK GLOW EFFECTS */
+    .glow-rank-1 {
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+        border: 1px solid rgba(255, 215, 0, 0.6) !important;
+    }
+
+    .glow-rank-2 {
+        box-shadow: 0 0 15px rgba(192, 192, 192, 0.3);
+        border: 1px solid rgba(192, 192, 192, 0.5) !important;
+    }
+
+    .glow-rank-3 {
+        box-shadow: 0 0 15px rgba(205, 127, 50, 0.25);
+        border: 1px solid rgba(205, 127, 50, 0.4) !important;
+    }
+
+    /* GAME ART WINDOWS */
+    .stat-window {
+        position: relative;
+        height: 160px; /* Increased height for better visibility */
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.1);
+        background-color: #1a1d21;
+        transition: transform 0.2s ease-in-out;
+    }
+
+        .stat-window:hover {
+            transform: translateY(-5px);
+        }
+
+    .window-bg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.35;
+        z-index: 1;
+    }
+
+    .window-overlay {
+        position: relative;
+        z-index: 2;
+        padding: 1.25rem;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        background: linear-gradient(to right, rgba(0,0,0,0.85), transparent);
+    }
+
+    .rank-indicator {
+        font-size: 3rem;
+        font-weight: 900;
+        line-height: 1;
+        margin-bottom: 2px;
+        background: linear-gradient(to bottom, #fff, #adb5bd);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .rank-label {
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+    }
+
+    /* Rank color accents */
+    .text-rank-1 {
+        color: #ffd700 !important;
+    }
+
+    .text-rank-2 {
+        color: #c0c0c0 !important;
+    }
+
+    .text-rank-3 {
+        color: #cd7f32 !important;
+    }
+
+    .text-rank-default {
+        color: #0dcaf0 !important;
+    }
+
+    .game-name-large {
+        font-size: 1.15rem; /* Larger Game Name */
+        font-weight: 800;
+        color: #fff;
+        line-height: 1.2;
+        display: block;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+    }
+
+    .score-label {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0dcaf0;
+        margin-top: 2px;
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="personnel-header">
+        @if (!string.IsNullOrEmpty(Model.PlayerProfileImage))
+        {
+            <img src="@Model.PlayerProfileImage" class="player-avatar-large" alt="Profile" />
+        }
+        <div class="flex-grow-1">
+            <h1 class="stats-title text-body m-0">Statistics</h1>
+            <p class="text-muted mb-0">Cross-reference player performance and global records.</p>
+        </div>
+    </div>
+
+    @* --- FILTER HUD --- *@
+    <div class="mb-5">
+        <form method="get">
+            <div class="input-group shadow-sm border border-secondary border-opacity-25 rounded-3 overflow-hidden">
+                <span class="input-group-text bg-body border-0 text-muted"><i class="bi bi-search"></i></span>
+
+                <select asp-for="SelectedPlayerId" asp-items="Model.PlayerList" class="form-select border-0 bg-body">
+                    <option value="">Select Personnel Profile...</option>
+                </select>
+
+                @* Re-linked Time Filters *@
+                <select asp-for="SelectedYear" asp-items="Model.YearList" class="form-select border-0 bg-body">
+                    <option value="">Year</option>
+                </select>
+
+                <select asp-for="SelectedMonth" asp-items="Model.MonthList" class="form-select border-0 bg-body">
+                    <option value="">Month</option>
+                </select>
+
+                <button class="btn btn-primary px-4 fw-bold" type="submit">Execute Query</button>
+            </div>
+        </form>
+    </div>
+
+    @* --- PERSONNEL WINDOWS --- *@
+    @if (Model.SelectedPlayerId.HasValue && Model.PersonalBests.Any())
+    {
+        <div class="row row-cols-1 row-cols-md-3 row-cols-xl-4 g-4 mb-5">
+            @foreach (var best in Model.PersonalBests)
+            {
+                var glowClass = best.Rank == 1 ? "glow-rank-1" : (best.Rank == 2 ? "glow-rank-2" : (best.Rank == 3 ? "glow-rank-3" : ""));
+                var rankColorClass = best.Rank == 1 ? "text-rank-1" : (best.Rank == 2 ? "text-rank-2" : (best.Rank == 3 ? "text-rank-3" : "text-rank-default"));
+
+                <div class="col">
+                    <div class="stat-window @glowClass">
+                        @if (!string.IsNullOrEmpty(best.Base64Image))
+                        {
+                            <img src="@best.Base64Image" class="window-bg" alt="" />
+                        }
+                        <div class="window-overlay">
+                            <div>
+                                <div class="rank-indicator">#@best.Rank</div>
+                                <div class="rank-label @rankColorClass">Global Rank</div>
+                            </div>
+                            <div>
+                                <span class="game-name-large">@best.GameName.ToUpper()</span>
+                                <div class="score-label fw-bold">@best.Score.ToString("N0") PTS</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* --- GLOBAL RECORDS TABLE --- *@
+    <div class="card shadow-sm border-0 bg-transparent mt-4">
+        <div class="card-header bg-transparent border-0 ps-0 mb-2">
+            <h5 class="fw-bold m-0 text-uppercase tracking-widest small text-muted">Global High Scores</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="border-bottom border-secondary-subtle">
+                    <tr>
+                        <th class="ps-4" style="width: 45%;">Game Module</th>
+                        <th style="width: 25%;">Record Holder</th>
+                        <th class="text-center" style="width: 15%;">High Score</th>
+                        <th class="text-end pe-4" style="width: 15%;">Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody class="border-0">
+                    @foreach (var record in Model.GlobalRecords)
+                    {
+                        <tr>
+                            <td class="ps-4 border-0">
+                                <span class="fw-bold text-body-emphasis">@record.GameName</span>
+                            </td>
+                            <td class="border-0">
+                                <i class="bi bi-person-circle me-1 opacity-50"></i> @record.PlayerName
+                            </td>
+                            <td class="text-center border-0">
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3">
+                                    @record.Score.ToString("N0")
+                                </span>
+                            </td>
+                            <td class="text-end pe-4 border-0 text-muted small">@record.Date.ToString("yyyy-MM")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

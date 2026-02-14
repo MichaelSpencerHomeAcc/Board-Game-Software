@@ -1,0 +1,246 @@
+﻿@page "{id:long}"
+@model Board_Game_Software.Pages.Browsing.BoardGames.EloRankingsModel
+@{
+    ViewData["Title"] = $"Rankings - {Model.BoardGame.BoardGameName}";
+}
+
+<style>
+    body {
+        background-color: #0d0d0d;
+        color: #e0e0e0;
+    }
+
+    .game-banner {
+        height: 350px;
+        background-size: cover;
+        background-position: center;
+        position: relative;
+        border-radius: 15px;
+        overflow: hidden;
+        background-color: #1a1a1a;
+    }
+
+    .banner-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(transparent, rgba(13,13,13,0.98));
+        display: flex;
+        align-items: flex-end;
+        padding: 3rem;
+    }
+
+    .ranking-card-container {
+        margin-top: 5rem;
+    }
+
+    .card-dark {
+        background: #151515;
+        border: 1px solid #2a2a2a;
+        border-radius: 15px;
+    }
+
+    .table-dark-custom {
+        color: #d1d1d1;
+        border-color: #2a2a2a;
+    }
+
+        .table-dark-custom thead th {
+            background-color: #1f1f1f;
+            color: #888;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            border-bottom: 2px solid #333;
+            padding: 1.25rem 1rem;
+        }
+
+        .table-dark-custom tbody tr {
+            border-bottom: 1px solid #222;
+            transition: background-color 0.2s ease;
+        }
+
+            .table-dark-custom tbody tr:hover {
+                background-color: #1c1c1c !important;
+            }
+
+    .rank-cell {
+        font-size: 1.3rem;
+        font-weight: 800;
+        width: 80px;
+        text-align: center;
+    }
+
+    .elo-display {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #3d8bfd;
+    }
+
+    .player-avatar {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #333;
+    }
+
+    .player-name {
+        font-size: 1.1rem;
+        color: #ffffff;
+        font-weight: 600;
+    }
+
+    .stats-row {
+        font-size: 0.85rem;
+        margin-top: 2px;
+    }
+
+    .win-count {
+        color: #2ecc71;
+        font-weight: 700;
+    }
+
+    .alignment-badge {
+        font-size: 0.75rem;
+        color: #bbb;
+        background: #222;
+        padding: 4px 12px;
+        border-radius: 6px;
+        display: inline-block;
+        margin-top: 6px;
+        border: 1px solid #333;
+    }
+
+    /* Token Colors */
+    .token-good {
+        color: #3498db;
+        font-weight: 700;
+    }
+
+    .token-evil {
+        color: #e74c3c;
+        font-weight: 700;
+    }
+
+    .token-neutral {
+        color: #ffffff;
+        font-weight: 700;
+    }
+
+    /* Responsive white/black for no alignment */
+    .token-none {
+        color: #ffffff; /* Default for dark mode */
+        font-weight: 700;
+    }
+
+    /* Target light mode users specifically if your CSS variables allow */
+    [data-theme='light'] .token-none {
+        color: #000000;
+    }
+</style>
+
+<div class="container py-4">
+    <div class="game-banner shadow-lg" style="background-image: url('@Model.BoardGameFrontImageUrl');">
+        <div class="banner-overlay">
+            <div class="d-flex justify-content-between align-items-end w-100">
+                <div>
+                    <h1 class="text-white display-4 fw-bold mb-0">@Model.BoardGame.BoardGameName</h1>
+                    <span class="badge bg-warning text-dark mt-2 fw-bold">LEADERBOARD</span>
+                </div>
+                <a asp-page="./BoardGameDetails" asp-route-id="@Model.BoardGame.Id" class="btn btn-outline-light px-4 mb-2">Back to Details</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="ranking-card-container">
+        <div class="card card-dark shadow-lg mx-md-4 overflow-hidden">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark-custom align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-4 text-center">Rank</th>
+                                <th>Player Details</th>
+                                <th class="text-center">Elo Rating</th>
+                                <th class="text-end pe-4">Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.PlayerRankings)
+                            {
+                                var tokenClass = item.MainTokenAlignment?.Trim().ToLower() switch
+                                {
+                                    "good" => "token-good",
+                                    "evil" => "token-evil",
+                                    "neutral" => "token-neutral",
+                                    _ => "token-none"
+                                };
+
+                                <tr>
+                                    <td class="ps-4 rank-cell">
+                                        @if (item.CalculatedRank == 1)
+                                        {
+                                            <span>🥇</span>
+                                        }
+                                        else if (item.CalculatedRank == 2)
+                                        {
+
+                                            <span>🥈</span>
+                                        }
+                                        else if (item.CalculatedRank == 3)
+                                        {
+
+                                            <span>🥉</span>
+                                        }
+                                        else
+                                        {
+
+                                            <span class="text-muted opacity-50">#@item.CalculatedRank</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center py-2">
+                                            @if (Model.PlayerImages.ContainsKey(item.FkBgdPlayer))
+                                            {
+                                                <img src="@Model.PlayerImages[item.FkBgdPlayer]" class="player-avatar me-3" />
+                                            }
+                                            else
+                                            {
+                                                <div class="player-avatar me-3 d-flex align-items-center justify-content-center"
+                                                     style="background-color: @Model.GetAvatarColor(item.PlayerFullName); color: white;">
+                                                    @Model.GetInitials(item.PlayerFullName)
+                                                </div>
+                                            }
+                                            <div>
+                                                <div class="player-name">@item.PlayerFullName</div>
+                                                <div class="stats-row">
+                                                    <span class="win-count">@item.TotalWins Wins</span>
+                                                    <span class="text-muted mx-1">/</span>
+                                                    <span class="text-muted">@item.MatchesPlayed Played</span>
+                                                </div>
+                                                <div class="alignment-badge">
+                                                    @* Hide alignment wins if N/A or empty *@
+                                                    @if (!string.IsNullOrWhiteSpace(item.AlignmentWins) && item.AlignmentWins != "N/A" && item.AlignmentWins != "No wins yet")
+                                                    {
+                                                        @item.AlignmentWins
+                                                        <span class="mx-2 text-muted">|</span>
+                                                    }
+                                                    <span class="@tokenClass">Main: @(item.MostPlayedToken ?? "None")</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="elo-display">@item.DisplayRating.ToString("F0")</div>
+                                    </td>
+                                    <td class="text-end pe-4 text-muted small">@item.TimeModified.ToString("MMM dd, yyyy")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

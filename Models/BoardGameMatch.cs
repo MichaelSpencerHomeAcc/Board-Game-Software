@@ -32,7 +32,7 @@ public partial class BoardGameMatch
 
     public DateTime? FinishedDate { get; set; }
 
-    public bool? MatchComplete { get; set; }
+    public bool? MatchComplete { get; set; } = false;
 
     public virtual ICollection<BoardGameMatchPlayer> BoardGameMatchPlayers { get; set; } = new List<BoardGameMatchPlayer>();
 

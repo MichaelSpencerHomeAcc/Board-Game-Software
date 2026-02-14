@@ -1,22 +1,26 @@
-using System.ComponentModel.DataAnnotations;
+using Board_Game_Software.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using Board_Game_Software.Models;
+using MongoDB.Driver;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
 
 namespace Board_Game_Software.Pages.GameNight
 {
     public class CreateModel : PageModel
     {
-        // TODO: Replace 'AppDbContext' with your actual DbContext type
         private readonly BoardGameDbContext _db;
+        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
 
-        public CreateModel(BoardGameDbContext db)
+        public CreateModel(BoardGameDbContext db, IMongoClient mongoClient, IConfiguration configuration)
         {
             _db = db;
+            var databaseName = configuration["MongoDbSettings:Database"];
+            var database = mongoClient.GetDatabase(databaseName);
+            _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
-        // Lightweight row used to render the checkboxes
         public List<PlayerRow> AllPlayers { get; private set; } = new();
 
         [BindProperty]
@@ -24,18 +28,8 @@ namespace Board_Game_Software.Pages.GameNight
 
         public async Task OnGetAsync()
         {
-            // Default to today (server local) for convenience
             Input.GameNightDate = DateOnly.FromDateTime(DateTime.Today);
-
-            AllPlayers = await _db.Set<Player>()
-                .Where(p => !p.Inactive)
-                .Select(p => new PlayerRow
-                {
-                    PlayerId = p.Id,
-                    Name = ((p.FirstName ?? "") + " " + (p.LastName ?? "")).Trim()
-                })
-                .OrderBy(p => p.Name)
-                .ToListAsync();
+            await LoadPlayersAndAvatarsAsync();
         }
 
         public async Task<IActionResult> OnPostAsync()
@@ -44,7 +38,7 @@ namespace Board_Game_Software.Pages.GameNight
 
             if (!ModelState.IsValid)
             {
-                await ReloadPlayersAsync();
+                await LoadPlayersAndAvatarsAsync();
                 return Page();
             }
 
@@ -87,25 +81,55 @@ namespace Board_Game_Software.Pages.GameNight
             return RedirectToPage("/GameNight/Details", new { id = night.Id });
         }
 
-        private async Task ReloadPlayersAsync()
+        private async Task LoadPlayersAndAvatarsAsync()
         {
-            AllPlayers = await _db.Set<Player>()
+            // 1. Get all active players from SQL
+            var players = await _db.Set<Player>()
                 .Where(p => !p.Inactive)
-                .Select(p => new PlayerRow
+                .OrderBy(p => p.FirstName)
+                .ThenBy(p => p.LastName)
+                .ToListAsync();
+
+            // 2. Prepare GID strings (Matching your DetailsModel pattern)
+            // No .HasValue check needed since they aren't nullable
+            var gidStrings = players
+                .Select(x => x.Gid.ToString())
+                .ToList();
+
+            // 3. Query MongoDB using gidStrings.Contains(img.GID.ToString())
+            // This matches the exact filter logic you linked
+            var imageDocs = await _imagesCollection.Find(img =>
+                img.SQLTable == "bgd.Player" &&
+                gidStrings.Contains(img.GID.ToString()))
+                .ToListAsync();
+
+            // 4. Map to the View Model
+            AllPlayers = players.Select(p => {
+                var playerGidString = p.Gid.ToString();
+
+                // Find the image by comparing GID strings
+                var imgDoc = imageDocs.FirstOrDefault(x => x.GID.ToString() == playerGidString);
+
+                string? base64 = null;
+                if (imgDoc?.ImageBytes != null)
+                {
+                    base64 = $"data:image/png;base64,{Convert.ToBase64String(imgDoc.ImageBytes)}";
+                }
+
+                return new PlayerRow
                 {
                     PlayerId = p.Id,
                     Name = ((p.FirstName ?? "") + " " + (p.LastName ?? "")).Trim(),
+                    AvatarBase64 = base64,
                     Preselected = Input.SelectedPlayerIds != null && Input.SelectedPlayerIds.Contains(p.Id)
-                })
-                .OrderBy(p => p.Name)
-                .ToListAsync();
+                };
+            }).ToList();
         }
 
         public class CreateInput
         {
             [Required]
             public DateOnly GameNightDate { get; set; }
-
             public List<long> SelectedPlayerIds { get; set; } = new();
         }
 
@@ -113,6 +137,7 @@ namespace Board_Game_Software.Pages.GameNight
         {
             public long PlayerId { get; set; }
             public string Name { get; set; } = string.Empty;
+            public string? AvatarBase64 { get; set; }
             public bool Preselected { get; set; }
         }
     }

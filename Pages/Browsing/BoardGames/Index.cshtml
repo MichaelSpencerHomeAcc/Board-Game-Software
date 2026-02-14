@@ -60,15 +60,13 @@
         transition: transform 0.2s ease-in-out;
     }
 
-        /* 4. FILL THE BOX (Cover mode) */
         .img-lockdown img {
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Ensures image fills the square */
+            object-fit: cover;
             object-position: center;
         }
 
-    /* Avatar Text Fallback */
     .avatar-text {
         color: white;
         font-weight: 600;
@@ -106,11 +104,9 @@
         </div>
         @if (User.IsInRole("Admin"))
         {
-            <div class="d-flex gap-2">
-                <a asp-page="./Add" class="btn btn-primary shadow-sm">
-                    <i class="bi bi-plus-circle me-1"></i> Add Game
-                </a>
-            </div>
+            <a asp-page="./Add" class="btn btn-primary shadow-sm">
+                <i class="bi bi-plus-circle me-1"></i> Add Game
+            </a>
         }
     </div>
 
@@ -157,7 +153,6 @@
                             data-href="@Url.Page("./BoardGameDetails", new { id = item.BoardGame.Id })"
                             style="cursor: pointer;">
 
-                            @* 1. Name & Image *@
                             <td class="ps-4 border-0">
                                 <div class="d-flex align-items-center">
                                     <div class="img-lockdown game-image-hover me-3 shadow-sm"
@@ -180,14 +175,12 @@
                                 </div>
                             </td>
 
-                            @* 2. Type *@
                             <td class="border-0">
                                 <span class="text-body-secondary text-truncate-custom">
                                     @(item.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc ?? "-")
                                 </span>
                             </td>
 
-                            @* 3. Players *@
                             <td class="border-0">
                                 <span class="text-body-secondary text-truncate-custom">
                                     <i class="bi bi-people me-1 small opacity-50"></i>
@@ -195,7 +188,6 @@
                                 </span>
                             </td>
 
-                            @* 4. Play Time (Updated Logic) *@
                             <td class="border-0">
                                 <span class="text-body-secondary text-truncate-custom">
                                     @if (item.BoardGame.PlayingTimeMinInMinutes.HasValue && item.BoardGame.PlayingTimeMinInMinutes.Value > 0)
@@ -203,7 +195,6 @@
                                         <i class="bi bi-clock me-1 small opacity-50"></i>
                                         @item.BoardGame.PlayingTimeMinInMinutes
                                         @(item.BoardGame.PlayingTimeMaxInMinutes != item.BoardGame.PlayingTimeMinInMinutes ? "–" + item.BoardGame.PlayingTimeMaxInMinutes : "")
-                                
                                         @:m
                                     }
                                     else
@@ -213,18 +204,25 @@
                                 </span>
                             </td>
 
-                            @* 5. Actions *@
                             <td class="text-end pe-4 border-0">
                                 <div class="btn-group shadow-sm">
+                                    @* View Details *@
                                     <a asp-page="./BoardGameDetails" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-eye"></i> View
+                                        <i class="bi bi-eye"></i>
                                     </a>
+
                                     @if (User.IsInRole("Admin"))
                                     {
+                                        @* Edit Game *@
                                         <a asp-page="./Edit" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                     }
+
+                                    @* Trophy Button - Direct to Elo Rankings for this specific game *@
+                                    <a asp-page="./EloRankings" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-warning">
+                                        <i class="bi bi-trophy"></i>
+                                    </a>
                                 </div>
                             </td>
                         </tr>
@@ -249,10 +247,10 @@
 @section Scripts {
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Clickable Row Logic
+            // Clickable Row Logic - ignores clicks on the button group
             document.querySelectorAll('.clickable-row').forEach(row => {
                 row.addEventListener('click', (e) => {
-                    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('form')) return;
+                    if (e.target.closest('.btn-group') || e.target.closest('button') || e.target.closest('a')) return;
                     window.location.href = row.getAttribute('data-href');
                 });
             });
@@ -263,33 +261,21 @@
 
             document.querySelectorAll('.game-image-hover').forEach(box => {
                 const src = box.getAttribute('data-hover-img');
-
                 if(src && src.length > 0) {
                     box.addEventListener('mouseenter', () => {
                         tooltipImg.src = src;
                         tooltip.style.display = 'block';
                     });
-
                     box.addEventListener('mousemove', (e) => {
                         const offset = 15;
                         let top = e.pageY + offset;
                         let left = e.pageX + offset;
-
-                        // Prevent tooltip from going off-screen
-                        if (e.clientY + tooltip.offsetHeight + offset > window.innerHeight) {
-                            top = e.pageY - tooltip.offsetHeight - offset;
-                        }
-                        if (e.clientX + tooltip.offsetWidth + offset > window.innerWidth) {
-                            left = e.pageX - tooltip.offsetWidth - offset;
-                        }
-
+                        if (e.clientY + tooltip.offsetHeight + offset > window.innerHeight) top = e.pageY - tooltip.offsetHeight - offset;
+                        if (e.clientX + tooltip.offsetWidth + offset > window.innerWidth) left = e.pageX - tooltip.offsetWidth - offset;
                         tooltip.style.top = top + 'px';
                         tooltip.style.left = left + 'px';
                     });
-
-                    box.addEventListener('mouseleave', () => {
-                        tooltip.style.display = 'none';
-                    });
+                    box.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
                 }
             });
         });
