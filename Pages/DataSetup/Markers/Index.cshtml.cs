@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -35,18 +36,22 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
         {
             SearchTerm = search;
 
+            // Read-only list page: NO TRACKING (big win)
             var query = _context.BoardGameMarkerTypes
+                .AsNoTracking()
                 .Include(m => m.FkBgdMarkerAlignmentTypeNavigation)
                 .Include(m => m.FkBgdMarkerAdditionalTypeNavigation)
                 .Where(m => !m.Inactive);
 
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
-                // Partial match for Description, Full match for Alignment or Additional Type
+                var term = SearchTerm.Trim();
+
+                // Safer null-guards + keeps SQL clean
                 query = query.Where(m =>
-                    m.TypeDesc.Contains(SearchTerm) ||
-                    m.FkBgdMarkerAlignmentTypeNavigation.TypeDesc == SearchTerm ||
-                    m.FkBgdMarkerAdditionalTypeNavigation.TypeDesc == SearchTerm
+                    m.TypeDesc.Contains(term) ||
+                    (m.FkBgdMarkerAlignmentTypeNavigation != null && m.FkBgdMarkerAlignmentTypeNavigation.TypeDesc == term) ||
+                    (m.FkBgdMarkerAdditionalTypeNavigation != null && m.FkBgdMarkerAdditionalTypeNavigation.TypeDesc == term)
                 );
             }
 
@@ -54,34 +59,25 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
                 .OrderBy(mt => mt.TypeDesc)
                 .ToListAsync();
 
-            // Image Fetching
-            var gids = MarkerTypes.Select(m => m.Gid.ToString()).ToList();
-            if (gids.Any())
+            // Image Fetching (Mongo) - use Guid values, not strings
+            // Image URLs (fast, cacheable, no base64 payload)
+            MarkerImagesBase64.Clear();
+
+            foreach (var marker in MarkerTypes)
             {
-                var filter = Builders<BoardGameImages>.Filter.And(
-                    Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
-                    Builders<BoardGameImages>.Filter.In("GID", gids)
-                );
-
-                var imageDocs = await _imagesCollection.Find(filter).ToListAsync();
-                var imagesDict = imageDocs
-                    .Where(img => img.ImageBytes != null && img.GID.HasValue)
-                    .ToDictionary(img => img.GID.Value.ToString(), img => $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}");
-
-                foreach (var marker in MarkerTypes)
-                {
-                    var gidStr = marker.Gid.ToString();
-                    MarkerImagesBase64[marker.Id] = imagesDict.ContainsKey(gidStr) ? imagesDict[gidStr] : null;
-                }
+                // Just point to media endpoint instead of embedding image
+                MarkerImagesBase64[marker.Id] = $"/media/marker-type/{marker.Gid}";
             }
         }
 
         public async Task<IActionResult> OnPostDeleteAsync(long id)
         {
+            // keep this tracked because we are updating it
             var markerType = await _context.BoardGameMarkerTypes.FindAsync(id);
             if (markerType == null) return NotFound();
 
             var linkedCount = await _context.BoardGameMarkers
+                .AsNoTracking()
                 .CountAsync(bgm => bgm.FkBgdBoardGameMarkerType == id && !bgm.Inactive);
 
             if (linkedCount > 0)

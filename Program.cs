@@ -64,6 +64,7 @@ builder.Services.AddScoped<IUserClaimsPrincipalFactory<IdentityUser>,
     UserClaimsPrincipalFactory<IdentityUser, IdentityRole>>();
 
 builder.Services.AddRazorPages();
+builder.Services.AddControllers();
 
 // =========================
 // MongoDB Setup
@@ -149,5 +150,6 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthorization();
 app.MapRazorPages();
+app.MapControllers();
 
 app.Run();

@@ -7,12 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.IO;
-using SixLabors.ImageSharp;
-
-
 
 namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
@@ -53,6 +50,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         public async Task<IActionResult> OnGetAsync(long id)
         {
             BoardGame = await _context.BoardGames
+                .AsNoTracking()
                 .Include(bg => bg.BoardGameEloMethods)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
@@ -73,7 +71,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
             if (gameToUpdate == null) return NotFound();
 
-            // Load existing markers up-front so we can sync them
             var existingMarkers = await _context.BoardGameMarkers
                 .Where(m => m.FkBgdBoardGame == id)
                 .ToListAsync();
@@ -92,7 +89,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 gameToUpdate.ModifiedBy = actor;
                 gameToUpdate.TimeModified = now;
 
-                // ----- ELO LOGIC (unchanged) -----
+                // ELO LOGIC
                 var currentEloLink = gameToUpdate.BoardGameEloMethods.FirstOrDefault(x => !x.Inactive);
                 if (SelectedEloMethodId.HasValue)
                 {
@@ -123,14 +120,13 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     currentEloLink.TimeModified = now;
                 }
 
-                // ----- MARKERS: FIX (this is what was missing) -----
+                // MARKERS SYNC (fix)
                 var desiredTypeIds = (MarkerTypeIds ?? new List<long>())
                     .Distinct()
                     .ToHashSet();
 
                 if (!gameToUpdate.HasMarkers)
                 {
-                    // Markers switched off => inactivate all existing marker rows
                     foreach (var m in existingMarkers.Where(m => !m.Inactive))
                     {
                         m.Inactive = true;
@@ -140,10 +136,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 }
                 else
                 {
-                    // Inactivate removed markers
                     foreach (var m in existingMarkers.Where(m => !m.Inactive))
                     {
-                        // If FK is null OR not desired => inactivate
                         if (!m.FkBgdBoardGameMarkerType.HasValue ||
                             !desiredTypeIds.Contains(m.FkBgdBoardGameMarkerType.Value))
                         {
@@ -153,7 +147,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                         }
                     }
 
-                    // Add new markers (or reactivate inactive ones)
                     foreach (var typeId in desiredTypeIds)
                     {
                         var existing = existingMarkers.FirstOrDefault(m => m.FkBgdBoardGameMarkerType == typeId);
@@ -181,12 +174,15 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     }
                 }
 
-                // Save everything in one go
+                if (ImageUpload != null && ImageUpload.Length > 0)
+                {
+                    await UpsertBoardGameFrontImageAsync(gameToUpdate, ImageUpload);
+                }
+
                 await _context.SaveChangesAsync();
                 return RedirectToPage("./BoardGameDetails", new { id = gameToUpdate.Id });
             }
 
-            // If validation failed, refresh page state
             BoardGame = gameToUpdate;
             await ReloadPageData(id);
             return Page();
@@ -195,47 +191,80 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         private async Task ReloadPageData(long id)
         {
             ExistingMarkers = await _context.BoardGameMarkers
+                .AsNoTracking()
                 .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
                 .Where(m => m.FkBgdBoardGame == id)
                 .ToListAsync();
 
             await LoadSelectLists();
             await LoadMarkerTypes();
+            if (BoardGame != null) await LoadCurrentImageUrl(BoardGame.Gid);
+        }
 
-            if (BoardGame != null)
-                await LoadCurrentImageUrl(BoardGame.Gid);
+        private async Task UpsertBoardGameFrontImageAsync(BoardGame game, IFormFile upload)
+        {
+            // Choose ONE canonical value and use it everywhere (controller + docs).
+            // Recommended to match your other endpoints:
+            const string sqlTableCanonical = "bgd.BoardGame";
+
+            // Look up the "Board Game Front" type in SQL
+            var frontType = await _context.BoardGameImageTypes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+
+            if (frontType == null)
+                throw new InvalidOperationException("Board Game Front image type not found in BoardGameImageTypes.");
+
+            byte[] bytes;
+            using (var ms = new MemoryStream())
+            {
+                await upload.CopyToAsync(ms);
+                bytes = ms.ToArray();
+            }
+
+            // Prefer the browser-provided content type, else fall back
+            var contentType = !string.IsNullOrWhiteSpace(upload.ContentType)
+                ? upload.ContentType
+                : "application/octet-stream";
+
+            // Description defaults to "<BoardGameName> Box"
+            var description = $"{game.BoardGameName} Box";
+
+            // Filter to find existing front image doc for this board game
+            // We allow BOTH SQLTable values so older docs still update cleanly.
+            var filter = Builders<BoardGameImages>.Filter.And(
+                Builders<BoardGameImages>.Filter.Eq(x => x.GID, game.Gid),
+                Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, frontType.Gid),
+                Builders<BoardGameImages>.Filter.In(x => x.SQLTable, new[] { sqlTableCanonical, "BoardGames" })
+            );
+
+            var update = Builders<BoardGameImages>.Update
+                .Set(x => x.SQLTable, sqlTableCanonical)     // normalize going forward
+                .Set(x => x.GID, game.Gid)
+                .Set(x => x.ImageTypeGID, frontType.Gid)
+                .Set(x => x.Description, description)
+                .Set(x => x.ImageBytes, bytes)
+                .Set(x => x.ContentType, contentType);
+
+            await _boardGameImages.UpdateOneAsync(filter, update, new UpdateOptions { IsUpsert = true });
         }
 
         private async Task LoadSelectLists()
         {
-            BoardGameTypes = new SelectList(
-                await _context.BoardGameTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(),
-                "Id", "TypeDesc");
-
-            VictoryConditions = new SelectList(
-                await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(),
-                "Id", "TypeDesc");
-
-            Publishers = new SelectList(
-                await _context.Publishers.Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(),
-                "Id", "PublisherName");
-
-            EloMethods = new SelectList(
-                await _context.EloMethods.Where(e => !e.Inactive).OrderBy(e => e.MethodName).ToListAsync(),
-                "Id", "MethodName");
+            BoardGameTypes = new SelectList(await _context.BoardGameTypes.AsNoTracking().Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
+            VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.AsNoTracking().Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
+            Publishers = new SelectList(await _context.Publishers.AsNoTracking().Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
+            EloMethods = new SelectList(await _context.EloMethods.AsNoTracking().Where(e => !e.Inactive).OrderBy(e => e.MethodName).ToListAsync(), "Id", "MethodName");
         }
 
         // PERFORMANCE FIX: Batch Mongo image lookups (no N+1)
         private async Task LoadMarkerTypes()
         {
             AvailableMarkerTypes.Clear();
-
-            var existingIds = ExistingMarkers
-                .Where(m => !m.Inactive)
-                .Select(m => m.FkBgdBoardGameMarkerType)
-                .ToHashSet();
+            var existingIds = ExistingMarkers.Where(m => !m.Inactive).Select(m => m.FkBgdBoardGameMarkerType).ToHashSet();
 
             var types = await _context.BoardGameMarkerTypes
+                .AsNoTracking()
                 .Where(t => !t.Inactive && !existingIds.Contains(t.Id))
                 .OrderBy(t => t.TypeDesc)
                 .ToListAsync();
@@ -248,10 +277,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             );
 
             var imgs = await _boardGameImages.Find(imgFilter).ToListAsync();
-            var imgByGid = imgs
-                .Where(i => i.GID.HasValue)
-                .GroupBy(i => i.GID!.Value)
-                .ToDictionary(g => g.Key, g => g.First());
+            var imgByGid = imgs.Where(i => i.GID.HasValue).GroupBy(i => i.GID!.Value).ToDictionary(g => g.Key, g => g.First());
 
             foreach (var type in types)
             {
@@ -261,53 +287,26 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 {
                     Id = type.Id,
                     TypeDesc = type.TypeDesc,
-                    ImageBase64 = img?.ImageBytes != null ? ToDataUrl(img) : null
+                    ImageBase64 = img?.ImageBytes != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
                 });
             }
         }
 
         private async Task LoadCurrentImageUrl(Guid gid)
         {
-            var frontType = await _context.BoardGameImageTypes
-                .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-
+            var frontType = await _context.BoardGameImageTypes.AsNoTracking().FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
             if (frontType != null)
             {
-                var img = await _boardGameImages
-                    .Find(i => i.GID == gid && i.ImageTypeGID == frontType.Gid)
-                    .FirstOrDefaultAsync();
+                var filter = Builders<BoardGameImages>.Filter.And(
+                    Builders<BoardGameImages>.Filter.Eq(i => i.GID, gid),
+                    Builders<BoardGameImages>.Filter.Eq(i => i.ImageTypeGID, frontType.Gid),
+                    Builders<BoardGameImages>.Filter.In(i => i.SQLTable, new[] { "bgd.BoardGame", "BoardGames" })
+                );
 
-                if (img?.ImageBytes != null)
-                    CurrentImageUrl = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                var img = await _boardGameImages.Find(filter).FirstOrDefaultAsync();
+
+                if (img?.ImageBytes != null) CurrentImageUrl = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
             }
-        }
-        private static string ToDataUrl(BoardGameImages img)
-        {
-            if (img.ImageBytes == null || img.ImageBytes.Length == 0)
-                return "";
-
-            var ct = (img.ContentType ?? "").Trim().ToLowerInvariant();
-
-            // If it's WebP, convert to PNG for maximum compatibility
-            if (ct == "image/webp" || ct == "image/x-webp" || ct.EndsWith("/webp") || ct.Contains("webp"))
-            {
-                try
-                {
-                    using var image = SixLabors.ImageSharp.Image.Load(img.ImageBytes);
-                    using var ms = new MemoryStream();
-                    image.SaveAsPng(ms);
-                    return $"data:image/png;base64,{Convert.ToBase64String(ms.ToArray())}";
-                }
-                catch
-                {
-                    // If conversion fails, still attempt to return original bytes
-                    return $"data:{(string.IsNullOrWhiteSpace(img.ContentType) ? "image/webp" : img.ContentType)};base64,{Convert.ToBase64String(img.ImageBytes)}";
-                }
-            }
-
-            // Non-webp: serve as-is
-            var safeCt = string.IsNullOrWhiteSpace(img.ContentType) ? "image/png" : img.ContentType;
-            return $"data:{safeCt};base64,{Convert.ToBase64String(img.ImageBytes)}";
         }
     }
 
