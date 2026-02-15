@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Board_Game_Software.Models;
 
@@ -139,10 +138,6 @@ public partial class BoardGameDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        var dateOnlyConverter = new ValueConverter<DateOnly?, DateTime?>(
-    d => d.HasValue ? d.Value.ToDateTime(TimeOnly.MinValue) : null,
-    d => d.HasValue ? DateOnly.FromDateTime(d.Value) : null);
-
         modelBuilder.Entity<BoardGame>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK_bgd_BoardGame");
@@ -190,10 +185,6 @@ public partial class BoardGameDbContext : DbContext
             entity.HasOne(d => d.FkBgdPublisherNavigation).WithMany(p => p.BoardGames)
                 .HasForeignKey(d => d.FkBgdPublisher)
                 .HasConstraintName("FK_bgd_BoardGame__bgd_Publisher");
-
-            entity.Property(e => e.ReleaseDate)
-      .HasConversion(dateOnlyConverter)
-      .HasColumnType("date");
         });
 
         modelBuilder.Entity<BoardGameEloMethod>(entity =>
