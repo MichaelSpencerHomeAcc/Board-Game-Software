@@ -132,17 +132,8 @@ public partial class BoardGameDbContext : DbContext
 
     public virtual DbSet<VwEloRanking> VwEloRankings { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder.UseSqlServer("Server=sql.bsite.net\\MSSQL2016;Database=tironicus_BoardGames;User Id=tironicus_BoardGames;Password=Crash454!;TrustServerCertificate=True;");
-    }
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        var dateOnlyConverter = new ValueConverter<DateOnly?, DateTime?>(
-    d => d.HasValue ? d.Value.ToDateTime(TimeOnly.MinValue) : null,
-    d => d.HasValue ? DateOnly.FromDateTime(d.Value) : null);
-
         modelBuilder.Entity<BoardGame>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK_bgd_BoardGame");
@@ -190,10 +181,6 @@ public partial class BoardGameDbContext : DbContext
             entity.HasOne(d => d.FkBgdPublisherNavigation).WithMany(p => p.BoardGames)
                 .HasForeignKey(d => d.FkBgdPublisher)
                 .HasConstraintName("FK_bgd_BoardGame__bgd_Publisher");
-
-            entity.Property(e => e.ReleaseDate)
-      .HasConversion(dateOnlyConverter)
-      .HasColumnType("date");
         });
 
         modelBuilder.Entity<BoardGameEloMethod>(entity =>
