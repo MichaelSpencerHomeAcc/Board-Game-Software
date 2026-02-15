@@ -97,9 +97,13 @@
             <a class="btn btn-outline-secondary rounded-pill px-4" asp-page="Archive">
                 <i class="bi bi-archive me-2"></i>History
             </a>
-            <a class="btn btn-primary rounded-pill shadow px-4" asp-page="/GameNight/Create">
-                <i class="bi bi-plus-lg me-2"></i>Schedule Night
-            </a>
+            @* Only show the Schedule button to administrators *@
+            @if (Model.IsAdmin)
+            {
+                <a class="btn btn-primary rounded-pill shadow px-4" asp-page="/GameNight/Create">
+                    <i class="bi bi-plus-lg me-2"></i>Schedule Night
+                </a>
+            }
         </div>
     </div>
 
@@ -166,9 +170,13 @@
                             <a asp-page="Details" asp-route-id="@n.Id" class="btn btn-outline-primary flex-grow-1 rounded-pill">
                                 <i class="bi bi-eye-fill me-2"></i>Details
                             </a>
-                            <a asp-page="Edit" asp-route-id="@n.Id" class="btn btn-outline-secondary rounded-circle" title="Edit">
-                                <i class="bi bi-pencil-fill"></i>
-                            </a>
+                            @* Only show the Edit button to administrators *@
+                            @if (Model.IsAdmin)
+                            {
+                                <a asp-page="Edit" asp-route-id="@n.Id" class="btn btn-outline-secondary rounded-circle" title="Edit">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </a>
+                            }
                         </div>
                     </div>
                 </div>
@@ -185,7 +193,11 @@
             </div>
             <h3 class="fw-bold">No sessions scheduled</h3>
             <p class="text-secondary">Start a new game night to begin tracking matches.</p>
-            <a class="btn btn-primary px-4 mt-2" asp-page="/GameNight/Create">Schedule First Night</a>
+            @* Only allow admins to see the Schedule button in empty state *@
+            @if (Model.IsAdmin)
+            {
+                <a class="btn btn-primary px-4 mt-2" asp-page="/GameNight/Create">Schedule First Night</a>
+            }
         </div>
     }
 </div>

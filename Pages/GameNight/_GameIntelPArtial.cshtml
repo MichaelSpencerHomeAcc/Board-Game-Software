@@ -1,0 +1,22 @@
+﻿@model List<Board_Game_Software.Pages.GameNight.DetailsModel.GameSuggestion>
+
+@foreach (var s in Model)
+{
+    <a href="/Browsing/BoardGames/BoardGameDetails/@s.GameId"
+       target="_blank"
+       class="intel-item p-2 d-flex align-items-center gap-3">
+
+        <img src="@(s.CoverUrl ?? "/images/default-cover.png")"
+             style="width:40px; height:40px; object-fit:cover; border-radius: 4px;" />
+
+        <div class="min-w-0 flex-grow-1">
+            <div class="text-white fw-bold small text-truncate">@s.Name</div>
+            <div class="text-info d-flex align-items-center gap-2" style="font-size: 0.65rem;">
+                <i class="bi @s.CategoryIcon"></i>
+                <span>@s.Reason</span>
+            </div>
+        </div>
+
+        <i class="bi bi-box-arrow-up-right text-secondary ms-auto me-1" style="font-size: 0.7rem;"></i>
+    </a>
+}

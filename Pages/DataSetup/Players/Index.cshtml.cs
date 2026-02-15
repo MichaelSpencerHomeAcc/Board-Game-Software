@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Board_Game_Software.Pages.DataSetup.Players
 {
@@ -21,8 +23,6 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
         public IList<VwPlayer> Players { get; set; } = default!;
         public Dictionary<long, string> PlayerImagesBase64 { get; set; } = new();
-
-        // Holds the CSS object-position string for the circle avatars
         public Dictionary<long, string> PlayerFocusStyles { get; set; } = new();
 
         [BindProperty(SupportsGet = true)]
@@ -37,6 +37,7 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                 query = query.Where(p => p.FullName.Contains(SearchTerm));
             }
 
+            // Visible to everyone
             Players = await query.OrderBy(p => p.FullName).ToListAsync();
 
             foreach (var player in Players)
@@ -51,13 +52,10 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                     {
                         PlayerImagesBase64[player.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
                     }
-
-                    // Store the focal point percentage
                     PlayerFocusStyles[player.Id] = $"{img.AvatarFocusX}% {img.AvatarFocusY}%";
                 }
                 else
                 {
-                    // Fallback to center
                     PlayerFocusStyles[player.Id] = "50% 50%";
                 }
             }
@@ -65,7 +63,13 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
         public async Task<IActionResult> OnPostDeleteAsync(long id)
         {
-            var player = await _context.Players.FindAsync(id);
+            // SECURITY: Hard restriction - Only Admins can delete
+            if (!User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
+
+            var player = await _context.Players.FirstOrDefaultAsync(p => p.Id == id);
             if (player == null) return NotFound();
 
             await _boardGameImages.DeleteManyAsync(img => img.GID == player.Gid && img.SQLTable == "bgd.Player");
