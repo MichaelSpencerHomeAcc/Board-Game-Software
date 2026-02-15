@@ -1,4 +1,3 @@
-using Board_Game_Software.Data;
 using Board_Game_Software.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -51,7 +50,7 @@ namespace Board_Game_Software.Pages.Statistics
 
                 await LoadGameImage(Game.Gid);
 
-                // 3. Fetch Leaderboard
+                // 3. Fetch Leaderboard - Corrected navigation path for Score
                 var results = await _context.BoardGameMatchPlayerResults
                     .Where(r => r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame == targetId)
                     .Select(r => new RankEntry
@@ -89,26 +88,18 @@ namespace Board_Game_Software.Pages.Statistics
         private async Task LoadPlayerDetails(RankEntry entry)
         {
             var img = await _imagesCollection.Find(i => i.SQLTable == "bgd.Player" && i.GID == entry.PlayerGid).FirstOrDefaultAsync();
-            if (img != null)
+            if (img != null && img.ImageBytes != null)
             {
-                if (img.ImageBytes != null)
-                {
-                    entry.ProfileImage = $"data:image/png;base64,{Convert.ToBase64String(img.ImageBytes)}";
-                }
-
-                // Podium Metadata (For the Top 3 Banners)
+                entry.ProfileImage = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
                 entry.FocusX = img.PodiumFocusX;
                 entry.FocusY = img.PodiumFocusY;
                 entry.Zoom = img.PodiumZoom;
-
-                // NEW: Avatar Metadata (For the Small Table Icons)
                 entry.AvatarX = img.AvatarFocusX;
                 entry.AvatarY = img.AvatarFocusY;
                 entry.AvatarZoom = img.AvatarZoom;
             }
         }
 
-        // Update your RankEntry class:
         public class RankEntry
         {
             public long PlayerId { get; set; }
@@ -117,13 +108,9 @@ namespace Board_Game_Software.Pages.Statistics
             public decimal Score { get; set; }
             public DateTime Date { get; set; }
             public string? ProfileImage { get; set; }
-
-            // Podium Settings
             public int FocusX { get; set; } = 50;
             public int FocusY { get; set; } = 50;
             public int Zoom { get; set; } = 100;
-
-            // Avatar Settings
             public int AvatarX { get; set; } = 50;
             public int AvatarY { get; set; } = 50;
             public int AvatarZoom { get; set; } = 100;

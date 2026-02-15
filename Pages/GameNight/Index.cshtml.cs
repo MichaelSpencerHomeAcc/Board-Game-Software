@@ -18,9 +18,13 @@ namespace Board_Game_Software.Pages.GameNight
         }
 
         public List<VwBoardGameNight> Nights { get; set; } = new();
+        public bool IsAdmin { get; set; } // Tracks administrative permissions
 
         public async Task OnGetAsync()
         {
+            // Determine if the current user has administrative rights
+            IsAdmin = User.IsInRole("Admin");
+
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             // Calculate the date 3 months ago
             var cutoffDate = today.AddMonths(-3);
@@ -33,7 +37,7 @@ namespace Board_Game_Software.Pages.GameNight
                 .Where(n => !n.Finished || n.GameNightDate >= cutoffDate)
                 .ToListAsync();
 
-            // Sorting logic remains the same to keep Upcoming at the top
+            // Sorting logic to keep Upcoming at the top
             Nights = items
                 .OrderBy(n => n.Inactive)
                 .ThenByDescending(n => !n.Finished && n.GameNightDate >= today)

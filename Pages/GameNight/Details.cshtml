@@ -2,13 +2,11 @@
 @model Board_Game_Software.Pages.GameNight.DetailsModel
 @{
     ViewData["Title"] = "Game Night Details";
-    var canEdit = User.IsInRole("Admin") && !Model.Night.Finished;
-    var isFinished = Model.Night.Finished;
-    var isAdmin = User.IsInRole("Admin");
+    var isAdmin = Model.IsAdmin;
+    var canEdit = isAdmin && !Model.Night.Finished;
 }
 
 <style>
-    /* --- Layout & Card Styling --- */
     .gn-card {
         transition: transform 0.2s;
         border: 1px solid #2d2d2d;
@@ -19,7 +17,7 @@
 
         .gn-card:hover {
             transform: translateX(5px);
-            border-color: var(--bs-primary);
+            border-color: #0dcaf0;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
@@ -30,161 +28,107 @@
     }
 
     .stat-card {
-        border: none;
+        border: 1px solid rgba(13, 202, 240, 0.4) !important;
         border-radius: 12px;
-        background: linear-gradient(135deg, var(--bs-primary) 0%, #4b0db8 100%);
+        background: linear-gradient(135deg, rgba(13, 202, 240, 0.12) 0%, rgba(75, 13, 184, 0.12) 100%) !important;
     }
 
-    /* --- Feature Restoration (Locks & Delete) --- */
-    .lock-indicator {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        font-size: 0.9rem;
-        color: #fff;
-        background: rgba(220, 53, 69, 0.9);
-        width: 26px;
-        height: 26px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 6px;
-        z-index: 10;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    }
-
-    .match-locked {
-        opacity: 0.8;
-    }
-
-    .winner-overlay {
-        background: rgba(var(--bs-primary-rgb), 0.9);
-        font-size: 0.65rem;
-    }
-
-    .btn-trash-match {
-        color: #dc3545;
-        border: 1px solid rgba(220, 53, 69, 0.3);
-        background: transparent;
-        width: 32px;
-        height: 32px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-    }
-
-        .btn-trash-match:hover {
-            background: #dc3545;
-            color: white;
-            border-color: #dc3545;
-        }
-
-    /* --- Standings Modal Theme --- */
-    .modal-content {
-        border-radius: 15px;
-        border: none;
-        overflow: hidden;
-        background-color: #1e1e1e;
-        color: white;
-    }
-
-    .modal-header-themed {
-        background: linear-gradient(135deg, var(--bs-primary) 0%, #4b0db8 100%) !important;
-        color: white;
-        border-bottom: none;
-    }
-
-    .standings-table {
-        color: white;
-    }
-
-        .standings-table thead th {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            color: #888;
-            border: none;
-        }
-
-    .rank-pill {
-        width: 30px;
-        height: 30px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        font-weight: bold;
-        font-size: 0.85rem;
-        background: #333;
-    }
-
-    .gold-bg {
-        background: linear-gradient(135deg, #FFD700 0%, #DAA520 100%);
-        color: #000;
-    }
-
-    .silver-bg {
-        background: linear-gradient(135deg, #C0C0C0 0%, #A9A9A9 100%);
-        color: #000;
-    }
-
-    .bronze-bg {
-        background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%);
-        color: #fff;
-    }
-
-    .avatar-mini {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 2px solid #444;
-    }
-
-    .points-pill {
-        background: rgba(102, 16, 242, 0.2);
-        color: #a370f7;
+    .stat-value-hud {
+        font-family: 'Consolas', monospace;
         font-weight: 800;
-        padding: 0.35rem 0.75rem;
-        border-radius: 8px;
-        font-family: monospace;
+        color: #0dcaf0 !important;
+        text-shadow: 0 0 10px rgba(13, 202, 240, 0.5);
     }
 
-    .btn-standings {
-        background: linear-gradient(135deg, var(--bs-primary) 0%, #4b0db8 100%);
+    .stat-label-hud {
+        color: #0dcaf0 !important;
+        opacity: 0.7;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 1.5px;
+        font-weight: 700;
+    }
+
+    .intel-item {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        transition: all 0.2s;
+        text-decoration: none;
+        display: block;
+    }
+
+        .intel-item:hover {
+            background: rgba(13, 202, 240, 0.08);
+            border-color: rgba(13, 202, 240, 0.3);
+        }
+
+    .shuffle-btn {
+        color: #555;
+        transition: all 0.2s;
+        background: none;
         border: none;
+        padding: 0;
+        outline: none !important;
+    }
+
+        .shuffle-btn:hover {
+            color: #0dcaf0;
+        }
+
+    .bi-spin {
+        animation: spin 0.6s linear;
+    }
+
+    @@keyframes spin {
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .fade-in {
+        animation: fadeIn 0.4s ease-in;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(5px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 </style>
 
 <div class="container-fluid px-4 py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-dark">
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-secondary border-opacity-25">
         <div>
             <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-1">
-                    <li class="breadcrumb-item small"><a asp-page="Index" class="text-decoration-none text-secondary">Game Nights</a></li>
-                    <li class="breadcrumb-item active small text-light">Night Details</li>
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-page="Index" class="text-decoration-none text-secondary">Game Nights</a></li>
+                    <li class="breadcrumb-item active text-light">Details</li>
                 </ol>
             </nav>
-            <h1 class="fw-bold mb-0 text-white">Game Night <span class="text-primary">@Model.Night.GameNightDate.ToString("MMM dd, yyyy")</span></h1>
+            <h1 class="fw-bold mb-0 text-white">Game Night <span class="text-info">@Model.Night.GameNightDate.ToString("MMM dd")</span></h1>
         </div>
         <div class="d-flex gap-2">
             @if (canEdit)
             {
-                <form method="post" asp-page-handler="EndNight" onsubmit="return confirm('End the night? This will lock all matches.');">
-                    <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4">End Night</button>
+                <a class="btn btn-info btn-sm rounded-pill px-4 fw-bold text-dark" asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id">
+                    <i class="bi bi-plus-lg me-1"></i> Add Match
+                </a>
+                <form method="post" asp-page-handler="EndNight" asp-route-id="@Model.Night.Id" onsubmit="return confirm('End the night?');">
+                    <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4 fw-bold">End Night</button>
                 </form>
             }
             @if (isAdmin)
             {
-                <form method="post" asp-page-handler="DeleteNight" onsubmit="return confirm('Are you sure you want to delete this entire Game Night? This cannot be undone.');">
+                <form method="post" asp-page-handler="DeleteNight" asp-route-id="@Model.Night.Id" onsubmit="return confirm('Delete entire Game Night?');">
                     <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-4">Delete Night</button>
                 </form>
-            }
-            @if (isFinished)
-            {
-                <span class="badge bg-success-subtle text-success border border-success px-4 rounded-pill d-flex align-items-center">
-                    <i class="bi bi-check-circle-fill me-2"></i> Finished
-                </span>
             }
         </div>
     </div>
@@ -193,25 +137,12 @@
         <div class="col-xl-8">
             <div class="card roster-card border-0 shadow-sm mb-4">
                 <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h6 class="text-uppercase fw-bold text-secondary mb-0 small">
-                            <i class="bi bi-people-fill me-2"></i>Active Roster
-                        </h6>
-                        @if (canEdit)
-                        {
-                            <a asp-page="/GameNight/AddPlayers" asp-route-id="@Model.Night.Id" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                                <i class="bi bi-person-plus-fill me-1"></i> Add Players
-                            </a>
-                        }
-                    </div>
-
-                    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
+                    <h6 class="text-uppercase fw-bold text-secondary mb-3 small tracking-widest"><i class="bi bi-people-fill me-2 text-info"></i>Active Roster</h6>
+                    <div class="row row-cols-3 row-cols-md-6 g-3 text-center">
                         @foreach (var p in Model.Players)
                         {
-                            <div class="col text-center">
-                                <img src="@(p.AvatarDataUrl ?? Url.Content("~/images/default-avatar.png"))"
-                                     class="rounded-circle border border-2 border-primary-subtle p-1 mb-2 shadow"
-                                     style="width:65px;height:65px;object-fit:cover;" />
+                            <div class="col">
+                                <img src="@(p.AvatarDataUrl ?? Url.Content("~/images/default-avatar.png"))" class="rounded-circle border border-2 border-info border-opacity-25 p-1 mb-2 shadow" style="width:60px;height:60px;object-fit:cover;" />
                                 <div class="small fw-bold text-light text-truncate">@p.Name</div>
                             </div>
                         }
@@ -219,55 +150,26 @@
                 </div>
             </div>
 
-            <div class="d-flex align-items-center justify-content-between mb-3 text-white">
-                <h5 class="fw-bold mb-0">Played Matches</h5>
-                @if (!isFinished)
-                {
-                    <a class="btn btn-primary btn-sm rounded-pill px-4" asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id">Add Match</a>
-                }
-            </div>
-
+            <h5 class="fw-bold mb-3 text-white">Played Matches</h5>
             @foreach (var m in Model.Matches)
             {
-                <div class="card gn-card overflow-hidden mb-3 shadow-sm @(m.IsComplete ? "match-locked" : "")">
+                <div class="card gn-card overflow-hidden mb-3 shadow-sm">
                     <div class="row g-0 align-items-center">
-                        <div class="col-auto position-relative">
-                            <img src="@(m.CoverDataUrl ?? Url.Content("~/images/default-cover.png"))" style="width:130px; height:130px; object-fit:cover;" />
-                            @if (m.IsComplete)
-                            {
-                                <div class="lock-indicator" title="Locked">
-                                    <i class="bi bi-lock-fill"></i>
-                                </div>
-                            }
-                            @if (m.Winners.Any())
-                            {
-                                <div class="position-absolute bottom-0 start-0 w-100 text-white text-center fw-bold winner-overlay py-1">
-                                    <i class="bi bi-trophy-fill me-1"></i> WINNERS
-                                </div>
-                            }
+                        <div class="col-auto">
+                            <img src="@(m.CoverDataUrl ?? Url.Content("~/images/default-cover.png"))" style="width:100px; height:100px; object-fit:cover;" />
                         </div>
                         <div class="col ps-4">
-                            <h6 class="fw-bold mb-1 fs-5 text-white">@m.GameName</h6>
-                            <div class="small text-secondary mb-2">
-                                <i class="bi bi-clock me-1"></i>@(m.StartTime?.ToString("h:mm tt") ?? "No Start Time")
-                            </div>
-                            <div class="small fw-bold text-primary">Winner(s): @string.Join(", ", m.Winners)</div>
+                            <h6 class="fw-bold mb-1 text-white">@m.GameName</h6>
+                            <div class="small fw-bold text-info">@string.Join(", ", m.Winners)</div>
                         </div>
-                        <div class="col-auto pe-4">
-                            <div class="d-flex align-items-center gap-2">
-                                @if (isAdmin && !m.IsComplete)
-                                {
-                                    <form method="post" asp-page-handler="DeleteMatch" onsubmit="return confirm('Delete this match?');">
-                                        <input type="hidden" name="matchId" value="@m.MatchId" />
-                                        <button type="submit" class="btn btn-sm btn-trash-match rounded-pill shadow-sm">
-                                            <i class="bi bi-trash-fill"></i>
-                                        </button>
-                                    </form>
-                                }
-                                <a asp-page="/Match/Results" asp-route-id="@m.MatchId" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                                    @(m.IsComplete ? "Results" : "Record")
-                                </a>
-                            </div>
+                        <div class="col-auto pe-4 d-flex gap-2">
+                            <a asp-page="/Match/Results" asp-route-id="@m.MatchId" class="btn btn-sm btn-outline-info rounded-pill px-3 fw-bold">Record</a>
+                            @if (canEdit)
+                            {
+                                <form method="post" asp-page-handler="DeleteMatch" asp-route-id="@Model.Night.Id" asp-route-matchId="@m.MatchId" onsubmit="return confirm('Delete match?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle"><i class="bi bi-trash"></i></button>
+                                </form>
+                            }
                         </div>
                     </div>
                 </div>
@@ -275,57 +177,45 @@
         </div>
 
         <div class="col-xl-4">
-            <div class="card stat-card text-white shadow mb-4 text-center p-4">
-                <h6 class="text-uppercase small fw-bold opacity-75 mb-3">Night Summary</h6>
-                <div class="d-flex justify-content-between align-items-center px-3">
-                    <div><div class="h2 fw-bold mb-0">@Model.Players.Count</div><div class="small">Players</div></div>
-                    <div class="vr opacity-25" style="height: 40px;"></div>
-                    <div><div class="h2 fw-bold mb-0">@Model.Matches.Count</div><div class="small">Matches</div></div>
+            <div class="card roster-card border-0 p-4 shadow-sm mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="text-uppercase fw-bold text-info mb-0 small tracking-widest">Game Intel</h6>
+                    <button type="button" onclick="shuffleIntel()" class="shuffle-btn"><i id="shuffle-icon" class="bi bi-shuffle fs-5"></i></button>
+                </div>
+                <div id="intel-container" class="d-flex flex-column gap-2">
+                    <partial name="_GameIntelPartial" model="Model.Suggestions" view-data="ViewData" />
                 </div>
             </div>
 
-            <div class="card roster-card border-0 p-4">
-                <h6 class="text-uppercase fw-bold text-secondary mb-3 small">Standings</h6>
-                <button class="btn btn-standings w-100 rounded-pill fw-bold text-white py-2" data-bs-toggle="modal" data-bs-target="#standingsModal">
-                    View Nightly Standings
-                </button>
+            <div class="card stat-card text-white shadow mb-4 text-center p-4">
+                <h6 class="stat-label-hud mb-3">Summary</h6>
+                <div class="d-flex justify-content-between align-items-center px-3">
+                    <div><div class="h2 stat-value-hud mb-0">@Model.Players.Count</div><div class="stat-label-hud">Players</div></div>
+                    <div class="vr opacity-25" style="height: 40px;"></div>
+                    <div><div class="h2 stat-value-hud mb-0">@Model.Matches.Count</div><div class="stat-label-hud">Matches</div></div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-@* --- Standings Modal --- *@
-<div class="modal fade" id="standingsModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow-lg">
-            <div class="modal-header modal-header-themed">
-                <h5 class="modal-title fw-bold">🏆 Nightly Standings</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-0">
-                <table class="table table-hover standings-table align-middle mb-0">
-                    <thead class="bg-dark text-secondary">
-                        <tr><th class="ps-4">Rank</th><th>Player</th><th class="text-end pe-4">Points</th></tr>
-                    </thead>
-                    <tbody>
-                        @for (int i = 0; i < Model.NightScores.Count; i++)
-                        {
-                            var s = Model.NightScores[i];
-                            var medal = i == 0 ? "gold-bg" : i == 1 ? "silver-bg" : i == 2 ? "bronze-bg" : "";
-                            <tr>
-                                <td class="ps-4"><div class="rank-pill @medal shadow-sm">@(i + 1)</div></td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <img src="@(s.AvatarUrl ?? Url.Content("~/images/default-avatar.png"))" class="avatar-mini me-3" />
-                                        <span class="fw-bold @(i == 0 ? "text-primary" : "text-light")">@s.PlayerName</span>
-                                    </div>
-                                </td>
-                                <td class="text-end pe-4"><span class="points-pill">@s.Points.ToString("N1")</span></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
+@section Scripts {
+    <script>
+        async function shuffleIntel() {
+            const icon = document.getElementById('shuffle-icon');
+            const container = document.getElementById('intel-container');
+            icon.classList.add('bi-spin');
+            try {
+                const response = await fetch(`?id=@Model.Night.Id&handler=ShuffleIntel&seed=${Math.floor(Math.random()*10000)}`);
+                if (response.ok) {
+                    container.innerHTML = await response.text();
+                    container.classList.remove('fade-in');
+                    void container.offsetWidth;
+                    container.classList.add('fade-in');
+                }
+            } finally {
+                setTimeout(() => icon.classList.remove('bi-spin'), 600);
+            }
+        }
+    </script>
+}

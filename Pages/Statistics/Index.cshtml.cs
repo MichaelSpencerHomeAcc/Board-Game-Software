@@ -40,27 +40,46 @@ namespace Board_Game_Software.Pages.Statistics
             YearList = new SelectList(years);
             MonthList = new SelectList(Enumerable.Range(1, 12).Select(m => new { Value = m, Text = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m) }), "Value", "Text");
 
-            // Base query for all points-based games
             var baseQuery = _context.BoardGameMatchPlayerResults
                 .Where(r => r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.FkBgdBoardGameVictoryConditionTypeNavigation.Points == true);
 
-            // Apply Year/Month filters to the query
             if (SelectedYear.HasValue) baseQuery = baseQuery.Where(r => r.TimeCreated.Year == SelectedYear.Value);
             if (SelectedMonth.HasValue) baseQuery = baseQuery.Where(r => r.TimeCreated.Month == SelectedMonth.Value);
 
-            // 1. Global Records
+            // 1. Global Records - Fetching PlayerGid for image lookup
             var globalScores = await baseQuery.Select(r => new HighScoreEntry
             {
                 GameId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame,
                 GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
                 PlayerName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.FirstName + " " + r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.LastName,
+                PlayerGid = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.Gid,
                 Score = r.FinalScore ?? 0,
                 Date = r.TimeCreated
             }).ToListAsync();
 
-            GlobalRecords = globalScores.GroupBy(x => x.GameId)
+            var topGlobal = globalScores.GroupBy(x => x.GameId)
                 .Select(g => g.OrderByDescending(x => x.Score).First())
                 .OrderBy(x => x.GameName).ToList();
+
+            // Batch Load Images for Global Records
+            var globalPlayerGids = topGlobal.Select(x => x.PlayerGid).Distinct().ToList();
+            var globalImages = await _imagesCollection.Find(Builders<BoardGameImages>.Filter.And(
+                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player"),
+                Builders<BoardGameImages>.Filter.In(x => x.GID, globalPlayerGids.Select(g => (Guid?)g))
+            )).ToListAsync();
+
+            foreach (var entry in topGlobal)
+            {
+                var img = globalImages.FirstOrDefault(i => i.GID == entry.PlayerGid);
+                if (img?.ImageBytes != null)
+                {
+                    entry.PlayerBase64Image = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                    entry.AvatarFocusX = img.AvatarFocusX;
+                    entry.AvatarFocusY = img.AvatarFocusY;
+                    entry.AvatarZoom = img.AvatarZoom;
+                }
+            }
+            GlobalRecords = topGlobal;
 
             // 2. Personnel Profile logic
             if (SelectedPlayerId.HasValue)
@@ -68,7 +87,6 @@ namespace Board_Game_Software.Pages.Statistics
                 var player = await _context.Players.FindAsync(SelectedPlayerId);
                 if (player != null) await LoadPlayerImage(player.Gid);
 
-                // FIXED: Calculating Ranks using the full path to the Match
                 var allScoresForRanking = await _context.BoardGameMatchPlayerResults
                     .Where(r => r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.FkBgdBoardGameVictoryConditionTypeNavigation.Points == true)
                     .Select(r => new {
@@ -88,8 +106,8 @@ namespace Board_Game_Software.Pages.Statistics
                     }).ToListAsync();
 
                 var bestPerGame = pScores.GroupBy(x => x.GameId).Select(g => g.OrderByDescending(x => x.Score).First()).ToList();
-
                 var frontType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+
                 foreach (var entry in bestPerGame)
                 {
                     var gameScores = allScoresForRanking.Where(s => s.FkBgdBoardGame == entry.GameId).OrderByDescending(s => s.Score).ToList();
@@ -98,7 +116,6 @@ namespace Board_Game_Software.Pages.Statistics
                     var img = await _imagesCollection.Find(i => i.GID == entry.GameGid && i.ImageTypeGID == frontType.Gid).FirstOrDefaultAsync();
                     if (img?.ImageBytes != null) entry.Base64Image = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
                 }
-
                 PersonalBests = bestPerGame.OrderBy(x => x.Rank).ToList();
             }
         }
@@ -113,12 +130,17 @@ namespace Board_Game_Software.Pages.Statistics
         {
             public long GameId { get; set; }
             public Guid GameGid { get; set; }
+            public Guid? PlayerGid { get; set; }
             public string GameName { get; set; } = "";
             public string PlayerName { get; set; } = "";
             public decimal Score { get; set; }
             public DateTime Date { get; set; }
             public int Rank { get; set; }
             public string? Base64Image { get; set; }
+            public string? PlayerBase64Image { get; set; }
+            public int AvatarFocusX { get; set; } = 50;
+            public int AvatarFocusY { get; set; } = 50;
+            public int AvatarZoom { get; set; } = 100;
         }
     }
 }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
+using System.Security.Claims;
 
 namespace Board_Game_Software.Pages.DataSetup.Players
 {
@@ -29,11 +30,10 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
         public Player Player { get; set; } = null!;
         public string? ProfileImageBase64 { get; set; }
-        public long? CurrentUserClaimedPlayerId { get; set; }
+        public bool CanEdit { get; set; }
         public List<PlayerBoardGame> TopTenGames { get; set; } = new();
         public Dictionary<long, string> GameImages { get; set; } = new();
 
-        // Focal points and Zoom levels
         public int AvatarX { get; set; } = 50;
         public int AvatarY { get; set; } = 50;
         public int AvatarZoom { get; set; } = 100;
@@ -50,13 +50,16 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
             if (Player == null) return NotFound();
 
+            // SECURITY CHECK: Admin or the person assigned to this profile
+            var currentUserId = _userManager.GetUserId(User);
+            CanEdit = User.IsInRole("Admin") || (Player.FkdboAspNetUsers == currentUserId);
+
             TopTenGames = Player.PlayerBoardGames
                 .Where(x => !x.Inactive)
                 .OrderBy(x => x.Rank)
                 .Take(10)
                 .ToList();
 
-            // Load Game Box Art for Top 10
             if (TopTenGames.Any())
             {
                 var frontImageType = await _context.BoardGameImageTypes
@@ -79,14 +82,6 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             }
 
             await LoadProfileImage(Player.Gid);
-
-            var user = await _userManager.GetUserAsync(User);
-            if (user != null)
-            {
-                var claimedPlayer = await _context.Players.FirstOrDefaultAsync(p => p.FkdboAspNetUsers == user.Id);
-                CurrentUserClaimedPlayerId = claimedPlayer?.Id;
-            }
-
             return Page();
         }
 
@@ -118,6 +113,13 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         {
             var player = await _context.Players.FirstOrDefaultAsync(p => p.Id == id);
             if (player == null) return NotFound();
+
+            // SECURITY RE-CHECK
+            var currentUserId = _userManager.GetUserId(User);
+            if (!User.IsInRole("Admin") && player.FkdboAspNetUsers != currentUserId)
+            {
+                return Forbid();
+            }
 
             var filter = Builders<BoardGameImages>.Filter.And(
                 Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player"),
