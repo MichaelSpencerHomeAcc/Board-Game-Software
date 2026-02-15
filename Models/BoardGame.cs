@@ -73,4 +73,7 @@ public partial class BoardGame
     public virtual ICollection<PlayerBoardGameRating> PlayerBoardGameRatings { get; set; } = new List<PlayerBoardGameRating>();
 
     public virtual ICollection<PlayerBoardGameStarRating> PlayerBoardGameStarRatings { get; set; } = new List<PlayerBoardGameStarRating>();
+
+    public ICollection<PlayerBoardGame> PlayerBoardGames { get; set; } = new List<PlayerBoardGame>();
+
 }

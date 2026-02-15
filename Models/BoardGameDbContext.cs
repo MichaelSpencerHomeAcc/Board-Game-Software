@@ -1721,13 +1721,16 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.VersionStamp).IsRowVersion();
 
             entity.HasOne(d => d.BoardGame)
-                .WithMany() 
-                .HasForeignKey(d => d.FkBgdBoardGame);
+                .WithMany(bg => bg.PlayerBoardGames)          
+                .HasForeignKey(d => d.FkBgdBoardGame)
+                .HasConstraintName("FK_bgd_PlayerBoardGame__bgd_BoardGame"); 
 
             entity.HasOne(d => d.Player)
-                .WithMany(p => p.PlayerBoardGames) 
-                .HasForeignKey(d => d.FkBgdPlayer);
+                .WithMany(p => p.PlayerBoardGames)
+                .HasForeignKey(d => d.FkBgdPlayer)
+                .HasConstraintName("FK_bgd_PlayerBoardGame__bgd_Player"); 
         });
+
 
         modelBuilder.Entity<PlayerBoardGameStarRating>(entity =>
         {

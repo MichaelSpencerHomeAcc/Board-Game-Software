@@ -9,6 +9,7 @@
     {
         if (string.IsNullOrWhiteSpace(fullName)) return "?";
         var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
         if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
         if (parts.Length > 1) return (parts[0][0].ToString() + parts[parts.Length - 1][0].ToString()).ToUpper();
         return "?";
@@ -131,6 +132,26 @@
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
+
+    /* PODIUM GLOW (Top 3 global rank per game) */
+    .stat-window.podium {
+        border-width: 2px;
+    }
+
+    .stat-window.podium-gold {
+        border-color: rgba(255, 215, 0, 0.65);
+        box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.25), 0 0 18px rgba(255, 215, 0, 0.35), 0 0 40px rgba(255, 215, 0, 0.18);
+    }
+
+    .stat-window.podium-silver {
+        border-color: rgba(192, 192, 192, 0.65);
+        box-shadow: 0 0 0 1px rgba(192, 192, 192, 0.25), 0 0 18px rgba(192, 192, 192, 0.30), 0 0 40px rgba(192, 192, 192, 0.15);
+    }
+
+    .stat-window.podium-bronze {
+        border-color: rgba(205, 127, 50, 0.70);
+        box-shadow: 0 0 0 1px rgba(205, 127, 50, 0.25), 0 0 18px rgba(205, 127, 50, 0.30), 0 0 40px rgba(205, 127, 50, 0.15);
+    }
 </style>
 
 <div class="container-fluid py-4">
@@ -170,8 +191,14 @@
         <div class="row row-cols-1 row-cols-md-3 row-cols-xl-4 g-4 mb-5">
             @foreach (var best in Model.PersonalBests)
             {
+                var podiumClass =
+                best.Rank == 1 ? "podium podium-gold" :
+                best.Rank == 2 ? "podium podium-silver" :
+                best.Rank == 3 ? "podium podium-bronze" :
+                "";
+
                 <div class="col">
-                    <div class="stat-window">
+                    <div class="stat-window @podiumClass">
                         @if (!string.IsNullOrEmpty(best.Base64Image))
                         {
                             <img src="@best.Base64Image" class="window-bg" alt="" />

@@ -39,8 +39,4 @@ public partial class PlayerBoardGame
 
     [ForeignKey("FkBgdPlayer")]
     public virtual Player? Player { get; set; }
-
-    public virtual BoardGame FkBgdBoardGameNavigation { get; set; } = null!;
-
-    public virtual Player FkBgdPlayerNavigation { get; set; } = null!;
 }
