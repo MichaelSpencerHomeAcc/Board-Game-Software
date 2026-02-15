@@ -1,6 +1,5 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -8,13 +7,15 @@ using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.IO;
+using SixLabors.ImageSharp;
+
+
 
 namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
-    // If you want this restricted, use [Authorize] without the Role check first to test
     public class EditModel : PageModel
     {
         private readonly BoardGameDbContext _context;
@@ -72,7 +73,12 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
             if (gameToUpdate == null) return NotFound();
 
-            if (await TryUpdateModelAsync<BoardGame>(gameToUpdate, "BoardGame",
+            // Load existing markers up-front so we can sync them
+            var existingMarkers = await _context.BoardGameMarkers
+                .Where(m => m.FkBgdBoardGame == id)
+                .ToListAsync();
+
+            if (await TryUpdateModelAsync(gameToUpdate, "BoardGame",
                 b => b.BoardGameName, b => b.FkBgdBoardGameType, b => b.PlayerCountMin,
                 b => b.PlayerCountMax, b => b.ReleaseDate, b => b.PlayingTimeMinInMinutes,
                 b => b.PlayingTimeMaxInMinutes, b => b.HasMarkers, b => b.ComplexityRating,
@@ -80,10 +86,13 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 b => b.HowToPlayHyperlink, b => b.FkBgdBoardGameVictoryConditionType,
                 b => b.FkBgdPublisher))
             {
-                gameToUpdate.ModifiedBy = User.Identity?.Name ?? "system";
-                gameToUpdate.TimeModified = DateTime.Now;
+                var now = DateTime.Now;
+                var actor = User.Identity?.Name ?? "system";
 
-                // Handle Elo Logic
+                gameToUpdate.ModifiedBy = actor;
+                gameToUpdate.TimeModified = now;
+
+                // ----- ELO LOGIC (unchanged) -----
                 var currentEloLink = gameToUpdate.BoardGameEloMethods.FirstOrDefault(x => !x.Inactive);
                 if (SelectedEloMethodId.HasValue)
                 {
@@ -94,28 +103,91 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                             Gid = Guid.NewGuid(),
                             FkBgdBoardGame = id,
                             FkBgdEloMethod = SelectedEloMethodId.Value,
-                            CreatedBy = gameToUpdate.ModifiedBy,
-                            TimeCreated = DateTime.Now,
-                            ModifiedBy = gameToUpdate.ModifiedBy,
-                            TimeModified = DateTime.Now
+                            CreatedBy = actor,
+                            TimeCreated = now,
+                            ModifiedBy = actor,
+                            TimeModified = now
                         });
                     }
                     else if (currentEloLink.FkBgdEloMethod != SelectedEloMethodId.Value)
                     {
                         currentEloLink.FkBgdEloMethod = SelectedEloMethodId.Value;
-                        currentEloLink.ModifiedBy = gameToUpdate.ModifiedBy;
-                        currentEloLink.TimeModified = DateTime.Now;
+                        currentEloLink.ModifiedBy = actor;
+                        currentEloLink.TimeModified = now;
                     }
                 }
                 else if (currentEloLink != null)
                 {
                     currentEloLink.Inactive = true;
+                    currentEloLink.ModifiedBy = actor;
+                    currentEloLink.TimeModified = now;
                 }
 
+                // ----- MARKERS: FIX (this is what was missing) -----
+                var desiredTypeIds = (MarkerTypeIds ?? new List<long>())
+                    .Distinct()
+                    .ToHashSet();
+
+                if (!gameToUpdate.HasMarkers)
+                {
+                    // Markers switched off => inactivate all existing marker rows
+                    foreach (var m in existingMarkers.Where(m => !m.Inactive))
+                    {
+                        m.Inactive = true;
+                        m.ModifiedBy = actor;
+                        m.TimeModified = now;
+                    }
+                }
+                else
+                {
+                    // Inactivate removed markers
+                    foreach (var m in existingMarkers.Where(m => !m.Inactive))
+                    {
+                        // If FK is null OR not desired => inactivate
+                        if (!m.FkBgdBoardGameMarkerType.HasValue ||
+                            !desiredTypeIds.Contains(m.FkBgdBoardGameMarkerType.Value))
+                        {
+                            m.Inactive = true;
+                            m.ModifiedBy = actor;
+                            m.TimeModified = now;
+                        }
+                    }
+
+                    // Add new markers (or reactivate inactive ones)
+                    foreach (var typeId in desiredTypeIds)
+                    {
+                        var existing = existingMarkers.FirstOrDefault(m => m.FkBgdBoardGameMarkerType == typeId);
+
+                        if (existing == null)
+                        {
+                            _context.BoardGameMarkers.Add(new BoardGameMarker
+                            {
+                                Gid = Guid.NewGuid(),
+                                FkBgdBoardGame = id,
+                                FkBgdBoardGameMarkerType = typeId,
+                                Inactive = false,
+                                CreatedBy = actor,
+                                TimeCreated = now,
+                                ModifiedBy = actor,
+                                TimeModified = now
+                            });
+                        }
+                        else if (existing.Inactive)
+                        {
+                            existing.Inactive = false;
+                            existing.ModifiedBy = actor;
+                            existing.TimeModified = now;
+                        }
+                    }
+                }
+
+                // Save everything in one go
                 await _context.SaveChangesAsync();
                 return RedirectToPage("./BoardGameDetails", new { id = gameToUpdate.Id });
             }
 
+            // If validation failed, refresh page state
+            BoardGame = gameToUpdate;
             await ReloadPageData(id);
             return Page();
         }
@@ -124,49 +196,118 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         {
             ExistingMarkers = await _context.BoardGameMarkers
                 .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
-                .Where(m => m.FkBgdBoardGame == id).ToListAsync();
+                .Where(m => m.FkBgdBoardGame == id)
+                .ToListAsync();
 
             await LoadSelectLists();
             await LoadMarkerTypes();
-            if (BoardGame != null) await LoadCurrentImageUrl(BoardGame.Gid);
+
+            if (BoardGame != null)
+                await LoadCurrentImageUrl(BoardGame.Gid);
         }
 
         private async Task LoadSelectLists()
         {
-            BoardGameTypes = new SelectList(await _context.BoardGameTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
-            VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
-            Publishers = new SelectList(await _context.Publishers.Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
-            EloMethods = new SelectList(await _context.EloMethods.Where(e => !e.Inactive).OrderBy(e => e.MethodName).ToListAsync(), "Id", "MethodName");
+            BoardGameTypes = new SelectList(
+                await _context.BoardGameTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(),
+                "Id", "TypeDesc");
+
+            VictoryConditions = new SelectList(
+                await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(),
+                "Id", "TypeDesc");
+
+            Publishers = new SelectList(
+                await _context.Publishers.Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(),
+                "Id", "PublisherName");
+
+            EloMethods = new SelectList(
+                await _context.EloMethods.Where(e => !e.Inactive).OrderBy(e => e.MethodName).ToListAsync(),
+                "Id", "MethodName");
         }
 
+        // PERFORMANCE FIX: Batch Mongo image lookups (no N+1)
         private async Task LoadMarkerTypes()
         {
             AvailableMarkerTypes.Clear();
-            var existingIds = ExistingMarkers.Select(m => m.FkBgdBoardGameMarkerType).ToHashSet();
+
+            var existingIds = ExistingMarkers
+                .Where(m => !m.Inactive)
+                .Select(m => m.FkBgdBoardGameMarkerType)
+                .ToHashSet();
+
             var types = await _context.BoardGameMarkerTypes
                 .Where(t => !t.Inactive && !existingIds.Contains(t.Id))
-                .OrderBy(t => t.TypeDesc).ToListAsync();
+                .OrderBy(t => t.TypeDesc)
+                .ToListAsync();
+
+            var gids = types.Select(t => (Guid?)t.Gid).ToList();
+
+            var imgFilter = Builders<BoardGameImages>.Filter.And(
+                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
+                Builders<BoardGameImages>.Filter.In(x => x.GID, gids)
+            );
+
+            var imgs = await _boardGameImages.Find(imgFilter).ToListAsync();
+            var imgByGid = imgs
+                .Where(i => i.GID.HasValue)
+                .GroupBy(i => i.GID!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
 
             foreach (var type in types)
             {
-                var img = await _boardGameImages.Find(x => x.SQLTable == "bgd.BoardGameMarkerType" && x.GID == type.Gid).FirstOrDefaultAsync();
+                imgByGid.TryGetValue(type.Gid, out var img);
+
                 AvailableMarkerTypes.Add(new MarkerTypeViewModel
                 {
                     Id = type.Id,
                     TypeDesc = type.TypeDesc,
-                    ImageBase64 = img?.ImageBytes != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
+                    ImageBase64 = img?.ImageBytes != null ? ToDataUrl(img) : null
                 });
             }
         }
 
         private async Task LoadCurrentImageUrl(Guid gid)
         {
-            var frontType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+            var frontType = await _context.BoardGameImageTypes
+                .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
+
             if (frontType != null)
             {
-                var img = await _boardGameImages.Find(i => i.GID == gid && i.ImageTypeGID == frontType.Gid).FirstOrDefaultAsync();
-                if (img?.ImageBytes != null) CurrentImageUrl = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                var img = await _boardGameImages
+                    .Find(i => i.GID == gid && i.ImageTypeGID == frontType.Gid)
+                    .FirstOrDefaultAsync();
+
+                if (img?.ImageBytes != null)
+                    CurrentImageUrl = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
             }
+        }
+        private static string ToDataUrl(BoardGameImages img)
+        {
+            if (img.ImageBytes == null || img.ImageBytes.Length == 0)
+                return "";
+
+            var ct = (img.ContentType ?? "").Trim().ToLowerInvariant();
+
+            // If it's WebP, convert to PNG for maximum compatibility
+            if (ct == "image/webp" || ct == "image/x-webp" || ct.EndsWith("/webp") || ct.Contains("webp"))
+            {
+                try
+                {
+                    using var image = SixLabors.ImageSharp.Image.Load(img.ImageBytes);
+                    using var ms = new MemoryStream();
+                    image.SaveAsPng(ms);
+                    return $"data:image/png;base64,{Convert.ToBase64String(ms.ToArray())}";
+                }
+                catch
+                {
+                    // If conversion fails, still attempt to return original bytes
+                    return $"data:{(string.IsNullOrWhiteSpace(img.ContentType) ? "image/webp" : img.ContentType)};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                }
+            }
+
+            // Non-webp: serve as-is
+            var safeCt = string.IsNullOrWhiteSpace(img.ContentType) ? "image/png" : img.ContentType;
+            return $"data:{safeCt};base64,{Convert.ToBase64String(img.ImageBytes)}";
         }
     }
 
