@@ -7,30 +7,29 @@ using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 
 namespace Board_Game_Software.Pages.GameNight
 {
     public class DetailsModel : PageModel
     {
         private readonly BoardGameDbContext _db;
-        private readonly BoardGameImagesService _images;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
         private readonly GameNightService _nightService;
 
-        public DetailsModel(BoardGameDbContext db, BoardGameImagesService images, IMongoClient mongo, IConfiguration config, GameNightService nightService)
+        public DetailsModel(BoardGameDbContext db, GameNightService nightService)
         {
             _db = db;
-            _images = images;
             _nightService = nightService;
-            var dbName = config["MongoDbSettings:Database"];
-            _imagesCollection = mongo.GetDatabase(dbName).GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public BoardGameNight Night { get; private set; } = null!;
+
         public List<MatchRow> Matches { get; private set; } = new();
         public List<PlayerRow> Players { get; private set; } = new();
+        public List<PlayerRow> RankedPlayers { get; private set; } = new();
+
         public List<PlayerNightScore> NightScores { get; private set; } = new();
+        public bool HasStandings { get; private set; }
+
         public List<GameSuggestion> Suggestions { get; set; } = new();
         public bool IsAdmin { get; set; }
 
@@ -39,7 +38,7 @@ namespace Board_Game_Software.Pages.GameNight
             public long MatchId { get; init; }
             public string GameName { get; init; } = string.Empty;
             public Guid GameGid { get; init; }
-            public string? CoverDataUrl { get; init; }
+            public string CoverUrl { get; init; } = "/images/default-cover.png";
             public DateTime? StartTime { get; init; }
             public List<string> Winners { get; init; } = new();
             public bool IsComplete { get; init; }
@@ -50,7 +49,13 @@ namespace Board_Game_Software.Pages.GameNight
             public long PlayerId { get; init; }
             public Guid PlayerGid { get; init; }
             public string Name { get; init; } = string.Empty;
-            public string? AvatarDataUrl { get; init; }
+            public string AvatarUrl { get; init; } = "/images/default-avatar.png";
+
+            public double Points { get; init; }
+            public double BestGamePoints { get; init; }
+            public int Firsts { get; init; }
+            public int Seconds { get; init; }
+            public int Thirds { get; init; }
         }
 
         public sealed class GameSuggestion
@@ -66,60 +71,92 @@ namespace Board_Game_Software.Pages.GameNight
         {
             IsAdmin = User.IsInRole("Admin");
 
-            Night = await _db.BoardGameNights
-                .Include(n => n.BoardGameNightBoardGameMatches).ThenInclude(nm => nm.FkBgdBoardGameMatchNavigation).ThenInclude(m => m.FkBgdBoardGameNavigation)
-                .Include(n => n.BoardGameNightBoardGameMatches).ThenInclude(nm => nm.FkBgdBoardGameMatchNavigation).ThenInclude(m => m.BoardGameMatchPlayers).ThenInclude(bmp => bmp.FkBgdPlayerNavigation)
-                .Include(n => n.BoardGameNightBoardGameMatches).ThenInclude(nm => nm.FkBgdBoardGameMatchNavigation).ThenInclude(m => m.BoardGameMatchPlayers).ThenInclude(bmp => bmp.BoardGameMatchPlayerResults)
+            Night = await _db.BoardGameNights.AsNoTracking()
                 .FirstOrDefaultAsync(n => n.Id == id);
 
             if (Night == null) return NotFound();
 
+            // standings
             NightScores = await _nightService.GetCurrentScores(id);
+            HasStandings = NightScores.Any(); // only true if there are completed matches
 
-            var roster = await _db.BoardGameNightPlayers.AsNoTracking()
+            var scoreMap = NightScores.ToDictionary(x => x.PlayerId, x => x);
+
+            // roster (players) with points if available
+            Players = await _db.BoardGameNightPlayers.AsNoTracking()
                 .Where(x => x.FkBgdBoardGameNight == id && !x.Inactive)
-                .Select(x => x.FkBgdPlayerNavigation).ToListAsync();
+                .Select(x => x.FkBgdPlayerNavigation)
+                .Select(p => new PlayerRow
+                {
+                    PlayerId = p.Id,
+                    PlayerGid = p.Gid,
+                    Name = (p.FirstName + " " + p.LastName).Trim(),
+                    AvatarUrl = $"/media/player/{p.Gid}",
 
-            var activePlayerIds = roster.Select(p => p.Id).ToList(); // long
-            var playerGids = roster.Select(p => (Guid?)p.Gid).ToArray();
+                    Points = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].Points : 0,
+                    BestGamePoints = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].BestGamePoints : 0,
+                    Firsts = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].Firsts : 0,
+                    Seconds = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].Seconds : 0,
+                    Thirds = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].Thirds : 0
+                })
+                .ToListAsync();
 
-            var docs = await _imagesCollection.Find(Builders<BoardGameImages>.Filter.In(x => x.GID, playerGids)).ToListAsync();
-            var avatarMap = docs.ToDictionary(d => d.GID!.Value, d => d.ImageBytes != null
-                ? $"data:{d.ContentType};base64,{Convert.ToBase64String(d.ImageBytes)}" : null);
+            RankedPlayers = HasStandings
+                ? Players
+                    .OrderByDescending(p => p.Points)
+                    .ThenByDescending(p => p.BestGamePoints)
+                    .ThenByDescending(p => p.Firsts)
+                    .ThenByDescending(p => p.Seconds)
+                    .ThenByDescending(p => p.Thirds)
+                    .ThenBy(p => p.Name)
+                    .ToList()
+                : Players.OrderBy(p => p.Name).ToList();
 
-            Players = roster.Select(p => new PlayerRow
-            {
-                PlayerId = p.Id,
-                PlayerGid = p.Gid,
-                Name = $"{p.FirstName} {p.LastName}".Trim(),
-                AvatarDataUrl = avatarMap.GetValueOrDefault(p.Gid)
-            }).OrderBy(p => p.Name).ToList();
+            var activePlayerIds = Players.Select(p => p.PlayerId).ToList();
 
             Suggestions = await GetSuggestionsInternal(id, activePlayerIds, Players.Count, null);
 
-            var frontTypeGid = await _db.BoardGameImageTypes.AsNoTracking().Where(t => t.TypeDesc == "Board Game Front").Select(t => t.Gid).FirstOrDefaultAsync();
-            var bgList = Night.BoardGameNightBoardGameMatches.Select(nm => nm.FkBgdBoardGameMatchNavigation?.FkBgdBoardGameNavigation).Where(bg => bg != null).Distinct().ToList();
-            var coverMap = frontTypeGid == Guid.Empty ? new Dictionary<Guid, string?>() : await _images.GetFrontImagesAsync(bgList.Select(bg => bg!.Gid), frontTypeGid);
+            // matches (fast version)
+            var matchesCore = await _db.BoardGameNightBoardGameMatches.AsNoTracking()
+                .Where(nm => nm.FkBgdBoardGameNight == id && !nm.Inactive)
+                .Select(nm => nm.FkBgdBoardGameMatchNavigation)
+                .Where(m => m != null)
+                .Select(m => new
+                {
+                    MatchId = m!.Id,
+                    StartTime = m.MatchDate,
+                    IsComplete = m.MatchComplete == true,
+                    GameName = m.FkBgdBoardGameNavigation.BoardGameName,
+                    GameGid = m.FkBgdBoardGameNavigation.Gid
+                })
+                .OrderBy(m => m.StartTime)
+                .ToListAsync();
 
-            Matches = Night.BoardGameNightBoardGameMatches
-                .Select(nm => {
-                    var match = nm.FkBgdBoardGameMatchNavigation!;
-                    var bg = match.FkBgdBoardGameNavigation!;
-                    var winners = match.BoardGameMatchPlayers.SelectMany(p => p.BoardGameMatchPlayerResults).Where(r => r.Win && !r.Inactive)
-                        .Select(r => match.BoardGameMatchPlayers.FirstOrDefault(p => p.Id == r.FkBgdBoardGameMatchPlayer)?.FkBgdPlayerNavigation)
-                        .Where(p => p != null).Select(p => p!.FirstName).ToList();
+            var matchIds = matchesCore.Select(m => m.MatchId).ToList();
 
-                    return new MatchRow
-                    {
-                        MatchId = match.Id,
-                        GameName = bg.BoardGameName,
-                        GameGid = bg.Gid,
-                        CoverDataUrl = coverMap.GetValueOrDefault(bg.Gid),
-                        StartTime = match.MatchDate,
-                        Winners = winners,
-                        IsComplete = match.MatchComplete == true
-                    };
-                }).OrderBy(m => m.StartTime).ToList();
+            var winners = await _db.BoardGameMatchPlayerResults.AsNoTracking()
+                .Where(r => !r.Inactive && r.Win && matchIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch))
+                .Select(r => new
+                {
+                    MatchId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch,
+                    FirstName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.FirstName
+                })
+                .ToListAsync();
+
+            var winnersMap = winners
+                .GroupBy(x => x.MatchId)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.FirstName).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList());
+
+            Matches = matchesCore.Select(m => new MatchRow
+            {
+                MatchId = m.MatchId,
+                GameName = m.GameName,
+                GameGid = m.GameGid,
+                CoverUrl = $"/media/boardgame/front/{m.GameGid}",
+                StartTime = m.StartTime,
+                Winners = winnersMap.GetValueOrDefault(m.MatchId) ?? new List<string>(),
+                IsComplete = m.IsComplete
+            }).ToList();
 
             ViewData["NightId"] = id;
             return Page();
@@ -129,7 +166,8 @@ namespace Board_Game_Software.Pages.GameNight
         {
             var activePlayerIds = await _db.BoardGameNightPlayers.AsNoTracking()
                 .Where(x => x.FkBgdBoardGameNight == id && !x.Inactive)
-                .Select(x => x.FkBgdPlayer).ToListAsync();
+                .Select(x => x.FkBgdPlayer)
+                .ToListAsync();
 
             var suggestions = await GetSuggestionsInternal(id, activePlayerIds, activePlayerIds.Count, seed);
             ViewData["NightId"] = id;
@@ -140,18 +178,16 @@ namespace Board_Game_Software.Pages.GameNight
         {
             if (!activePlayerIds.Any()) return new List<GameSuggestion>();
 
-            // Get standard long list of played games
-            var playedTonightIds = await _db.BoardGameNightBoardGameMatches
-                .Where(nm => nm.FkBgdBoardGameNight == nightId)
+            var playedTonightIds = await _db.BoardGameNightBoardGameMatches.AsNoTracking()
+                .Where(nm => nm.FkBgdBoardGameNight == nightId && !nm.Inactive)
                 .Select(nm => nm.FkBgdBoardGameMatchNavigation.FkBgdBoardGame)
                 .ToListAsync();
 
             var rand = new Random(seed ?? DateTime.Now.Millisecond);
             var combinedList = new List<(long Id, string Name, Guid Gid, string Reason, string Icon)>();
-            var frontTypeGid = await _db.BoardGameImageTypes.AsNoTracking().Where(t => t.TypeDesc == "Board Game Front").Select(t => t.Gid).FirstOrDefaultAsync();
 
-            // 1. Crowd Favorite (PlayerBoardGame - Rank based)
-            var favs = await _db.PlayerBoardGames
+            // Crowd Favorite
+            var favs = await _db.PlayerBoardGames.AsNoTracking()
                 .Where(pbg => pbg.FkBgdPlayer.HasValue && activePlayerIds.Contains(pbg.FkBgdPlayer.Value) && !pbg.Inactive)
                 .Where(pbg => pbg.BoardGame != null && pbg.BoardGame.PlayerCountMin <= groupSize && pbg.BoardGame.PlayerCountMax >= groupSize)
                 .Where(pbg => pbg.FkBgdBoardGame.HasValue && !playedTonightIds.Contains(pbg.FkBgdBoardGame.Value))
@@ -161,9 +197,9 @@ namespace Board_Game_Software.Pages.GameNight
             var favorite = favs.OrderBy(x => x.Rank).ThenBy(_ => rand.Next()).FirstOrDefault();
             if (favorite != null) combinedList.Add((favorite.Id, favorite.BoardGameName, favorite.Gid, "Top 10 Choice", "bi-star-fill text-info"));
 
-            // 2. Competitive (Grudge Match based on Ratings)
+            // Competitive
             var usedIds = combinedList.Select(c => c.Id).Concat(playedTonightIds).ToList();
-            var compCandidates = await _db.PlayerBoardGameRatings
+            var compCandidates = await _db.PlayerBoardGameRatings.AsNoTracking()
                 .Where(r => activePlayerIds.Contains(r.FkBgdPlayer) && !r.Inactive)
                 .Where(r => r.FkBgdBoardGameNavigation.PlayerCountMin <= groupSize && r.FkBgdBoardGameNavigation.PlayerCountMax >= groupSize)
                 .Where(r => !usedIds.Contains(r.FkBgdBoardGame))
@@ -173,9 +209,9 @@ namespace Board_Game_Software.Pages.GameNight
             var competitive = compCandidates.OrderByDescending(x => x.MatchesPlayed).ThenBy(_ => rand.Next()).FirstOrDefault();
             if (competitive != null) combinedList.Add((competitive.Id, competitive.BoardGameName, competitive.Gid, "Grudge Match", "bi-fire text-warning"));
 
-            // 3 & 4. Wildcards (Library fitting count)
+            // Library picks
             usedIds = combinedList.Select(c => c.Id).Concat(playedTonightIds).ToList();
-            var libraryCandidates = await _db.BoardGames
+            var libraryCandidates = await _db.BoardGames.AsNoTracking()
                 .Where(bg => bg.PlayerCountMin <= groupSize && bg.PlayerCountMax >= groupSize && !usedIds.Contains(bg.Id) && !bg.Inactive)
                 .Select(bg => new { bg.Id, bg.BoardGameName, bg.Gid })
                 .ToListAsync();
@@ -183,12 +219,11 @@ namespace Board_Game_Software.Pages.GameNight
             foreach (var lp in libraryCandidates.OrderBy(_ => rand.Next()).Take(2))
                 combinedList.Add((lp.Id, lp.BoardGameName, lp.Gid, "Library Pick", "bi-people-fill text-secondary"));
 
-            var suggestionImages = await _images.GetFrontImagesAsync(combinedList.Select(c => c.Gid), frontTypeGid);
             return combinedList.Select(c => new GameSuggestion
             {
                 GameId = c.Id,
                 Name = c.Name,
-                CoverUrl = suggestionImages.GetValueOrDefault(c.Gid),
+                CoverUrl = $"/media/boardgame/front/{c.Gid}",
                 Reason = c.Reason,
                 CategoryIcon = c.Icon
             }).ToList();

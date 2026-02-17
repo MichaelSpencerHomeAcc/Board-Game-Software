@@ -1,4 +1,5 @@
 ﻿@page
+@using System.Text.Encodings.Web
 @model Board_Game_Software.Pages.GameNight.CreateModel
 @{
     ViewData["Title"] = "New Board Game Night";
@@ -129,7 +130,8 @@
                         <span class="input-group-text bg-body border-end-0 text-muted">
                             <i class="bi bi-search"></i>
                         </span>
-                        <input id="playerSearch" type="search" class="form-control border-start-0 ps-0" placeholder="Search players... (press /)" />
+                        <input id="playerSearch" type="search" class="form-control border-start-0 ps-0"
+                               placeholder="Search players... (press /)" />
                     </div>
                     <button id="btnSelectAll" type="button" class="btn btn-sm btn-outline-secondary">Select All</button>
                     <button id="btnClearAll" type="button" class="btn btn-sm btn-outline-secondary">Clear</button>
@@ -139,25 +141,41 @@
             <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 row-cols-xxl-4 g-3" id="playersGrid">
                 @foreach (var p in Model.AllPlayers)
                 {
+                    var safeName = JavaScriptEncoder.Default.Encode(p.Name);
+                    var initials = GetInitials(p.Name);
+                    var bg = GetAvatarColor(p.Name);
+
                     <div class="col player-item" data-name="@p.Name.ToLowerInvariant()">
-                        <input class="d-none player-checkbox" type="checkbox" id="player_@p.PlayerId"
-                               name="Input.SelectedPlayerIds" value="@p.PlayerId" @(p.Preselected ? "checked" : null) />
+                        <input class="d-none player-checkbox" type="checkbox"
+                               id="player_@p.PlayerId"
+                               name="Input.SelectedPlayerIds"
+                               value="@p.PlayerId"
+                               @(p.Preselected ? "checked" : null) />
 
                         <label for="player_@p.PlayerId" class="player-tile w-100 h-100 shadow-sm">
-                            <div class="avatar-circle" style="background-color: @(string.IsNullOrEmpty(p.AvatarBase64) ? GetAvatarColor(p.Name) : "transparent");">
-                                @if (!string.IsNullOrEmpty(p.AvatarBase64))
+                            <div class="avatar-circle"
+                                 data-initials="@initials"
+                                 data-bg="@bg"
+                                 style="background-color:@(p.HasImage ? "transparent" : bg);">
+                                @if (p.HasImage)
                                 {
-                                    <img src="@p.AvatarBase64" alt="@p.Name" />
+                                    <img src="@p.AvatarUrl"
+                                         alt="@p.Name"
+                                         loading="lazy" decoding="async"
+                                         style="object-position:@p.FocusStyle;"
+                                         onerror="makeInitialsAvatar(this, '@safeName', '@initials', '@bg')" />
                                 }
                                 else
                                 {
-                                    @GetInitials(p.Name)
+                                    @initials
                                 }
                             </div>
+
                             <div class="flex-grow-1 overflow-hidden">
                                 <div class="fw-bold text-truncate text-body">@p.Name</div>
                                 <div class="text-muted small">Active Player</div>
                             </div>
+
                             <div class="check-indicator text-primary opacity-0 transition-all">
                                 <i class="bi bi-check-circle-fill fs-5"></i>
                             </div>
@@ -190,40 +208,76 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
+        // Replace broken avatar <img> with initials bubble
+        function makeInitialsAvatar(imgEl, safeName, initials, bg) {
+            const wrapper = imgEl.closest('.avatar-circle');
+            if (!wrapper) return;
+
+            wrapper.style.backgroundColor = bg || '#6c757d';
+            wrapper.innerHTML = ''; // remove broken img
+            wrapper.textContent = initials || '?';
+            wrapper.setAttribute('aria-label', safeName || 'Player');
+        }
+
         (function () {
-          const grid = document.getElementById('playersGrid');
-          const search = document.getElementById('playerSearch');
-          const selectAll = document.getElementById('btnSelectAll');
-          const clearAll = document.getElementById('btnClearAll');
-          const countEl = document.getElementById('selectedCount');
+            const grid = document.getElementById('playersGrid');
+            const search = document.getElementById('playerSearch');
+            const selectAll = document.getElementById('btnSelectAll');
+            const clearAll = document.getElementById('btnClearAll');
+            const countEl = document.getElementById('selectedCount');
 
-          function visibleItems() {
-            return Array.from(grid?.querySelectorAll('.player-item') || []).filter(it => it.style.display !== 'none');
-          }
-          function updateCount() {
-            const n = document.querySelectorAll('.player-checkbox:checked').length;
-            if (countEl) countEl.textContent = n.toString();
-          }
-          function filter() {
-            const term = (search?.value || '').trim().toLowerCase();
-            (grid?.querySelectorAll('.player-item') || []).forEach(it => {
-              const name = it.getAttribute('data-name') || '';
-              it.style.display = (!term || name.includes(term)) ? '' : 'none';
-            });
-          }
-
-          search?.addEventListener('input', filter);
-          selectAll?.addEventListener('click', () => { visibleItems().forEach(it => it.querySelector('.player-checkbox').checked = true); updateCount(); });
-          clearAll?.addEventListener('click', () => { visibleItems().forEach(it => it.querySelector('.player-checkbox').checked = false); updateCount(); });
-          document.addEventListener('change', (e) => { if (e.target.classList.contains('player-checkbox')) updateCount(); });
-          document.addEventListener('keydown', (e) => {
-            if (e.key === '/' && document.activeElement !== search) { e.preventDefault(); search?.focus(); }
-            if (document.activeElement !== search) {
-                if (e.key.toLowerCase() === 'a') { e.preventDefault(); selectAll?.click(); }
-                if (e.key.toLowerCase() === 'c') { e.preventDefault(); clearAll?.click(); }
+            function visibleItems() {
+                return Array.from(grid?.querySelectorAll('.player-item') || []).filter(it => it.style.display !== 'none');
             }
-          });
-          filter(); updateCount();
+
+            function updateCount() {
+                const n = document.querySelectorAll('.player-checkbox:checked').length;
+                if (countEl) countEl.textContent = n.toString();
+            }
+
+            function filter() {
+                const term = (search?.value || '').trim().toLowerCase();
+                (grid?.querySelectorAll('.player-item') || []).forEach(it => {
+                    const name = it.getAttribute('data-name') || '';
+                    it.style.display = (!term || name.includes(term)) ? '' : 'none';
+                });
+            }
+
+            search?.addEventListener('input', filter);
+
+            selectAll?.addEventListener('click', () => {
+                visibleItems().forEach(it => {
+                    const cb = it.querySelector('.player-checkbox');
+                    if (cb) cb.checked = true;
+                });
+                updateCount();
+            });
+
+            clearAll?.addEventListener('click', () => {
+                visibleItems().forEach(it => {
+                    const cb = it.querySelector('.player-checkbox');
+                    if (cb) cb.checked = false;
+                });
+                updateCount();
+            });
+
+            document.addEventListener('change', (e) => {
+                if (e.target && e.target.classList && e.target.classList.contains('player-checkbox')) updateCount();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === '/' && document.activeElement !== search) {
+                    e.preventDefault();
+                    search?.focus();
+                }
+                if (document.activeElement !== search) {
+                    if (e.key.toLowerCase() === 'a') { e.preventDefault(); selectAll?.click(); }
+                    if (e.key.toLowerCase() === 'c') { e.preventDefault(); clearAll?.click(); }
+                }
+            });
+
+            filter();
+            updateCount();
         })();
     </script>
 }

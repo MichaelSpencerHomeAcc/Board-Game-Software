@@ -1,30 +1,11 @@
 ﻿@page
 @using System.Security.Claims
+@using System.Text.Encodings.Web
 @model Board_Game_Software.Pages.DataSetup.Players.IndexModel
 @{
     ViewData["Title"] = "Players";
     var isAdmin = User.IsInRole("Admin");
     var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-}
-
-@functions {
-    public string GetInitials(string? fullName)
-    {
-        if (string.IsNullOrWhiteSpace(fullName)) return "?";
-        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
-        if (parts.Length > 1) return (parts[0][0].ToString() + parts[parts.Length - 1][0].ToString()).ToUpper();
-        return "?";
-    }
-
-    public string GetAvatarColor(string? name)
-    {
-        if (string.IsNullOrEmpty(name)) return "#6c757d";
-        int hash = 0;
-        foreach (char c in name) { hash = c + ((hash << 5) - hash); }
-        var colors = new[] { "#d32f2f", "#c2185b", "#7b1fa2", "#512da8", "#303f9f", "#1976d2", "#0288d1", "#0097a7", "#00796b", "#388e3c", "#689f38", "#fbc02d", "#ffa000", "#f57c00", "#e64a19", "#5d4037", "#616161", "#455a64" };
-        return colors[Math.Abs(hash) % colors.Length];
-    }
 }
 
 <style>
@@ -113,7 +94,10 @@
         <form method="get" autocomplete="off">
             <div class="input-group shadow-sm">
                 <span class="input-group-text bg-body border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                <input name="search" class="form-control border-start-0 ps-0" placeholder="Search players..." value="@Model.SearchTerm" />
+                <input name="search"
+                       class="form-control border-start-0 ps-0"
+                       placeholder="Search players..."
+                       value="@Model.SearchTerm" />
                 <button class="btn btn-primary px-4" type="submit">Search</button>
             </div>
         </form>
@@ -129,53 +113,63 @@
                         <th class="text-end pe-4" style="width: 15%;">Actions</th>
                     </tr>
                 </thead>
+
                 <tbody class="border-0">
                     @foreach (var item in Model.Players)
                     {
-                        var imgSrc = Model.PlayerImagesBase64.ContainsKey(item.Id) ? Model.PlayerImagesBase64[item.Id] : null;
-                        var focusPos = Model.PlayerFocusStyles.ContainsKey(item.Id) ? Model.PlayerFocusStyles[item.Id] : "50% 50%";
-
-                        // Edit logic: Admin or Owner
                         var canEdit = isAdmin || (item.FKdboAspNetUsers == currentUserId);
+                        var safeName = JavaScriptEncoder.Default.Encode(item.FullName);
 
-                        <tr class="clickable-row border-bottom border-secondary-subtle" data-href="@Url.Page("./Details", new { id = item.Id })" style="cursor: pointer;">
+                        <tr class="clickable-row border-bottom border-secondary-subtle"
+                            data-href="@Url.Page("./Details", new { id = item.Id })"
+                            style="cursor: pointer;">
+
                             <td class="ps-4 border-0">
                                 <div class="d-flex align-items-center">
-                                    <div class="img-lockdown player-image-hover me-3 shadow-sm">
-                                        @if (!string.IsNullOrEmpty(imgSrc))
-                                        {
-                                            <img src="@imgSrc" alt="@item.FullName" style="object-position: @focusPos;" />
-                                        }
-                                        else
-                                        {
-                                            <div class="avatar-text" style="background-color: @GetAvatarColor(item.FullName);">
-                                                @GetInitials(item.FullName)
-                                            </div>
-                                        }
+                                    <div class="img-lockdown me-3 shadow-sm">
+                                        <img src="@item.AvatarUrl"
+                                             alt="@item.FullName"
+                                             width="64" height="64"
+                                             loading="lazy" decoding="async"
+                                             style="object-position:@item.FocusStyle;"
+                                             onerror="makeInitialsAvatar(this, '@safeName')" />
                                     </div>
+
                                     <span class="fw-bold text-body-emphasis text-truncate-custom">@item.FullName</span>
                                 </div>
                             </td>
+
                             <td class="border-0">
                                 <span class="text-body-secondary">
                                     @(item.DateOfBirth.HasValue? item.DateOfBirth.Value.ToString("d") : "-")
                                 </span>
                             </td>
+
                             <td class="text-end pe-4 border-0">
                                 <div class="btn-group shadow-sm">
-                                    <a asp-page="./Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+                                    <a asp-page="./Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
 
                                     @if (canEdit)
                                     {
-                                        <a asp-page="./Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" style="@(!isAdmin ? "border-top-right-radius: 0.375rem; border-bottom-right-radius: 0.375rem;" : "")">
+                                        <a asp-page="./Edit" asp-route-id="@item.Id"
+                                           class="btn btn-sm btn-outline-primary"
+                                           style="@(!isAdmin ? "border-top-right-radius: 0.375rem; border-bottom-right-radius: 0.375rem;" : "")">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                     }
 
                                     @if (isAdmin)
                                     {
-                                        <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" class="d-inline" onsubmit="return confirm('Delete this profile?');">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
+                                        <form method="post"
+                                              asp-page-handler="Delete"
+                                              asp-route-id="@item.Id"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Delete this profile?');">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
@@ -185,6 +179,7 @@
                         </tr>
                     }
                 </tbody>
+
             </table>
         </div>
     </div>
@@ -200,5 +195,35 @@
                 });
             });
         });
+
+        function getInitials(fullName) {
+            if (!fullName) return "?";
+            const parts = fullName.trim().split(/\s+/).filter(Boolean);
+            const first = parts[0]?.[0] || "";
+            const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] || "") : "";
+            return (first + last).toUpperCase();
+        }
+
+        function colourFromString(str) {
+            if (!str) return "#6c757d";
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            const colours = ["#d32f2f","#c2185b","#7b1fa2","#512da8","#303f9f","#1976d2","#0288d1","#0097a7","#00796b","#388e3c","#689f38","#fbc02d","#ffa000","#f57c00","#e64a19","#5d4037","#616161","#455a64"];
+            return colours[Math.abs(hash) % colours.length];
+        }
+
+        function makeInitialsAvatar(imgEl, fullName) {
+            imgEl.onerror = null;
+
+            const initials = getInitials(fullName);
+            const bg = colourFromString(fullName || initials);
+
+            const div = document.createElement('div');
+            div.className = 'avatar-text';
+            div.style.backgroundColor = bg;
+            div.textContent = initials;
+
+            imgEl.replaceWith(div);
+        }
     </script>
 }

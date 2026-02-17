@@ -154,9 +154,9 @@
         <div class="col-lg-3 border-end">
             <div class="d-flex flex-column align-items-center text-center mb-4">
                 <div class="avatar-container shadow-sm">
-                    @if (!string.IsNullOrEmpty(Model.ProfileImageBase64))
+                    @if (Model.HasProfileImage)
                     {
-                        <img src="@Model.ProfileImageBase64" alt="Profile" />
+                        <img src="@Model.ProfileImageUrl" alt="Profile" loading="lazy" decoding="async" />
                     }
                     else
                     {
@@ -165,6 +165,7 @@
                         </div>
                     }
                 </div>
+
                 <h2 class="fw-bold mb-1">@fullName</h2>
 
                 @if (isAccountOwner)
@@ -179,9 +180,10 @@
                     {
                         <a asp-page="./Edit" asp-route-id="@Model.Player.Id" class="btn btn-primary btn-sm fw-bold">Edit Core Details</a>
 
-                        @if (!string.IsNullOrEmpty(Model.ProfileImageBase64))
+                        @if (Model.HasProfileImage)
                         {
-                            <button class="btn btn-outline-info btn-sm fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#positioningStudio">
+                            <button class="btn btn-outline-info btn-sm fw-bold" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#positioningStudio">
                                 <i class="bi bi-camera-reposition me-2"></i>Adjust Photo Crop
                             </button>
                         }
@@ -192,7 +194,7 @@
 
             <hr />
 
-            @if (Model.CanEdit && !string.IsNullOrEmpty(Model.ProfileImageBase64))
+            @if (Model.CanEdit && Model.HasProfileImage)
             {
                 <div class="collapse mb-4" id="positioningStudio">
                     <div class="focus-studio">
@@ -203,21 +205,33 @@
                             <div class="mb-4">
                                 <label class="detail-label d-block text-center">Avatar Focus</label>
                                 <div class="picker-container picker-avatar mb-2" onclick="setFocus(event, 'Avatar')">
-                                    <img src="@Model.ProfileImageBase64" class="picker-img" id="imgAvatar" style="object-position: @Model.AvatarX% @Model.AvatarY%; transform: scale(@(Model.AvatarZoom / 100.0));">
+                                    <img src="@Model.ProfileImageUrl"
+                                         class="picker-img"
+                                         id="imgAvatar"
+                                         loading="lazy" decoding="async"
+                                         style="object-position: @Model.AvatarX% @Model.AvatarY%; transform: scale(@(Model.AvatarZoom / 100.0));" />
                                     <div class="focus-pin" id="pinAvatar" style="left: @Model.AvatarX%; top: @Model.AvatarY%;"></div>
                                 </div>
                                 <label class="detail-label">Zoom: <span id="lblAvatarZoom">@Model.AvatarZoom</span>%</label>
-                                <input type="range" class="form-range" min="100" max="300" step="5" id="inputAvatarZoom" name="AvatarZoom" value="@Model.AvatarZoom" oninput="updateZoom('Avatar')">
+                                <input type="range" class="form-range" min="100" max="300" step="5"
+                                       id="inputAvatarZoom" name="AvatarZoom"
+                                       value="@Model.AvatarZoom" oninput="updateZoom('Avatar')" />
                             </div>
 
                             <div class="mb-4">
                                 <label class="detail-label d-block mb-2">Podium Focus (Wide)</label>
                                 <div class="picker-container picker-podium mb-2" onclick="setFocus(event, 'Podium')">
-                                    <img src="@Model.ProfileImageBase64" class="picker-img" id="imgPodium" style="object-position: @Model.PodiumX% @Model.PodiumY%; transform: scale(@(Model.PodiumZoom / 100.0));">
+                                    <img src="@Model.ProfileImageUrl"
+                                         class="picker-img"
+                                         id="imgPodium"
+                                         loading="lazy" decoding="async"
+                                         style="object-position: @Model.PodiumX% @Model.PodiumY%; transform: scale(@(Model.PodiumZoom / 100.0));" />
                                     <div class="focus-pin" id="pinPodium" style="left: @Model.PodiumX%; top: @Model.PodiumY%;"></div>
                                 </div>
                                 <label class="detail-label">Zoom: <span id="lblPodiumZoom">@Model.PodiumZoom</span>%</label>
-                                <input type="range" class="form-range" min="100" max="300" step="5" id="inputPodiumZoom" name="PodiumZoom" value="@Model.PodiumZoom" oninput="updateZoom('Podium')">
+                                <input type="range" class="form-range" min="100" max="300" step="5"
+                                       id="inputPodiumZoom" name="PodiumZoom"
+                                       value="@Model.PodiumZoom" oninput="updateZoom('Podium')" />
                             </div>
 
                             <input type="hidden" id="inputAvatarX" name="AvatarX" value="@Model.AvatarX" />
@@ -237,8 +251,11 @@
             <div class="mt-4">
                 <div class="mb-4">
                     <div class="detail-label">Birthday</div>
-                    <div class="h5 fw-normal text-body">@(Model.Player.DateOfBirth?.ToString("MMMM dd, yyyy") ?? "Not Provided")</div>
+                    <div class="h5 fw-normal text-body">
+                        @(Model.Player.DateOfBirth?.ToString("MMMM dd, yyyy") ?? "Not Provided")
+                    </div>
                 </div>
+
                 <div class="mb-4">
                     <div class="detail-label">Status</div>
                     <div class="h5 fw-normal @(Model.Player.Inactive ? "text-danger" : "text-success")">
@@ -256,9 +273,11 @@
                     </h1>
                     <p class="text-muted mb-0">Curated by @Model.Player.FirstName</p>
                 </div>
+
                 @if (Model.CanEdit)
                 {
-                    <a asp-page="./ManageTopTen" asp-route-id="@Model.Player.Id" class="btn btn-sm btn-outline-primary px-4 fw-bold">
+                    <a asp-page="./ManageTopTen" asp-route-id="@Model.Player.Id"
+                       class="btn btn-sm btn-outline-primary px-4 fw-bold">
                         Manage List
                     </a>
                 }
@@ -277,12 +296,21 @@
                             {
                                 <div class="item-bg-overlay" style="background-image: url('@imgUrl');"></div>
                             }
+
                             <div class="rank-number me-3">#@game.Rank</div>
+
                             <div class="flex-grow-1">
                                 <h4 class="mb-0 fw-bold text-body-emphasis">@game.BoardGame?.BoardGameName</h4>
-                                <div class="text-secondary small fw-bold">Released @(game.BoardGame?.ReleaseDate?.Year.ToString() ?? "N/A")</div>
+                                <div class="text-secondary small fw-bold">
+                                    Released @(game.BoardGame?.ReleaseDate?.Year.ToString() ?? "N/A")
+                                </div>
                             </div>
-                            <a asp-page="/Browsing/BoardGames/BoardGameDetails" asp-route-id="@game.FkBgdBoardGame" class="btn btn-sm btn-dark rounded-pill px-4 fw-bold">View Game</a>
+
+                            <a asp-page="/Browsing/BoardGames/BoardGameDetails"
+                               asp-route-id="@game.FkBgdBoardGame"
+                               class="btn btn-sm btn-dark rounded-pill px-4 fw-bold">
+                                View Game
+                            </a>
                         </div>
                     }
                 }
@@ -294,7 +322,10 @@
                         @if (Model.CanEdit)
                         {
                             <div class="mt-3">
-                                <a asp-page="./ManageTopTen" asp-route-id="@Model.Player.Id" class="btn btn-primary px-4 fw-bold">Create Your List</a>
+                                <a asp-page="./ManageTopTen" asp-route-id="@Model.Player.Id"
+                                   class="btn btn-primary px-4 fw-bold">
+                                    Create Your List
+                                </a>
                             </div>
                         }
                     </div>

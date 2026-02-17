@@ -2,8 +2,6 @@ using Board_Game_Software.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,18 +11,22 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
     public class IndexModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
 
-        public IndexModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration config)
+        public IndexModel(BoardGameDbContext context)
         {
             _context = context;
-            var dbName = config["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(dbName);
-            _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
-        public IList<BoardGameMarkerType> MarkerTypes { get; set; } = default!;
-        public Dictionary<long, string?> MarkerImagesBase64 { get; set; } = new();
+        public sealed class MarkerTypeRow
+        {
+            public long Id { get; init; }
+            public Guid Gid { get; init; }
+            public string TypeDesc { get; init; } = string.Empty;
+            public string? AlignmentDesc { get; init; }
+            public string? AdditionalDesc { get; init; }
+        }
+
+        public IList<MarkerTypeRow> MarkerTypes { get; private set; } = new List<MarkerTypeRow>();
 
         [BindProperty(SupportsGet = true)]
         public string? SearchTerm { get; set; }
@@ -36,18 +38,15 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
         {
             SearchTerm = search;
 
-            // Read-only list page: NO TRACKING (big win)
             var query = _context.BoardGameMarkerTypes
                 .AsNoTracking()
-                .Include(m => m.FkBgdMarkerAlignmentTypeNavigation)
-                .Include(m => m.FkBgdMarkerAdditionalTypeNavigation)
                 .Where(m => !m.Inactive);
 
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
                 var term = SearchTerm.Trim();
 
-                // Safer null-guards + keeps SQL clean
+                // NOTE: keeping your exact logic, but without Includes
                 query = query.Where(m =>
                     m.TypeDesc.Contains(term) ||
                     (m.FkBgdMarkerAlignmentTypeNavigation != null && m.FkBgdMarkerAlignmentTypeNavigation.TypeDesc == term) ||
@@ -57,22 +56,20 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
             MarkerTypes = await query
                 .OrderBy(mt => mt.TypeDesc)
+                .Select(m => new MarkerTypeRow
+                {
+                    Id = m.Id,
+                    Gid = m.Gid,
+                    TypeDesc = m.TypeDesc,
+                    AlignmentDesc = m.FkBgdMarkerAlignmentTypeNavigation != null ? m.FkBgdMarkerAlignmentTypeNavigation.TypeDesc : null,
+                    AdditionalDesc = m.FkBgdMarkerAdditionalTypeNavigation != null ? m.FkBgdMarkerAdditionalTypeNavigation.TypeDesc : null
+                })
                 .ToListAsync();
-
-            // Image Fetching (Mongo) - use Guid values, not strings
-            // Image URLs (fast, cacheable, no base64 payload)
-            MarkerImagesBase64.Clear();
-
-            foreach (var marker in MarkerTypes)
-            {
-                // Just point to media endpoint instead of embedding image
-                MarkerImagesBase64[marker.Id] = $"/media/marker-type/{marker.Gid}";
-            }
         }
 
         public async Task<IActionResult> OnPostDeleteAsync(long id)
         {
-            // keep this tracked because we are updating it
+            // tracked for update
             var markerType = await _context.BoardGameMarkerTypes.FindAsync(id);
             if (markerType == null) return NotFound();
 
@@ -83,7 +80,7 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
             if (linkedCount > 0)
             {
                 DeleteLinkedCount = linkedCount;
-                await OnGetAsync(SearchTerm); // Refresh list with current search
+                await OnGetAsync(SearchTerm); // refresh list
                 return Page();
             }
 

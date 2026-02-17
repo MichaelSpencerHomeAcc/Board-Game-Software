@@ -1,27 +1,19 @@
-using System.ComponentModel.DataAnnotations;
+using Board_Game_Software.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
-using Board_Game_Software.Models;
-using Board_Game_Software.Services;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
-using System.Diagnostics;
 
 namespace Board_Game_Software.Pages.Match
 {
     public class CreateMatchModel : PageModel
     {
         private readonly BoardGameDbContext _db;
-        private readonly BoardGameImagesService _images;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
 
-        public CreateMatchModel(BoardGameDbContext db, BoardGameImagesService images, IMongoClient mongo, IConfiguration config)
+        public CreateMatchModel(BoardGameDbContext db)
         {
             _db = db;
-            _images = images;
-            var dbName = config["MongoDbSettings:Database"];
-            _imagesCollection = mongo.GetDatabase(dbName).GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public DateOnly? NightDate { get; private set; }
@@ -35,16 +27,18 @@ namespace Board_Game_Software.Pages.Match
         {
             public long Id { get; set; }
             public string Name { get; set; } = string.Empty;
-            public string? CoverDataUrl { get; set; }
+            public string? CoverUrl { get; set; }  
             public int? MinPlayers { get; set; }
             public int? MaxPlayers { get; set; }
+            public Guid GameGid { get; set; }           
         }
 
         public sealed class NightPlayerRow
         {
             public long PlayerId { get; set; }
             public string Name { get; set; } = string.Empty;
-            public string? AvatarDataUrl { get; set; }
+            public string? AvatarUrl { get; set; }       
+            public Guid PlayerGid { get; set; }       
         }
 
         public sealed class PlayerMarkerInput
@@ -73,29 +67,36 @@ namespace Board_Game_Software.Pages.Match
             Input.ReturnUrl = returnUrl;
             Input.MatchDate = night.GameNightDate.ToDateTime(new TimeOnly(DateTime.Now.Hour, DateTime.Now.Minute));
 
-            var games = await _db.BoardGames.AsNoTracking().Where(g => !g.Inactive).OrderBy(g => g.BoardGameName).ToListAsync();
-            var frontTypeGid = await _db.BoardGameImageTypes.AsNoTracking().Where(t => t.TypeDesc == "Board Game Front").Select(t => t.Gid).FirstOrDefaultAsync();
-            var coverMap = await _images.GetFrontImagesAsync(games.Select(x => x.Gid), frontTypeGid);
+            var games = await _db.BoardGames.AsNoTracking()
+                .Where(g => !g.Inactive)
+                .OrderBy(g => g.BoardGameName)
+                .Select(g => new { g.Id, g.Gid, g.BoardGameName, g.PlayerCountMin, g.PlayerCountMax })
+                .ToListAsync();
 
-            Games = games.Select(x => new GameRow
+            Games = games.Select(g => new GameRow
             {
-                Id = x.Id,
-                Name = x.BoardGameName,
-                CoverDataUrl = coverMap.GetValueOrDefault(x.Gid),
-                MinPlayers = x.PlayerCountMin,
-                MaxPlayers = x.PlayerCountMax
+                Id = g.Id,
+                GameGid = g.Gid,
+                Name = g.BoardGameName,
+                CoverUrl = $"/media/boardgame/front/{g.Gid}",
+                MinPlayers = g.PlayerCountMin,
+                MaxPlayers = g.PlayerCountMax
             }).ToList();
 
             var roster = await _db.BoardGameNightPlayers.AsNoTracking()
                 .Include(r => r.FkBgdPlayerNavigation)
                 .Where(r => r.FkBgdBoardGameNight == nightId && !r.Inactive)
-                .Select(r => r.FkBgdPlayerNavigation).ToListAsync();
+                .Select(r => r.FkBgdPlayerNavigation)
+                .Select(p => new { p.Id, p.Gid, p.FirstName, p.LastName })
+                .ToListAsync();
 
-            var playerGids = roster.Select(p => (Guid?)p.Gid).ToArray();
-            var docs = await _imagesCollection.Find(Builders<BoardGameImages>.Filter.In(d => d.GID, playerGids)).ToListAsync();
-            var avatarMap = docs.ToDictionary(d => d.GID!.Value, d => d.ImageBytes != null ? $"data:{d.ContentType};base64,{Convert.ToBase64String(d.ImageBytes)}" : null);
-
-            Players = roster.Select(p => new NightPlayerRow { PlayerId = p.Id, Name = $"{p.FirstName} {p.LastName}", AvatarDataUrl = avatarMap.GetValueOrDefault(p.Gid) }).ToList();
+            Players = roster.Select(p => new NightPlayerRow
+            {
+                PlayerId = p.Id,
+                PlayerGid = p.Gid,
+                Name = $"{p.FirstName} {p.LastName}",
+                AvatarUrl = $"/media/player/{p.Gid}"
+            }).ToList();
 
             return Page();
         }
@@ -105,13 +106,20 @@ namespace Board_Game_Software.Pages.Match
             var markers = await _db.BoardGameMarkers.AsNoTracking()
                 .Where(m => !m.Inactive && m.FkBgdBoardGame == gameId)
                 .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
-                .Select(m => new { id = m.Id, name = m.FkBgdBoardGameMarkerTypeNavigation.TypeDesc, typeGid = m.FkBgdBoardGameMarkerTypeNavigation.Gid })
+                .Select(m => new
+                {
+                    id = m.Id,
+                    name = m.FkBgdBoardGameMarkerTypeNavigation.TypeDesc,
+                    typeGid = m.FkBgdBoardGameMarkerTypeNavigation.Gid
+                })
                 .ToListAsync();
 
-            var docs = await _imagesCollection.Find(Builders<BoardGameImages>.Filter.In(x => x.GID, markers.Select(m => (Guid?)m.typeGid))).ToListAsync();
-            var imgMap = docs.ToDictionary(d => d.GID!.Value, d => d.ImageBytes != null ? $"data:{d.ContentType};base64,{Convert.ToBase64String(d.ImageBytes)}" : null);
-
-            return new JsonResult(markers.Select(x => new { id = x.id, name = x.name, imageDataUrl = imgMap.GetValueOrDefault(x.typeGid) }));
+            return new JsonResult(markers.Select(x => new
+            {
+                id = x.id,
+                name = x.name,
+                imageUrl = $"/media/marker-type/{x.typeGid}"
+            }));
         }
 
         public async Task<IActionResult> OnPostAsync()
@@ -124,24 +132,21 @@ namespace Board_Game_Software.Pages.Match
 
             var playerMarkers = string.IsNullOrWhiteSpace(Input.PlayerMarkersJson)
                 ? new List<PlayerMarkerInput>()
-                : JsonSerializer.Deserialize<List<PlayerMarkerInput>>(Input.PlayerMarkersJson);
+                : (JsonSerializer.Deserialize<List<PlayerMarkerInput>>(Input.PlayerMarkersJson) ?? new List<PlayerMarkerInput>());
 
             var now = DateTime.UtcNow;
             var who = User.Identity?.Name ?? "system";
 
-            // 1. Fetch Game to determine Victory Type for Result Defaulting
+            // Fetch game to set default result logic
             var game = await _db.BoardGames
                 .Include(g => g.FkBgdBoardGameVictoryConditionTypeNavigation)
                 .FirstOrDefaultAsync(g => g.Id == Input.BoardGameId);
 
-            // Logic: Default everyone to Team Loss (4) if game is Team Victory, else Solo Loss (2)
             long defaultResultId = 2; // Solo Loss
             if (game?.FkBgdBoardGameVictoryConditionTypeNavigation?.TypeDesc == "Team Victory")
-            {
                 defaultResultId = 4; // Team Loss
-            }
 
-            // 2. Create the Match
+            // 1) Create match
             var match = new BoardGameMatch
             {
                 Gid = Guid.NewGuid(),
@@ -156,9 +161,9 @@ namespace Board_Game_Software.Pages.Match
             };
 
             _db.BoardGameMatches.Add(match);
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(); // Need match.Id
 
-            // 3. Link to Night
+            // 2) Link to night
             _db.BoardGameNightBoardGameMatches.Add(new BoardGameNightBoardGameMatch
             {
                 FkBgdBoardGameNight = Input.NightId,
@@ -170,12 +175,34 @@ namespace Board_Game_Software.Pages.Match
                 ModifiedBy = who
             });
 
-            // 4. Process Players and Pre-create Result Records
+            var markerByPlayerId = playerMarkers.ToDictionary(x => x.PlayerId, x => x.MarkerId);
+
+            var selectedMarkerIds = markerByPlayerId.Values
+                .Where(v => v.HasValue)
+                .Select(v => v!.Value)
+                .Distinct()
+                .ToList();
+
+            var markerAlignmentByMarkerId = new Dictionary<long, long?>();
+            if (selectedMarkerIds.Count > 0)
+            {
+                markerAlignmentByMarkerId = await _db.BoardGameMarkers.AsNoTracking()
+                    .Where(m => selectedMarkerIds.Contains(m.Id))
+                    .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
+                    .ToDictionaryAsync(
+                        m => m.Id,
+                        m => (long?)m.FkBgdBoardGameMarkerTypeNavigation.FkBgdMarkerAlignmentType
+                    );
+            }
+
+            // 3) Create all match players (batch)
+            var matchPlayers = new List<BoardGameMatchPlayer>();
+
             foreach (var pid in Input.SelectedPlayerIds)
             {
-                var markerId = playerMarkers?.FirstOrDefault(m => m.PlayerId == pid)?.MarkerId;
+                markerByPlayerId.TryGetValue(pid, out var markerId);
 
-                var newPlayer = new BoardGameMatchPlayer
+                matchPlayers.Add(new BoardGameMatchPlayer
                 {
                     FkBgdBoardGameMatch = match.Id,
                     FkBgdPlayer = pid,
@@ -185,37 +212,40 @@ namespace Board_Game_Software.Pages.Match
                     TimeModified = now,
                     CreatedBy = who,
                     ModifiedBy = who,
-                };
-                _db.BoardGameMatchPlayers.Add(newPlayer);
-                await _db.SaveChangesAsync(); // Get ID for result record
+                });
+            }
 
-                // AUTOFILL LOGIC
+            _db.BoardGameMatchPlayers.AddRange(matchPlayers);
+            await _db.SaveChangesAsync(); 
+
+            // 4) Create all results (batch)
+            var results = new List<BoardGameMatchPlayerResult>();
+
+            foreach (var mp in matchPlayers)
+            {
                 FinalTeam? teamAlignment = null;
-                if (markerId.HasValue)
-                {
-                    var marker = await _db.BoardGameMarkers
-                        .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
-                        .FirstOrDefaultAsync(m => m.Id == markerId.Value);
 
-                    var alignmentId = marker?.FkBgdBoardGameMarkerTypeNavigation?.FkBgdMarkerAlignmentType;
-                    if (alignmentId.HasValue)
-                    {
-                        teamAlignment = (FinalTeam)alignmentId.Value;
-                    }
+                if (mp.FkBgdBoardGameMarker.HasValue &&
+                    markerAlignmentByMarkerId.TryGetValue(mp.FkBgdBoardGameMarker.Value, out var alignId) &&
+                    alignId.HasValue)
+                {
+                    teamAlignment = (FinalTeam)alignId.Value;
                 }
 
-                _db.BoardGameMatchPlayerResults.Add(new BoardGameMatchPlayerResult
+                results.Add(new BoardGameMatchPlayerResult
                 {
                     Gid = Guid.NewGuid(),
-                    FkBgdBoardGameMatchPlayer = newPlayer.Id,
-                    FkBgdResultType = defaultResultId, // Autofill: Based on Victory Type
-                    FinalTeam = teamAlignment,         // Autofill: Based on Marker Alignment
+                    FkBgdBoardGameMatchPlayer = mp.Id,
+                    FkBgdResultType = defaultResultId,
+                    FinalTeam = teamAlignment,
                     TimeCreated = now,
                     TimeModified = now,
                     CreatedBy = who,
                     ModifiedBy = who
                 });
             }
+
+            _db.BoardGameMatchPlayerResults.AddRange(results);
 
             await _db.SaveChangesAsync();
             return Redirect(Input.ReturnUrl ?? $"/GameNight/Details/{Input.NightId}");

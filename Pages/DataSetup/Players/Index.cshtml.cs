@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.DataSetup.Players
 {
@@ -21,53 +23,98 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
-        public IList<VwPlayer> Players { get; set; } = default!;
-        public Dictionary<long, string> PlayerImagesBase64 { get; set; } = new();
-        public Dictionary<long, string> PlayerFocusStyles { get; set; } = new();
+        public sealed class PlayerRow
+        {
+            public long Id { get; init; }
+            public Guid Gid { get; init; }
+            public string FullName { get; init; } = string.Empty;
+
+            public DateOnly? DateOfBirth { get; init; }
+
+            public string? FKdboAspNetUsers { get; init; }
+
+            public string AvatarUrl => $"/media/player/{Gid}";
+            public string FocusStyle { get; init; } = "50% 50%";
+            public bool HasImage { get; init; }
+        }
+
+        public IList<PlayerRow> Players { get; private set; } = new List<PlayerRow>();
 
         [BindProperty(SupportsGet = true)]
         public string? SearchTerm { get; set; }
 
         public async Task OnGetAsync()
         {
-            var query = _context.VwPlayers.AsQueryable();
+            // 1) SQL: lightweight projection
+            var query = _context.VwPlayers
+                .AsNoTracking()
+                .AsQueryable();
 
-            if (!string.IsNullOrEmpty(SearchTerm))
+            if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
-                query = query.Where(p => p.FullName.Contains(SearchTerm));
+                var term = SearchTerm.Trim();
+                query = query.Where(p => p.FullName.Contains(term));
             }
 
-            // Visible to everyone
-            Players = await query.OrderBy(p => p.FullName).ToListAsync();
-
-            foreach (var player in Players)
-            {
-                var img = await _boardGameImages
-                    .Find(x => x.SQLTable == "bgd.Player" && x.GID == player.Gid)
-                    .FirstOrDefaultAsync();
-
-                if (img != null)
+            var players = await query
+                .OrderBy(p => p.FullName)
+                .Select(p => new
                 {
-                    if (img.ImageBytes != null)
+                    p.Id,
+                    p.Gid,
+                    p.FullName,
+                    p.DateOfBirth,       
+                    p.FKdboAspNetUsers
+                })
+                .ToListAsync();
+
+            if (players.Count == 0)
+            {
+                Players = new List<PlayerRow>();
+                return;
+            }
+
+            // 2) Mongo: ONE query for all player images
+            var gids = players.Select(p => (Guid?)p.Gid).ToArray();
+
+            var imgDocs = await _boardGameImages
+                .Find(Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player") &
+                      Builders<BoardGameImages>.Filter.In(x => x.GID, gids))
+                .Project(x => new { x.GID, x.AvatarFocusX, x.AvatarFocusY, x.ImageBytes })
+                .ToListAsync();
+
+            // map: gid -> focus + hasImage
+            var imgMap = imgDocs
+                .Where(d => d.GID.HasValue)
+                .ToDictionary(
+                    d => d.GID!.Value,
+                    d => new
                     {
-                        PlayerImagesBase64[player.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
-                    }
-                    PlayerFocusStyles[player.Id] = $"{img.AvatarFocusX}% {img.AvatarFocusY}%";
-                }
-                else
+                        Focus = $"{d.AvatarFocusX}% {d.AvatarFocusY}%",
+                        HasImage = d.ImageBytes != null && d.ImageBytes.Length > 0
+                    });
+
+            // 3) combine
+            Players = players.Select(p =>
+            {
+                var found = imgMap.TryGetValue(p.Gid, out var meta);
+
+                return new PlayerRow
                 {
-                    PlayerFocusStyles[player.Id] = "50% 50%";
-                }
-            }
+                    Id = p.Id,
+                    Gid = p.Gid,
+                    FullName = p.FullName ?? string.Empty,
+                    DateOfBirth = p.DateOfBirth,
+                    FKdboAspNetUsers = p.FKdboAspNetUsers,
+                    FocusStyle = found ? meta!.Focus : "50% 50%",
+                    HasImage = found && meta!.HasImage
+                };
+            }).ToList();
         }
 
         public async Task<IActionResult> OnPostDeleteAsync(long id)
         {
-            // SECURITY: Hard restriction - Only Admins can delete
-            if (!User.IsInRole("Admin"))
-            {
-                return Forbid();
-            }
+            if (!User.IsInRole("Admin")) return Forbid();
 
             var player = await _context.Players.FirstOrDefaultAsync(p => p.Id == id);
             if (player == null) return NotFound();

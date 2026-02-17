@@ -1,5 +1,6 @@
 ﻿@page
 @model Board_Game_Software.Pages.Match.CreateMatchModel
+@using System.Text.Encodings.Web
 @{
     ViewData["Title"] = "Record Match";
 }
@@ -58,7 +59,7 @@
 
         .player-tile.selected {
             border-color: #0d6efd;
-            background: rgba(13, 110, 253, 0.05);
+            background: rgba(13,110,253,0.05);
         }
 
         .player-tile.locked {
@@ -81,12 +82,27 @@
     .role-badge {
         display: inline-flex;
         align-items: center;
-        background: rgba(13, 110, 253, 0.2);
+        background: rgba(13,110,253,0.2);
         border: 1px solid #0d6efd;
         padding: 4px 12px;
         border-radius: 20px;
         font-size: 0.85rem;
     }
+
+    .initials-avatar {
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        color: #fff;
+        user-select: none;
+        flex: 0 0 54px;
+    }
+
 
     .marker-search-img {
         width: 30px;
@@ -143,16 +159,21 @@
         <input type="hidden" asp-for="Input.BoardGameId" id="hiddenGameId" />
         <input type="hidden" asp-for="Input.PlayerMarkersJson" id="markersJson" />
 
-        @* STEP 1: SELECT GAME *@
+        @* STEP 1 *@
         <div id="step1" class="step-content active text-center">
             <h1 class="display-6 fw-bold mb-3">Step 1: Choose Game</h1>
-            <input type="text" id="gameSearchInput" class="form-control mb-5 p-3 rounded-pill bg-dark text-white border-secondary" placeholder="Search library..." style="max-width:400px; margin:0 auto;">
+            <input type="text" id="gameSearchInput" class="form-control mb-5 p-3 rounded-pill bg-dark text-white border-secondary"
+                   placeholder="Search library..." style="max-width:400px; margin:0 auto;">
+
             <div class="row row-cols-2 row-cols-md-4 row-cols-lg-5 g-4">
                 @foreach (var g in Model.Games)
                 {
+                    var safeName = JavaScriptEncoder.Default.Encode(g.Name);
                     <div class="col game-item" data-name="@g.Name.ToLower()">
-                        <div class="card game-card h-100 shadow-sm" onclick="selectGame(@g.Id, '@g.Name', '@g.CoverDataUrl', @(g.MaxPlayers ?? 99))">
-                            <img src="@(g.CoverDataUrl ?? "/images/default-cover.png")" />
+                        <div class="card game-card h-100 shadow-sm"
+                             onclick="selectGame(@g.Id, '@safeName', '@g.CoverUrl', @(g.MaxPlayers ?? 99))">
+                            <img src="@(g.CoverUrl ?? "/images/default-cover.png")"
+                                 loading="lazy" decoding="async" />
                             <div class="card-body p-2 text-center">
                                 <div class="fw-bold small text-truncate">@g.Name</div>
                             </div>
@@ -162,10 +183,12 @@
             </div>
         </div>
 
-        @* STEP 2: ASSIGN PLAYERS *@
+        @* STEP 2 *@
         <div id="step2" class="step-content">
             <div class="d-flex align-items-center mb-5 bg-dark p-3 rounded-4 shadow-sm border border-secondary">
-                <img id="displayGameCover" src="" class="rounded me-3 shadow" style="width: 80px; height: 80px; object-fit: contain; background: #000;" />
+                <img id="displayGameCover" src="" class="rounded me-3 shadow"
+                     style="width:80px; height:80px; object-fit:contain; background:#000;"
+                     loading="lazy" decoding="async" />
                 <div class="flex-grow-1">
                     <h2 class="fw-bold mb-0" id="displayGameName"></h2>
                     <div id="limitDisplay" class="text-info small fw-bold"></div>
@@ -184,9 +207,13 @@
                     <div class="col-md-6">
                         <div class="player-tile p-3 d-flex align-items-center" id="tile_@p.PlayerId" onclick="togglePlayer(@p.PlayerId)">
                             <input type="checkbox" name="Input.SelectedPlayerIds" value="@p.PlayerId" id="chk_@p.PlayerId" class="p-check">
-                            <img src="@(p.AvatarDataUrl ?? "/images/default-avatar.png")" class="me-3" id="avatar_@p.PlayerId" />
+                            <img src="@(p.AvatarUrl ?? "/images/default-avatar.png")" class="me-3"
+                                 id="avatar_@p.PlayerId"
+                                 loading="lazy" decoding="async"
+                                 onerror="makeInitialsAvatar(this, '@p.Name')" />
                             <div class="flex-grow-1 overflow-hidden">
                                 <div class="fw-bold text-truncate">@p.Name</div>
+
                                 <div class="marker-assignment-area d-none mt-2" id="marker_area_@p.PlayerId" onclick="event.stopPropagation()">
                                     <div id="selected_role_@p.PlayerId" class="role-badge d-none me-2 mb-1">
                                         <img src="" class="marker-search-img d-none" />
@@ -232,21 +259,22 @@
         let activePlayerId = null;
         let maxPlayers = 99;
 
-        $('#gameSearchInput').on('keyup', function() {
+        $('#gameSearchInput').on('keyup', function () {
             const val = $(this).val().toLowerCase();
-            $('.game-item').each(function() { $(this).toggle($(this).data('name').includes(val)); });
+            $('.game-item').each(function () { $(this).toggle($(this).data('name').includes(val)); });
         });
 
         function goToStep(s) {
             $('.step-content').removeClass('active');
             $(`#step${s}`).addClass('active');
-            window.scrollTo(0,0);
+            window.scrollTo(0, 0);
         }
 
-        async function selectGame(id, name, cover, limit) {
+        async function selectGame(id, name, coverUrl, limit) {
             $('#hiddenGameId').val(id);
             $('#displayGameName').text(name);
-            $('#displayGameCover').attr('src', cover || '/images/default-cover.png');
+            $('#displayGameCover').attr('src', coverUrl || '/images/default-cover.png');
+
             maxPlayers = limit;
             $('#limitDisplay').text(`Player Limit: ${limit}`);
 
@@ -258,6 +286,7 @@
 
             const res = await fetch(`?handler=Markers&gameId=${id}`);
             currentGameMarkers = await res.json();
+
             goToStep(2);
         }
 
@@ -267,6 +296,7 @@
             if (!chk.is(':checked') && $('.p-check:checked').length >= maxPlayers) return;
 
             chk.prop('checked', !chk.prop('checked'));
+
             if (chk.is(':checked')) {
                 tile.addClass('selected');
                 if (currentGameMarkers.length > 0) $(`#marker_area_${id}`).removeClass('d-none');
@@ -274,12 +304,13 @@
                 tile.removeClass('selected');
                 $(`#marker_area_${id}`).addClass('d-none');
             }
+
             updateLockState();
         }
 
         function updateLockState() {
             const count = $('.p-check:checked').length;
-            $('.player-tile').each(function() {
+            $('.player-tile').each(function () {
                 const chk = $(this).find('.p-check');
                 if (!chk.is(':checked')) {
                     if (count >= maxPlayers) $(this).addClass('locked');
@@ -291,29 +322,34 @@
         function openMarkerModal(pid) {
             activePlayerId = pid;
             const grid = $('#modalMarkerGrid').empty();
-            const assigned = $('.player-marker-value').map(function() {
+
+            const assigned = $('.player-marker-value').map(function () {
                 return $(this).data('pid') != pid ? $(this).val() : null;
             }).get();
 
             currentGameMarkers.forEach(m => {
                 const taken = assigned.includes(m.id.toString());
                 const item = $(`
-                    <div class="marker-option ${taken ? 'disabled' : ''}" onclick="${taken ? '' : `selectMarker(${m.id}, '${m.name}', '${m.imageDataUrl || ''}')`}">
-                        ${m.imageDataUrl ? `<img src="${m.imageDataUrl}" style="width:40px;height:40px;object-fit:contain;"/>` : '<div style="height:40px;"></div>'}
+                    <div class="marker-option ${taken ? 'disabled' : ''}" onclick="${taken ? '' : `selectMarker(${m.id}, '${(m.name || '').replace(/'/g, "\\'")}', '${m.imageUrl || ''}')`}">
+                        ${m.imageUrl ? `<img src="${m.imageUrl}" loading="lazy" decoding="async" style="width:40px;height:40px;object-fit:contain;"/>` : '<div style="height:40px;"></div>'}
                         <div class="small fw-bold">${m.name} ${taken ? '<br>(Taken)' : ''}</div>
                     </div>
                 `);
                 grid.append(item);
             });
+
             new bootstrap.Modal('#markerModal').show();
         }
 
         function selectMarker(mid, name, imgUrl) {
             $(`.player-marker-value[data-pid="${activePlayerId}"]`).val(mid);
+
             const badge = $(`#selected_role_${activePlayerId}`);
             badge.find('.role-text').text(name);
+
             if (imgUrl) badge.find('.marker-search-img').attr('src', imgUrl).removeClass('d-none');
             else badge.find('.marker-search-img').addClass('d-none');
+
             badge.removeClass('d-none');
             bootstrap.Modal.getInstance('#markerModal').hide();
         }
@@ -323,9 +359,9 @@
             $(`.player-marker-value[data-pid="${pid}"]`).val('');
         }
 
-        $('#matchForm').submit(function(e) {
+        $('#matchForm').submit(function () {
             const data = [];
-            $('.p-check:checked').each(function() {
+            $('.p-check:checked').each(function () {
                 const pid = $(this).val();
                 const mid = $(`.player-marker-value[data-pid="${pid}"]`).val();
                 data.push({ PlayerId: parseInt(pid), MarkerId: mid ? parseInt(mid) : null });
@@ -333,5 +369,38 @@
             $('#markersJson').val(JSON.stringify(data));
             return true;
         });
+
+                function getInitials(fullName) {
+            if (!fullName) return "?";
+            const parts = fullName.trim().split(/\s+/).filter(Boolean);
+            if (parts.length === 0) return "?";
+            const first = parts[0][0] || "";
+            const last = parts.length > 1 ? (parts[parts.length - 1][0] || "") : "";
+            return (first + last).toUpperCase();
+        }
+
+        function colourFromString(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            const hue = Math.abs(hash) % 360;
+            return `hsl(${hue}, 65%, 45%)`;
+        }
+
+        function makeInitialsAvatar(imgEl, fullName) {
+            imgEl.onerror = null;
+
+            const initials = getInitials(fullName);
+            const bg = colourFromString(fullName || initials);
+
+            const badge = document.createElement('div');
+            badge.className = (imgEl.className || '') + ' initials-avatar';
+            badge.textContent = initials;
+            badge.style.background = bg;
+
+            badge.style.marginRight = "1rem";
+
+            imgEl.replaceWith(badge);
+        }
+
     </script>
 }
