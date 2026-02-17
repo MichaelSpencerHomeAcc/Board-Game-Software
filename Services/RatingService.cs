@@ -32,80 +32,97 @@ public class RatingService
             .FirstOrDefault(em => !em.Inactive);
 
         var methodEntry = activeMethodMapping?.FkBgdEloMethodNavigation;
-
         if (methodEntry == null) return;
 
         string methodName = methodEntry.MethodName;
 
-        var teamGroups = match.BoardGameMatchPlayers
-            .GroupBy(mp => mp.BoardGameMatchPlayerResults.FirstOrDefault()?.FinalTeam ?? 0)
-            .OrderBy(g => g.Key)
-            .ToList();
+        // 1) Build flat list of player rating states
+        var states = new List<PlayerRatingState>();
 
-        var teamsForCalc = new List<List<PlayerRatingState>>();
-
-        foreach (var group in teamGroups)
+        foreach (var mp in match.BoardGameMatchPlayers)
         {
-            var currentTeam = new List<PlayerRatingState>();
-            foreach (var mp in group)
+            var res = mp.BoardGameMatchPlayerResults.FirstOrDefault();
+            if (res == null) continue;
+
+            var ratingRecord = await _db.PlayerBoardGameRatings
+                .FirstOrDefaultAsync(r =>
+                    r.FkBgdPlayer == mp.FkBgdPlayer &&
+                    r.FkBgdBoardGame == match.FkBgdBoardGame);
+
+            if (ratingRecord == null)
             {
-                var res = mp.BoardGameMatchPlayerResults.FirstOrDefault();
-                if (res == null) continue;
-
-                var ratingRecord = await _db.PlayerBoardGameRatings
-                    .FirstOrDefaultAsync(r => r.FkBgdPlayer == mp.FkBgdPlayer && r.FkBgdBoardGame == match.FkBgdBoardGame);
-
-                if (ratingRecord == null)
+                ratingRecord = new PlayerBoardGameRating
                 {
-                    ratingRecord = new PlayerBoardGameRating
-                    {
-                        FkBgdPlayer = mp.FkBgdPlayer,
-
-                        // Removed ?? because these fields are likely non-nullable in your Model classes
-                        FkBgdBoardGame = match.FkBgdBoardGame,
-                        RatingMu = methodEntry.InitialMu,
-                        RatingSigma = methodEntry.InitialSigma,
-
-                        MatchesPlayed = 0,
-                        TimeCreated = DateTime.UtcNow,
-                        CreatedBy = "System",
-                        ModifiedBy = "System"
-                    };
-                    _db.PlayerBoardGameRatings.Add(ratingRecord);
-                }
-
-                currentTeam.Add(new PlayerRatingState
-                {
-                    Mu = (double)ratingRecord.RatingMu,
-                    Sigma = (double)ratingRecord.RatingSigma,
-                    DbRecord = ratingRecord,
-                    ResultRecord = res
-                });
+                    FkBgdPlayer = mp.FkBgdPlayer,
+                    FkBgdBoardGame = match.FkBgdBoardGame,
+                    RatingMu = methodEntry.InitialMu,
+                    RatingSigma = methodEntry.InitialSigma,
+                    MatchesPlayed = 0,
+                    TimeCreated = DateTime.UtcNow,
+                    CreatedBy = "System",
+                    ModifiedBy = "System"
+                };
+                _db.PlayerBoardGameRatings.Add(ratingRecord);
             }
-            if (currentTeam.Any()) teamsForCalc.Add(currentTeam);
+
+            states.Add(new PlayerRatingState
+            {
+                Mu = (double)ratingRecord.RatingMu,
+                Sigma = (double)ratingRecord.RatingSigma,
+                DbRecord = ratingRecord,
+                ResultRecord = res
+            });
         }
 
-        var ranks = teamsForCalc.Select(t => t.First().ResultRecord.Win ? 1 : 2).ToList();
+        if (states.Count < 2) return;
 
+        // 2) Decide TEAM vs FFA based on whether FinalTeam is actually used
+        bool hasAnyTeam = states.Any(s => (s.ResultRecord.FinalTeam ?? 0) > 0);
+
+        List<List<PlayerRatingState>> teamsForCalc =
+            hasAnyTeam
+                ? states
+                    .GroupBy(s => s.ResultRecord.FinalTeam ?? 0)
+                    .OrderBy(g => g.Key)
+                    .Select(g => g.ToList())
+                    .ToList()
+                : states
+                    .Select(s => new List<PlayerRatingState> { s })
+                    .ToList();
+
+        if (teamsForCalc.Count < 2) return;
+
+        // 3) Ranks (kept compatible with your current data entry: Win/Loss)
+        // rank 1 = winners, rank 2 = losers
+        // If a team has any Win=true member, treat team as winner.
+        var ranks = teamsForCalc
+            .Select(team => team.Any(p => p.ResultRecord.Win) ? 1 : 2)
+            .ToList();
+
+        // 4) Update by method
         switch (methodName)
         {
             case "TrueSkill":
                 SimpleRatingCalculator.UpdateTrueSkill(teamsForCalc, ranks);
                 break;
+
             case "Elo":
                 if (teamsForCalc.Count == 2 && teamsForCalc[0].Count == 1 && teamsForCalc[1].Count == 1)
                 {
                     SimpleRatingCalculator.UpdateElo(teamsForCalc[0][0], teamsForCalc[1][0], ranks[0], ranks[1]);
                 }
                 break;
+
             case "Placement":
                 SimpleRatingCalculator.UpdatePlacement(teamsForCalc, ranks);
                 break;
+
             default:
                 SimpleRatingCalculator.UpdateTrueSkill(teamsForCalc, ranks);
                 break;
         }
 
+        // 5) Persist changes back into result + rating tables
         foreach (var team in teamsForCalc)
         {
             foreach (var player in team)
@@ -128,6 +145,7 @@ public class RatingService
 
         await _db.SaveChangesAsync();
     }
+
 
     private class PlayerRatingState
     {

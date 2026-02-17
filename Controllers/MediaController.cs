@@ -57,6 +57,35 @@ namespace Board_Game_Software.Controllers
             return File(img.ImageBytes, contentType);
         }
 
+        [HttpGet("publisher/{gid:guid}")]
+        public async Task<IActionResult> Publisher(Guid gid)
+        {
+            var filterGuid = Builders<BoardGameImages>.Filter.And(
+                Builders<BoardGameImages>.Filter.In(x => x.SQLTable, new[] { "bgd.Publisher", "Publishers" }),
+                Builders<BoardGameImages>.Filter.Eq(x => x.GID, (Guid?)gid)
+            );
+
+            var img = await _images.Find(filterGuid).FirstOrDefaultAsync();
+
+            if (img?.ImageBytes == null || img.ImageBytes.Length == 0)
+            {
+                var filterString = Builders<BoardGameImages>.Filter.And(
+                    Builders<BoardGameImages>.Filter.In("SQLTable", new[] { "bgd.Publisher", "Publishers" }),
+                    Builders<BoardGameImages>.Filter.Eq("GID", gid.ToString())
+                );
+
+                img = await _images.Find(filterString).FirstOrDefaultAsync();
+            }
+
+            if (img?.ImageBytes == null || img.ImageBytes.Length == 0)
+                return NotFound();
+
+            var contentType = DetectContentType(img.ImageBytes, img.ContentType);
+            Response.Headers["Cache-Control"] = "public,max-age=604800";
+            return File(img.ImageBytes, contentType);
+        }
+
+
         [HttpGet("boardgame/front/{gid:guid}")]
         public async Task<IActionResult> BoardGameFront(Guid gid)
         {

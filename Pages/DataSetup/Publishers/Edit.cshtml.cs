@@ -104,6 +104,7 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
                         var newImage = new BoardGameImages
                         {
                             GID = publisherToUpdate.Gid,
+                            SQLTable = "bgd.Publisher",
                             ImageTypeGID = imageType.Gid,
                             ImageBytes = imageBytes,
                             ContentType = ImageUpload.ContentType,

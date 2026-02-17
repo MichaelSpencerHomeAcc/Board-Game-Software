@@ -1,9 +1,13 @@
 ﻿@page "{id:long}"
 @model Board_Game_Software.Pages.GameNight.DetailsModel
+@using System.Text.Encodings.Web
+
 @{
     ViewData["Title"] = "Game Night Details";
     var isAdmin = Model.IsAdmin;
     var canEdit = isAdmin && !Model.Night.Finished;
+    var finished = Model.Night.Finished;
+    var hasStandings = Model.HasStandings;
 }
 
 <style>
@@ -101,6 +105,205 @@
             transform: translateY(0);
         }
     }
+
+    /* initials fallback */
+    .initials-avatar {
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        color: #fff;
+        user-select: none;
+        object-fit: cover;
+    }
+
+    /* leaderboard list */
+    .leader-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: rgba(255,255,255,0.02);
+    }
+
+        .leader-row + .leader-row {
+            margin-top: 8px;
+        }
+
+    .leader-rank {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        color: #0dcaf0;
+        background: rgba(13, 202, 240, 0.10);
+        border: 1px solid rgba(13, 202, 240, 0.25);
+        flex: 0 0 auto;
+        font-family: 'Consolas', monospace;
+    }
+
+    .leader-name {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+        .leader-name .nm {
+            font-weight: 800;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .leader-name .sub {
+            font-size: 0.75rem;
+            opacity: 0.65;
+            color: #9aa0a6;
+            margin-top: 2px;
+        }
+
+    .leader-points {
+        flex: 0 0 auto;
+        font-weight: 900;
+        color: #0dcaf0;
+        font-family: 'Consolas', monospace;
+    }
+
+    .medal-mini {
+        font-size: 18px;
+        margin-left: 6px;
+    }
+
+    /* podium */
+    .podium {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        align-items: end;
+        gap: 14px;
+        margin-bottom: 16px;
+    }
+
+    .podium-slot {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+        padding: 14px 10px;
+        text-align: center;
+        position: relative;
+    }
+
+        .podium-slot.first {
+            transform: translateY(-10px);
+            border-color: rgba(13,202,240,0.25);
+        }
+
+    .podium-medal {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 20px;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.7));
+    }
+
+    .podium-img {
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        object-fit: cover;
+        display: inline-block;
+    }
+
+    .podium-name {
+        max-width: 100%;
+    }
+
+    /* roster grid */
+    .roster-grid img {
+        width: 54px;
+        height: 54px;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+    /* winner reveal overlay */
+    .reveal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.75);
+        backdrop-filter: blur(6px);
+        z-index: 2000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .reveal-card {
+        width: min(820px, 100%);
+        background: #141619;
+        border: 1px solid rgba(13,202,240,0.25);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .reveal-title {
+        font-weight: 900;
+        color: #0dcaf0;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        opacity: 0.9;
+        margin-bottom: 10px;
+    }
+
+    .reveal-close {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        border: none;
+        background: transparent;
+        color: #adb5bd;
+        font-size: 22px;
+    }
+
+        .reveal-close:hover {
+            color: #fff;
+        }
+
+    /* confetti */
+    .confetti {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+    }
+
+        .confetti i {
+            position: absolute;
+            top: -12px;
+            width: 10px;
+            height: 14px;
+            opacity: 0.9;
+            border-radius: 2px;
+            animation: confettiFall linear forwards;
+        }
+
+    @@keyframes confettiFall {
+        to {
+            transform: translateY(110vh) rotate(720deg);
+            opacity: 1;
+        }
+    }
 </style>
 
 <div class="container-fluid px-4 py-4">
@@ -114,6 +317,7 @@
             </nav>
             <h1 class="fw-bold mb-0 text-white">Game Night <span class="text-info">@Model.Night.GameNightDate.ToString("MMM dd")</span></h1>
         </div>
+
         <div class="d-flex gap-2">
             @if (canEdit)
             {
@@ -124,7 +328,7 @@
                     <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4 fw-bold">End Night</button>
                 </form>
             }
-            @if (isAdmin)
+            @if (isAdmin && !Model.Night.Finished)
             {
                 <form method="post" asp-page-handler="DeleteNight" asp-route-id="@Model.Night.Id" onsubmit="return confirm('Delete entire Game Night?');">
                     <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-4">Delete Night</button>
@@ -137,16 +341,163 @@
         <div class="col-xl-8">
             <div class="card roster-card border-0 shadow-sm mb-4">
                 <div class="card-body p-4">
-                    <h6 class="text-uppercase fw-bold text-secondary mb-3 small tracking-widest"><i class="bi bi-people-fill me-2 text-info"></i>Active Roster</h6>
-                    <div class="row row-cols-3 row-cols-md-6 g-3 text-center">
-                        @foreach (var p in Model.Players)
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="text-uppercase fw-bold text-secondary mb-0 small tracking-widest">
+                            <i class="bi bi-people-fill me-2 text-info"></i>
+                            @(finished ? "Final Standings" : (hasStandings ? "Live Standings" : "Active Roster"))
+                        </h6>
+
+                        @if (!hasStandings)
                         {
-                            <div class="col">
-                                <img src="@(p.AvatarDataUrl ?? Url.Content("~/images/default-avatar.png"))" class="rounded-circle border border-2 border-info border-opacity-25 p-1 mb-2 shadow" style="width:60px;height:60px;object-fit:cover;" />
-                                <div class="small fw-bold text-light text-truncate">@p.Name</div>
-                            </div>
+                            <span class="small text-secondary">
+                                <i class="bi bi-info-circle me-1"></i>No completed matches yet
+                            </span>
                         }
                     </div>
+
+                    @* FINISHED: podium + full readable list *@
+                    @if (finished && hasStandings && Model.RankedPlayers.Count >= 3)
+                    {
+                        var first = Model.RankedPlayers[0];
+                        var second = Model.RankedPlayers[1];
+                        var third = Model.RankedPlayers[2];
+                        string Safe(string s) => JavaScriptEncoder.Default.Encode(s ?? "");
+
+                        <div class="podium">
+                            <div class="podium-slot second">
+                                <span class="podium-medal" title="2nd">🥈</span>
+                                <img src="@second.AvatarUrl"
+                                     class="border border-2 border-info border-opacity-25 p-1 shadow podium-img"
+                                     loading="lazy" decoding="async"
+                                     onerror="makeInitialsAvatar(this, '@Safe(second.Name)')" />
+                                <div class="mt-2 fw-bold text-light text-truncate podium-name" title="@second.Name">@second.Name</div>
+                                <div class="small text-info fw-bold">@second.Points.ToString("0.00")</div>
+                            </div>
+
+                            <div class="podium-slot first">
+                                <span class="podium-medal" title="1st">🥇</span>
+                                <img src="@first.AvatarUrl"
+                                     class="border border-2 border-info border-opacity-25 p-1 shadow podium-img"
+                                     loading="lazy" decoding="async"
+                                     onerror="makeInitialsAvatar(this, '@Safe(first.Name)')" />
+                                <div class="mt-2 fw-bold text-light text-truncate podium-name" title="@first.Name">@first.Name</div>
+                                <div class="small text-info fw-bold">@first.Points.ToString("0.00")</div>
+                            </div>
+
+                            <div class="podium-slot third">
+                                <span class="podium-medal" title="3rd">🥉</span>
+                                <img src="@third.AvatarUrl"
+                                     class="border border-2 border-info border-opacity-25 p-1 shadow podium-img"
+                                     loading="lazy" decoding="async"
+                                     onerror="makeInitialsAvatar(this, '@Safe(third.Name)')" />
+                                <div class="mt-2 fw-bold text-light text-truncate podium-name" title="@third.Name">@third.Name</div>
+                                <div class="small text-info fw-bold">@third.Points.ToString("0.00")</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            @for (var i = 0; i < Model.RankedPlayers.Count; i++)
+                            {
+                                var p = Model.RankedPlayers[i];
+                                var safeName = JavaScriptEncoder.Default.Encode(p.Name);
+                                var medal = i == 0 ? "🥇" : i == 1 ? "🥈" : i == 2 ? "🥉" : "";
+
+                                <div class="leader-row">
+                                    <div class="leader-rank">@(i + 1)</div>
+
+                                    <img src="@p.AvatarUrl"
+                                         class="rounded-circle border border-2 border-info border-opacity-25"
+                                         style="width:44px;height:44px;object-fit:cover;"
+                                         loading="lazy" decoding="async"
+                                         onerror="makeInitialsAvatar(this, '@safeName')" />
+
+                                    <div class="leader-name">
+                                        <div class="nm">
+                                            @p.Name
+                                            @if (!string.IsNullOrEmpty(medal))
+                                            {
+                                                <span class="medal-mini">@medal</span>
+                                            }
+                                        </div>
+                                        <div class="sub">@((i == 0) ? "Night Winner" : "Ranked")</div>
+                                    </div>
+
+                                    <div class="leader-points">@p.Points.ToString("0.00")</div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    @* LIVE standings: readable list + roster grid *@
+                    else if (!finished && hasStandings)
+                    {
+                        <div class="row g-3">
+                            <div class="col-lg-7">
+                                @for (var i = 0; i < Model.RankedPlayers.Count; i++)
+                                {
+                                    var p = Model.RankedPlayers[i];
+                                    var safeName = JavaScriptEncoder.Default.Encode(p.Name);
+                                    var medal = i == 0 ? "🥇" : i == 1 ? "🥈" : i == 2 ? "🥉" : "";
+
+                                    <div class="leader-row">
+                                        <div class="leader-rank">@(i + 1)</div>
+
+                                        <img src="@p.AvatarUrl"
+                                             class="rounded-circle border border-2 border-info border-opacity-25"
+                                             style="width:44px;height:44px;object-fit:cover;"
+                                             loading="lazy" decoding="async"
+                                             onerror="makeInitialsAvatar(this, '@safeName')" />
+
+                                        <div class="leader-name">
+                                            <div class="nm">
+                                                @p.Name
+                                                @if (!string.IsNullOrEmpty(medal))
+                                                {
+                                                    <span class="medal-mini">@medal</span>
+                                                }
+                                            </div>
+                                            <div class="sub">Current points</div>
+                                        </div>
+
+                                        <div class="leader-points">@p.Points.ToString("0.00")</div>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="col-lg-5">
+                                <div class="small text-secondary fw-bold mb-2 text-uppercase" style="letter-spacing:1px;">Roster</div>
+                                <div class="row row-cols-3 g-3 text-center roster-grid">
+                                    @foreach (var p in Model.Players.OrderBy(x => x.Name))
+                                    {
+                                        var safeName = JavaScriptEncoder.Default.Encode(p.Name);
+                                        <div class="col">
+                                            <img src="@p.AvatarUrl"
+                                                 class="border border-2 border-info border-opacity-25 p-1 shadow"
+                                                 loading="lazy" decoding="async"
+                                                 onerror="makeInitialsAvatar(this, '@safeName')" />
+                                            <div class="small fw-bold text-light text-truncate mt-2">@p.Name</div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    @* NO standings yet: plain roster grid *@
+                    else
+                    {
+                        <div class="row row-cols-3 row-cols-md-6 g-3 text-center roster-grid">
+                            @foreach (var p in Model.Players.OrderBy(x => x.Name))
+                            {
+                                var safeName = JavaScriptEncoder.Default.Encode(p.Name);
+                                <div class="col">
+                                    <img src="@p.AvatarUrl"
+                                         class="border border-2 border-info border-opacity-25 p-1 shadow"
+                                         loading="lazy" decoding="async"
+                                         onerror="makeInitialsAvatar(this, '@safeName')" />
+                                    <div class="small fw-bold text-light text-truncate mt-2">@p.Name</div>
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
             </div>
 
@@ -156,7 +507,9 @@
                 <div class="card gn-card overflow-hidden mb-3 shadow-sm">
                     <div class="row g-0 align-items-center">
                         <div class="col-auto">
-                            <img src="@(m.CoverDataUrl ?? Url.Content("~/images/default-cover.png"))" style="width:100px; height:100px; object-fit:cover;" />
+                            <img src="@m.CoverUrl"
+                                 style="width:100px; height:100px; object-fit:cover;"
+                                 loading="lazy" decoding="async" />
                         </div>
                         <div class="col ps-4">
                             <h6 class="fw-bold mb-1 text-white">@m.GameName</h6>
@@ -190,17 +543,67 @@
             <div class="card stat-card text-white shadow mb-4 text-center p-4">
                 <h6 class="stat-label-hud mb-3">Summary</h6>
                 <div class="d-flex justify-content-between align-items-center px-3">
-                    <div><div class="h2 stat-value-hud mb-0">@Model.Players.Count</div><div class="stat-label-hud">Players</div></div>
+                    <div>
+                        <div class="h2 stat-value-hud mb-0">@Model.Players.Count</div>
+                        <div class="stat-label-hud">Players</div>
+                    </div>
                     <div class="vr opacity-25" style="height: 40px;"></div>
-                    <div><div class="h2 stat-value-hud mb-0">@Model.Matches.Count</div><div class="stat-label-hud">Matches</div></div>
+                    <div>
+                        <div class="h2 stat-value-hud mb-0">@Model.Matches.Count</div>
+                        <div class="stat-label-hud">Matches</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+@* Winner reveal overlay (only used when finished + standings exist) *@
+<div class="reveal-overlay" id="winnerReveal">
+    <div class="reveal-card">
+        <button class="reveal-close" type="button" onclick="closeWinnerReveal()" aria-label="Close">&times;</button>
+        <div class="reveal-title"><i class="bi bi-trophy-fill text-warning me-2"></i>Night Winner</div>
+        <div id="revealPodiumHost"></div>
+        <div class="confetti" id="confetti"></div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
+        function getInitials(fullName) {
+            if (!fullName) return "?";
+            const parts = fullName.trim().split(/\s+/).filter(Boolean);
+            const first = parts[0]?.[0] || "";
+            const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] || "") : "";
+            return (first + last).toUpperCase();
+        }
+
+        function colourFromString(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            const hue = Math.abs(hash) % 360;
+            return `hsl(${hue}, 65%, 45%)`;
+        }
+
+        function makeInitialsAvatar(imgEl, fullName) {
+            imgEl.onerror = null;
+
+            const initials = getInitials(fullName);
+            const bg = colourFromString(fullName || initials);
+
+            const w = imgEl.width || parseInt(imgEl.style.width) || 44;
+            const h = imgEl.height || parseInt(imgEl.style.height) || 44;
+
+            const badge = document.createElement('div');
+            badge.className = 'initials-avatar border border-2 border-info border-opacity-25 shadow';
+            badge.textContent = initials;
+            badge.style.background = bg;
+            badge.style.width = w + 'px';
+            badge.style.height = h + 'px';
+
+            imgEl.replaceWith(badge);
+        }
+
         async function shuffleIntel() {
             const icon = document.getElementById('shuffle-icon');
             const container = document.getElementById('intel-container');
@@ -217,5 +620,56 @@
                 setTimeout(() => icon.classList.remove('bi-spin'), 600);
             }
         }
+
+        function spawnConfetti() {
+            const holder = document.getElementById('confetti');
+            holder.innerHTML = '';
+            const count = 70;
+
+            for (let i = 0; i < count; i++) {
+                const p = document.createElement('i');
+                const left = Math.random() * 100;
+                const dur = 1.8 + Math.random() * 1.8;
+                const delay = Math.random() * 0.25;
+                const hue = Math.floor(Math.random() * 360);
+
+                p.style.left = left + 'vw';
+                p.style.background = `hsl(${hue}, 85%, 55%)`;
+                p.style.animationDuration = dur + 's';
+                p.style.animationDelay = delay + 's';
+
+                holder.appendChild(p);
+            }
+        }
+
+        function openWinnerReveal() {
+            const overlay = document.getElementById('winnerReveal');
+            overlay.style.display = 'flex';
+            spawnConfetti();
+
+            const podium = document.querySelector('.podium');
+            const host = document.getElementById('revealPodiumHost');
+            host.innerHTML = podium ? podium.outerHTML : `<div class="text-secondary">No podium available.</div>`;
+
+            setTimeout(closeWinnerReveal, 3200);
+        }
+
+        function closeWinnerReveal() {
+            document.getElementById('winnerReveal').style.display = 'none';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const finished = @Model.Night.Finished.ToString().ToLower();
+            const hasStandings = @Model.HasStandings.ToString().ToLower();
+            const nightId = '@Model.Night.Id';
+
+            if (finished && hasStandings) {
+                const key = `winnerRevealShown_${nightId}`;
+                if (!localStorage.getItem(key)) {
+                    localStorage.setItem(key, '1');
+                    openWinnerReveal();
+                }
+            }
+        });
     </script>
 }

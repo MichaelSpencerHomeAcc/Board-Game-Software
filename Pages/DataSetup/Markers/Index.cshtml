@@ -124,37 +124,36 @@
                 <tbody class="border-0">
                     @foreach (var item in Model.MarkerTypes)
                     {
-                        var imgSrc = Model.MarkerImagesBase64.ContainsKey(item.Id) ? Model.MarkerImagesBase64[item.Id] : null;
+                        var imgSrc = $"/media/marker-type/{item.Gid}";
 
                         <tr class="clickable-row border-bottom border-secondary-subtle"
                             data-href="@Url.Page("Details", new { id = item.Id })"
                             style="cursor: pointer;">
+
                             <td class="ps-4 border-0">
                                 <div class="d-flex align-items-center">
                                     <div class="img-lockdown marker-image-hover me-3 shadow-sm"
                                          data-hover-img="@imgSrc">
-                                        @if (!string.IsNullOrEmpty(imgSrc))
-                                        {
-                                            <img src="@imgSrc" alt="" loading="lazy" />
-                                        }
-                                        else
-                                        {
-                                            <i class="bi bi-box-seam text-secondary" style="font-size: 1.5rem;"></i>
-                                        }
+                                        <img src="@imgSrc" alt=""
+                                             loading="lazy" decoding="async"
+                                             width="64" height="64" />
                                     </div>
                                     <span class="fw-bold text-body-emphasis text-truncate-custom">@item.TypeDesc</span>
                                 </div>
                             </td>
+
                             <td class="border-0">
                                 <span class="text-body-secondary text-truncate-custom">
-                                    @(item.FkBgdMarkerAlignmentTypeNavigation?.TypeDesc ?? "N/A")
+                                    @(item.AlignmentDesc ?? "N/A")
                                 </span>
                             </td>
+
                             <td class="border-0">
                                 <span class="text-body-secondary text-truncate-custom">
-                                    @(item.FkBgdMarkerAdditionalTypeNavigation?.TypeDesc ?? "N/A")
+                                    @(item.AdditionalDesc ?? "N/A")
                                 </span>
                             </td>
+
                             <td class="text-end pe-4 border-0">
                                 <div class="btn-group shadow-sm">
                                     <a asp-page="./Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">
@@ -165,7 +164,8 @@
                                     </a>
                                     <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" class="d-inline"
                                           onsubmit="return confirm('Are you sure?');">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
@@ -173,6 +173,7 @@
                             </td>
                         </tr>
                     }
+
                 </tbody>
             </table>
         </div>
