@@ -176,6 +176,9 @@ DocProject/Help/*.hhp
 DocProject/Help/Html2
 DocProject/Help/html
 
+# Production secrets
+appsettings.Production.json
+
 # Click-Once directory
 publish/
 
