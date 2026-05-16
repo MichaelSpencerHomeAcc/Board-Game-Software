@@ -150,12 +150,15 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .OrderBy(t => t.TypeDesc)
                 .ToListAsync();
 
+            var guids = types.Select(t => t.Gid).ToList();
+            var images = await _boardGameImages
+                .Find(x => x.SQLTable == "bgd.BoardGameMarkerType" && guids.Contains(x.GID))
+                .ToListAsync();
+            var imageMap = images.ToDictionary(x => x.GID);
+
             foreach (var t in types)
             {
-                var img = await _boardGameImages
-                    .Find(x => x.SQLTable == "bgd.BoardGameMarkerType" && x.GID == t.Gid)
-                    .FirstOrDefaultAsync();
-
+                imageMap.TryGetValue(t.Gid, out var img);
                 AvailableMarkerTypes.Add(new MarkerTypeViewModel
                 {
                     Id = t.Id,
