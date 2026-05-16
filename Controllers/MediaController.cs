@@ -35,7 +35,7 @@ namespace Board_Game_Software.Controllers
             if (img?.ImageBytes == null || img.ImageBytes.Length == 0)
                 return NotFound();
 
-            var contentType = string.IsNullOrWhiteSpace(img.ContentType) ? "application/octet-stream" : img.ContentType;
+            var contentType = DetectContentType(img.ImageBytes, img.ContentType);
             Response.Headers["Cache-Control"] = "public,max-age=604800";
             return File(img.ImageBytes, contentType);
         }
@@ -52,7 +52,7 @@ namespace Board_Game_Software.Controllers
             if (img?.ImageBytes == null || img.ImageBytes.Length == 0)
                 return NotFound();
 
-            var contentType = string.IsNullOrWhiteSpace(img.ContentType) ? "application/octet-stream" : img.ContentType;
+            var contentType = DetectContentType(img.ImageBytes, img.ContentType);
             Response.Headers["Cache-Control"] = "public,max-age=604800";
             return File(img.ImageBytes, contentType);
         }
