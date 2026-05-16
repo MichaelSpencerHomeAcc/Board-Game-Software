@@ -135,15 +135,18 @@ catch (Exception ex)
 // =========================
 // Middleware
 // =========================
-if (app.Environment.IsDevelopment())
-{
-    app.UseMigrationsEndPoint();
-}
-else
-{
-    app.UseExceptionHandler("/Error");
-    app.UseHsts();
-}
+app.UseDeveloperExceptionPage();
+
+// TODO: restore for production once error is diagnosed:
+// if (app.Environment.IsDevelopment())
+// {
+//     app.UseMigrationsEndPoint();
+// }
+// else
+// {
+//     app.UseExceptionHandler("/Error");
+//     app.UseHsts();
+// }
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
