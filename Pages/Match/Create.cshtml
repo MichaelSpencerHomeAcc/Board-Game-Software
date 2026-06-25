@@ -329,10 +329,12 @@
 
             currentGameMarkers.forEach(m => {
                 const taken = assigned.includes(m.id.toString());
+                const sourceLabel = m.isExpansionMarker ? `<div class="text-info" style="font-size:0.72rem;">${m.sourceGameName}</div>` : '';
                 const item = $(`
                     <div class="marker-option ${taken ? 'disabled' : ''}" onclick="${taken ? '' : `selectMarker(${m.id}, '${(m.name || '').replace(/'/g, "\\'")}', '${m.imageUrl || ''}')`}">
                         ${m.imageUrl ? `<img src="${m.imageUrl}" loading="lazy" decoding="async" style="width:40px;height:40px;object-fit:contain;"/>` : '<div style="height:40px;"></div>'}
                         <div class="small fw-bold">${m.name} ${taken ? '<br>(Taken)' : ''}</div>
+                        ${sourceLabel}
                     </div>
                 `);
                 grid.append(item);

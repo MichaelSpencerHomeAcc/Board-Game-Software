@@ -40,6 +40,13 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
         public async Task<IActionResult> OnPostAsync()
         {
+            MarkerType.TypeDesc = MarkerType.TypeDesc?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(MarkerType.TypeDesc))
+            {
+                ModelState.AddModelError("MarkerType.TypeDesc", "Marker name is required.");
+            }
+
             if (!ModelState.IsValid)
             {
                 await PopulateAlignmentTypesSelectList(MarkerType.FkBgdMarkerAlignmentType);
@@ -49,15 +56,32 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
             var actor = User.Identity?.Name ?? "system";
             var now = DateTime.UtcNow;
 
-            MarkerType.CreatedBy = actor;
-            MarkerType.TimeCreated = now;
-            MarkerType.ModifiedBy = actor;
-            MarkerType.TimeModified = now;
-            MarkerType.Gid = Guid.NewGuid();
-            MarkerType.Inactive = false;
+            var existingMarkerType = await _context.BoardGameMarkerTypes
+                .FirstOrDefaultAsync(t => t.TypeDesc == MarkerType.TypeDesc);
 
-            _context.BoardGameMarkerTypes.Add(MarkerType);
-            await _context.SaveChangesAsync(); // ensure MarkerType has its final Gid/Id
+            if (existingMarkerType == null)
+            {
+                MarkerType.CreatedBy = actor;
+                MarkerType.TimeCreated = now;
+                MarkerType.ModifiedBy = actor;
+                MarkerType.TimeModified = now;
+                MarkerType.Gid = Guid.NewGuid();
+                MarkerType.Inactive = false;
+
+                _context.BoardGameMarkerTypes.Add(MarkerType);
+                await _context.SaveChangesAsync(); // ensure MarkerType has its final Gid/Id
+            }
+            else
+            {
+                existingMarkerType.FkBgdMarkerAlignmentType = MarkerType.FkBgdMarkerAlignmentType;
+                existingMarkerType.CustomSort = MarkerType.CustomSort;
+                existingMarkerType.Inactive = false;
+                existingMarkerType.ModifiedBy = actor;
+                existingMarkerType.TimeModified = now;
+                MarkerType = existingMarkerType;
+
+                await _context.SaveChangesAsync();
+            }
 
             // NEW: save uploaded image to Mongo (if provided)
             if (ImageUpload != null && ImageUpload.Length > 0)
@@ -75,21 +99,20 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
                     Builders<BoardGameImages>.Filter.Eq(x => x.GID, MarkerType.Gid)
                 );
 
-                var doc = new BoardGameImages
-                {
-                    SQLTable = "bgd.BoardGameMarkerType",
-                    GID = MarkerType.Gid,
-                    ImageBytes = bytes,
-                    ContentType = string.IsNullOrWhiteSpace(ImageUpload.ContentType) ? "application/octet-stream" : ImageUpload.ContentType,
-                    AvatarFocusX = 50,
-                    AvatarFocusY = 50,
-                    AvatarZoom = 100,
-                    PodiumFocusX = 50,
-                    PodiumFocusY = 50,
-                    PodiumZoom = 100
-                };
+                var update = Builders<BoardGameImages>.Update
+                    .Set(x => x.SQLTable, "bgd.BoardGameMarkerType")
+                    .Set(x => x.GID, MarkerType.Gid)
+                    .Set(x => x.Description, "Marker Type Image")
+                    .Set(x => x.ImageBytes, bytes)
+                    .Set(x => x.ContentType, string.IsNullOrWhiteSpace(ImageUpload.ContentType) ? "application/octet-stream" : ImageUpload.ContentType)
+                    .Set(x => x.AvatarFocusX, 50)
+                    .Set(x => x.AvatarFocusY, 50)
+                    .Set(x => x.AvatarZoom, 100)
+                    .Set(x => x.PodiumFocusX, 50)
+                    .Set(x => x.PodiumFocusY, 50)
+                    .Set(x => x.PodiumZoom, 100);
 
-                await _images.ReplaceOneAsync(filter, doc, new ReplaceOptions { IsUpsert = true });
+                await _images.UpdateOneAsync(filter, update, new UpdateOptions { IsUpsert = true });
             }
 
             return RedirectToPage("Index");

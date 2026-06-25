@@ -132,11 +132,11 @@
             <table class="table table-hover align-middle mb-0 fixed-table">
                 <thead class="border-bottom border-secondary-subtle">
                     <tr>
-                        <th class="ps-4" style="width: 40%;">Name</th>
+                        <th class="ps-4" style="width: 45%;">Name</th>
                         <th style="width: 15%;">Type</th>
                         <th style="width: 15%;">Players</th>
                         <th style="width: 15%;">Play Time</th>
-                        <th class="text-end pe-4" style="width: 15%;">Actions</th>
+                        <th class="text-end pe-4" style="width: 10%;">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="border-0">
@@ -167,8 +167,28 @@
                                     </div>
 
                                     <div>
-                                        <span class="fw-bold text-body-emphasis text-truncate-custom">@item.BoardGame.BoardGameName</span>
+                                        <span class="fw-bold text-body-emphasis text-truncate-custom">
+                                            @item.BoardGame.BoardGameName
+                                            @if (item.BoardGame.IsExpansion)
+                                            {
+                                                <span class="badge bg-info-subtle text-info border ms-1">Expansion</span>
+                                            }
+                                        </span>
                                         <small class="text-muted">@(item.BoardGame.FkBgdPublisherNavigation?.PublisherName ?? "Unknown Publisher")</small>
+                                        @if (item.ExpansionNames.Any())
+                                        {
+                                            <small class="text-info d-block text-truncate-custom">
+                                                <i class="bi bi-puzzle me-1"></i>
+                                                Expansions: @string.Join(", ", item.ExpansionNames.Take(3))@(item.ExpansionNames.Count > 3 ? $" +{item.ExpansionNames.Count - 3}" : "")
+                                            </small>
+                                        }
+                                        @if (item.ExpansionPlayerSummaries.Any())
+                                        {
+                                            <small class="text-warning d-block text-truncate-custom">
+                                                <i class="bi bi-people-fill me-1"></i>
+                                                With @item.ExpansionPlayerSummaries.First().ExpansionName: @item.ExpansionPlayerSummaries.First().CombinedPlayerRange players@(item.ExpansionPlayerSummaries.Count > 1 ? $" +{item.ExpansionPlayerSummaries.Count - 1}" : "")
+                                            </small>
+                                        }
                                     </div>
                                 </div>
                             </td>

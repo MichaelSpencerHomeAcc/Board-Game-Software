@@ -33,6 +33,9 @@ namespace Board_Game_Software.Pages.GameNight
         public List<GameSuggestion> Suggestions { get; set; } = new();
         public bool IsAdmin { get; set; }
 
+        [TempData]
+        public string? ErrorMessage { get; set; }
+
         public sealed class MatchRow
         {
             public long MatchId { get; init; }
@@ -252,8 +255,35 @@ namespace Board_Game_Software.Pages.GameNight
         public async Task<IActionResult> OnPostDeleteNightAsync(long id)
         {
             if (!User.IsInRole("Admin")) return Forbid();
+
             var night = await _db.BoardGameNights.FindAsync(id);
-            if (night != null) { _db.BoardGameNights.Remove(night); await _db.SaveChangesAsync(); }
+            if (night == null) return RedirectToPage("Index");
+
+            var hasMatches = await _db.BoardGameNightBoardGameMatches
+                .AnyAsync(x => x.FkBgdBoardGameNight == id && !x.Inactive);
+
+            if (hasMatches)
+            {
+                ErrorMessage = "Delete the matches on this night before deleting the game night.";
+                return RedirectToPage(new { id });
+            }
+
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+
+            var nightPlayers = await _db.BoardGameNightPlayers
+                .Where(x => x.FkBgdBoardGameNight == id)
+                .ToListAsync();
+
+            var nightMatchLinks = await _db.BoardGameNightBoardGameMatches
+                .Where(x => x.FkBgdBoardGameNight == id)
+                .ToListAsync();
+
+            _db.BoardGameNightPlayers.RemoveRange(nightPlayers);
+            _db.BoardGameNightBoardGameMatches.RemoveRange(nightMatchLinks);
+            _db.BoardGameNights.Remove(night);
+            await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
+
             return RedirectToPage("Index");
         }
     }

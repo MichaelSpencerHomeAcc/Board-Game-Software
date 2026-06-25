@@ -19,6 +19,8 @@ public partial class BoardGameDbContext : DbContext
 
     public virtual DbSet<BoardGameEloMethod> BoardGameEloMethods { get; set; }
 
+    public virtual DbSet<BoardGameExpansion> BoardGameExpansions { get; set; }
+
     public virtual DbSet<BoardGameImageType> BoardGameImageTypes { get; set; }
 
     public virtual DbSet<BoardGameMarker> BoardGameMarkers { get; set; }
@@ -166,6 +168,7 @@ public partial class BoardGameDbContext : DbContext
                 .HasColumnName("GID");
             entity.Property(e => e.HeightCm).HasColumnType("decimal(5, 2)");
             entity.Property(e => e.HowToPlayHyperlink).IsUnicode(false);
+            entity.Property(e => e.IsExpansion).HasColumnType("bit");
             entity.Property(e => e.ModifiedBy).HasMaxLength(128);
             entity.Property(e => e.TimeCreated).HasColumnType("datetime");
             entity.Property(e => e.TimeModified).HasColumnType("datetime");
@@ -185,6 +188,41 @@ public partial class BoardGameDbContext : DbContext
             entity.HasOne(d => d.FkBgdPublisherNavigation).WithMany(p => p.BoardGames)
                 .HasForeignKey(d => d.FkBgdPublisher)
                 .HasConstraintName("FK_bgd_BoardGame__bgd_Publisher");
+        });
+
+        modelBuilder.Entity<BoardGameExpansion>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_bgd_BoardGameExpansion");
+
+            entity.ToTable("BoardGameExpansion", "bgd");
+
+            entity.HasIndex(e => e.Gid, "AK_bgd_BoardGameExpansion_GID").IsUnique();
+
+            entity.HasIndex(e => new { e.FkBgdBoardGame, e.FkBgdExpansionBoardGame }, "UQ_bgd_BoardGameExpansion_FK_bgd_BoardGame_FK_bgd_ExpansionBoardGame").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.FkBgdBoardGame).HasColumnName("FK_bgd_BoardGame");
+            entity.Property(e => e.FkBgdExpansionBoardGame).HasColumnName("FK_bgd_ExpansionBoardGame");
+            entity.Property(e => e.Gid)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("GID");
+            entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.TimeCreated).HasColumnType("datetime");
+            entity.Property(e => e.TimeModified).HasColumnType("datetime");
+            entity.Property(e => e.VersionStamp)
+                .IsRowVersion()
+                .IsConcurrencyToken();
+
+            entity.HasOne(d => d.FkBgdBoardGameNavigation).WithMany(p => p.BoardGameExpansionBaseGames)
+                .HasForeignKey(d => d.FkBgdBoardGame)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_bgd_BoardGameExpansion__bgd_BoardGame");
+
+            entity.HasOne(d => d.FkBgdExpansionBoardGameNavigation).WithMany(p => p.BoardGameExpansionExpansionGames)
+                .HasForeignKey(d => d.FkBgdExpansionBoardGame)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_bgd_BoardGameExpansion__bgd_ExpansionBoardGame");
         });
 
         modelBuilder.Entity<BoardGameEloMethod>(entity =>

@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Board_Game_Software.Models;
 
-public partial class BoardGameMarker
+public partial class BoardGameExpansion
 {
     public long Id { get; set; }
 
@@ -26,14 +24,11 @@ public partial class BoardGameMarker
 
     public long FkBgdBoardGame { get; set; }
 
-    public long? FkBgdBoardGameMarkerType { get; set; }
-
-    [BindNever]
-    public virtual ICollection<BoardGameMatchPlayer> BoardGameMatchPlayers { get; set; } = new List<BoardGameMatchPlayer>();
-
-    [BindNever]
-    public virtual BoardGameMarkerType? FkBgdBoardGameMarkerTypeNavigation { get; set; }
+    public long FkBgdExpansionBoardGame { get; set; }
 
     [BindNever]
     public virtual BoardGame FkBgdBoardGameNavigation { get; set; } = null!;
+
+    [BindNever]
+    public virtual BoardGame FkBgdExpansionBoardGameNavigation { get; set; } = null!;
 }

@@ -22,6 +22,8 @@ public class RatingService
             .Include(m => m.BoardGameMatchPlayers)
                 .ThenInclude(mp => mp.BoardGameMatchPlayerResults)
             .Include(m => m.FkBgdBoardGameNavigation)
+                .ThenInclude(bg => bg.FkBgdBoardGameVictoryConditionTypeNavigation)
+            .Include(m => m.FkBgdBoardGameNavigation)
                 .ThenInclude(bg => bg.BoardGameEloMethods)
                     .ThenInclude(bem => bem.FkBgdEloMethodNavigation)
             .FirstOrDefaultAsync(m => m.Id == matchId);
@@ -92,12 +94,9 @@ public class RatingService
 
         if (teamsForCalc.Count < 2) return;
 
-        // 3) Ranks (kept compatible with your current data entry: Win/Loss)
-        // rank 1 = winners, rank 2 = losers
-        // If a team has any Win=true member, treat team as winner.
-        var ranks = teamsForCalc
-            .Select(team => team.Any(p => p.ResultRecord.Win) ? 1 : 2)
-            .ToList();
+        // 3) Ranks: prefer score/placement data, then fall back to winner vs others.
+        var isPointGame = match.FkBgdBoardGameNavigation.FkBgdBoardGameVictoryConditionTypeNavigation?.Points == true;
+        var ranks = BuildRanks(teamsForCalc, isPointGame);
 
         // 4) Update by method
         switch (methodName)
@@ -155,6 +154,42 @@ public class RatingService
         public BoardGameMatchPlayerResult ResultRecord { get; set; } = null!;
     }
 
+    private static List<int> BuildRanks(List<List<PlayerRatingState>> teams, bool isPointGame)
+    {
+        var allResultsHaveScore = teams
+            .SelectMany(team => team)
+            .All(player => player.ResultRecord.FinalScore.HasValue);
+
+        if (!allResultsHaveScore)
+        {
+            return teams
+                .Select(team => team.Any(p => p.ResultRecord.Win) ? 1 : 2)
+                .ToList();
+        }
+
+        var teamScores = teams
+            .Select((team, index) => new
+            {
+                Index = index,
+                Score = isPointGame
+                    ? team.Sum(p => p.ResultRecord.FinalScore!.Value)
+                    : team.Min(p => p.ResultRecord.FinalScore!.Value)
+            })
+            .ToList();
+
+        var orderedScores = isPointGame
+            ? teamScores.Select(x => x.Score).Distinct().OrderByDescending(x => x).ToList()
+            : teamScores.Select(x => x.Score).Distinct().OrderBy(x => x).ToList();
+
+        var ranks = new int[teams.Count];
+        foreach (var teamScore in teamScores)
+        {
+            ranks[teamScore.Index] = orderedScores.IndexOf(teamScore.Score) + 1;
+        }
+
+        return ranks.ToList();
+    }
+
     private static class SimpleRatingCalculator
     {
         private const double Beta = 4.166666;
@@ -163,17 +198,42 @@ public class RatingService
         public static void UpdateTrueSkill(List<List<PlayerRatingState>> teams, List<int> ranks)
         {
             foreach (var team in teams)
+            {
                 foreach (var p in team)
+                {
                     p.Sigma = Math.Sqrt(p.Sigma * p.Sigma + Tau * Tau);
+                }
+            }
 
             if (teams.Count == 2)
             {
                 UpdateTwoTeamsTrueSkill(teams[0], teams[1], ranks[0], ranks[1]);
+                return;
+            }
+
+            for (var i = 0; i < teams.Count; i++)
+            {
+                for (var j = i + 1; j < teams.Count; j++)
+                {
+                    if (ranks[i] == ranks[j]) continue;
+
+                    UpdateTwoTeamsTrueSkill(teams[i], teams[j], ranks[i], ranks[j], reduceSigma: false);
+                }
+            }
+
+            foreach (var team in teams)
+            {
+                foreach (var p in team)
+                {
+                    p.Sigma *= 0.99;
+                }
             }
         }
 
-        private static void UpdateTwoTeamsTrueSkill(List<PlayerRatingState> team1, List<PlayerRatingState> team2, int rank1, int rank2)
+        private static void UpdateTwoTeamsTrueSkill(List<PlayerRatingState> team1, List<PlayerRatingState> team2, int rank1, int rank2, bool reduceSigma = true)
         {
+            if (rank1 == rank2) return;
+
             double mu1 = team1.Sum(p => p.Mu);
             double sigma1Sq = team1.Sum(p => p.Sigma * p.Sigma);
             double mu2 = team2.Sum(p => p.Mu);
@@ -189,13 +249,13 @@ public class RatingService
             {
                 double delta = (p.Sigma * p.Sigma / c) * shiftMagnitude;
                 p.Mu += team1Won ? delta : -delta;
-                p.Sigma *= 0.99;
+                if (reduceSigma) p.Sigma *= 0.99;
             }
             foreach (var p in team2)
             {
                 double delta = (p.Sigma * p.Sigma / c) * shiftMagnitude;
                 p.Mu += !team1Won ? delta : -delta;
-                p.Sigma *= 0.99;
+                if (reduceSigma) p.Sigma *= 0.99;
             }
         }
 
