@@ -267,18 +267,25 @@
                                     <label class="small fw-bold opacity-50 text-uppercase mb-1">Score</label>
                                     <input asp-for="Input.PlayerResults[i].Score" class="form-control score-input bg-transparent border-0 p-0 score-field" data-index="@i" disabled="@(isLocked ? "disabled" : null)" />
                                 }
+                                else
+                                {
+                                    <label class="small fw-bold opacity-50 text-uppercase mb-1">Place</label>
+                                    <select asp-for="Input.PlayerResults[i].Score" class="form-select form-select-sm placement-field" data-index="@i" disabled="@(isLocked ? "disabled" : null)">
+                                        <option value="">-</option>
+                                        @for (var place = 1; place <= Model.Input.PlayerResults.Count; place++)
+                                        {
+                                            <option value="@place">@place</option>
+                                        }
+                                    </select>
+                                }
                             </div>
 
                             <div class="col-md-2 text-end">
-                                <input type="checkbox" class="btn-check winner-checkbox" id="win-@i"
-                                       asp-for="Input.PlayerResults[i].IsWinner" disabled="@(isLocked || Model.ShowPoints ? "disabled" : null)" />
+                                <input type="checkbox" class="btn-check winner-checkbox" id="win-@i" checked="@pr.IsWinner" disabled />
                                 <label class="btn btn-outline-secondary btn-sm winner-btn px-4" for="win-@i">
                                     <i class="bi bi-trophy-fill me-1"></i> Win
                                 </label>
-                                @if (Model.ShowPoints)
-                                {
-                                    <input type="hidden" asp-for="Input.PlayerResults[i].IsWinner" class="hidden-winner" data-index="@i" />
-                                }
+                                <input type="hidden" asp-for="Input.PlayerResults[i].IsWinner" class="hidden-winner" data-index="@i" />
                             </div>
                         </div>
                     </div>
@@ -356,6 +363,20 @@
                             $(`#win-${idx}`).closest('.player-card').removeClass('border-secondary').addClass('border-warning');
                         });
                     }
+                });
+            } else {
+                $('.placement-field').on('change', function() {
+                    const index = $(this).data('index');
+                    const place = parseInt($(this).val(), 10);
+                    const isWinner = place === 1;
+                    const $checkbox = $(`#win-${index}`);
+                    const $hiddenWinner = $(`.hidden-winner[data-index="${index}"]`);
+                    const $card = $(this).closest('.player-card');
+
+                    $checkbox.prop('checked', isWinner);
+                    $hiddenWinner.val(isWinner ? 'true' : 'false');
+                    $card.toggleClass('border-warning', isWinner);
+                    $card.toggleClass('border-secondary', !isWinner);
                 });
             }
         });

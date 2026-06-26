@@ -14,6 +14,28 @@
     var shelfName = Model.BoardGame?.BoardGameShelfSections?.FirstOrDefault()?.FkBgdShelfSectionNavigation?.SectionName;
 }
 
+@functions {
+    private static string? GetExpansionPlayerSummary(Board_Game_Software.Models.BoardGame baseGame, Board_Game_Software.Models.BoardGame expansion)
+    {
+        if (!baseGame.PlayerCountMin.HasValue || !baseGame.PlayerCountMax.HasValue ||
+            !expansion.PlayerCountMin.HasValue || !expansion.PlayerCountMax.HasValue)
+        {
+            return null;
+        }
+
+        var combinedMin = Math.Min(baseGame.PlayerCountMin.Value, expansion.PlayerCountMin.Value);
+        var combinedMax = Math.Max(baseGame.PlayerCountMax.Value, expansion.PlayerCountMax.Value);
+
+        if (combinedMin == baseGame.PlayerCountMin.Value && combinedMax == baseGame.PlayerCountMax.Value)
+        {
+            return null;
+        }
+
+        var range = combinedMin == combinedMax ? combinedMin.ToString() : $"{combinedMin}-{combinedMax}";
+        return $"With expansion: {range} players";
+    }
+}
+
 <style>
     .avatar-container {
         width: 160px;
@@ -99,6 +121,7 @@
         border: 1px solid var(--bs-border-color);
         text-decoration: none;
         transition: transform 0.2s;
+        position: relative;
     }
 
         .component-card:hover {
@@ -121,6 +144,28 @@
             object-fit: contain;
             padding: 5px;
         }
+
+    .collection-heading {
+        margin: 0 0 1rem 0;
+        font-size: 1.5rem;
+        font-weight: 500;
+        color: var(--bs-body-color);
+    }
+
+    .expansion-player-badge {
+        display: block;
+        font-size: 0.7rem;
+        line-height: 1.1;
+        color: #ffc107;
+        margin-top: 0.35rem;
+        white-space: normal;
+    }
+
+    .collection-section {
+        clear: both;
+        display: block;
+        margin-bottom: 3rem;
+    }
 </style>
 
 <div class="container py-4">
@@ -149,6 +194,10 @@
                         @if (!string.IsNullOrEmpty(shelfName))
                         {
                             <span class="badge bg-primary-subtle text-primary border rounded-pill"><i class="bi bi-bookshelf me-1"></i> @shelfName</span>
+                        }
+                        @if (Model.BoardGame.IsExpansion)
+                        {
+                            <span class="badge bg-info-subtle text-info border rounded-pill"><i class="bi bi-puzzle me-1"></i> Expansion</span>
                         }
                     </div>
                 </div>
@@ -195,9 +244,23 @@
                     </div>
                 </div>
 
-                <div class="card border-0 shadow-sm p-4 h-100">
+                <div class="card border-0 shadow-sm p-4">
                     <h5>About the Game</h5>
                     <p class="text-secondary lh-lg mb-4" style="white-space: pre-line;">@Model.BoardGame.BoardGameSummary</p>
+
+                    @if (Model.BaseGamesForExpansion.Any())
+                    {
+                        <hr />
+                        <h6 class="text-info mb-3">Expands</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var baseGame in Model.BaseGamesForExpansion)
+                            {
+                                <a asp-page="./BoardGameDetails" asp-route-id="@baseGame.Id" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-box me-1"></i>@baseGame.BoardGameName
+                                </a>
+                            }
+                        </div>
+                    }
                 </div>
             </div>
 
@@ -276,26 +339,86 @@
             </div>
         </div>
 
-        <h4 class="mb-3">Box Components <span class="badge bg-secondary rounded-pill">@Model.BoardGame.BoardGameMarkers.Count</span></h4>
-        <div class="scrolling-wrapper">
-            @foreach (var marker in Model.BoardGame.BoardGameMarkers.OrderBy(m => m.FkBgdBoardGameMarkerTypeNavigation?.TypeDesc))
-            {
-                var mType = marker.FkBgdBoardGameMarkerTypeNavigation;
-                var mImg = (mType != null && Model.MarkerImagesBase64.ContainsKey(mType.Id)) ? Model.MarkerImagesBase64[mType.Id] : null;
-                <a asp-page="/DataSetup/Markers/Details" asp-route-id="@mType?.Id" class="card component-card shadow-sm rounded-3 overflow-hidden">
-                    <div class="component-card-img">
-                        @if (!string.IsNullOrEmpty(mImg))
-                        {
-                            <img src="@mImg" alt="Marker" />
-                        }
-                        else
-                        {
-                            <div class="w-100 h-100 d-flex align-items-center justify-content-center text-white fw-bold" style="background-color: @Model.GetAvatarColor(mType?.TypeDesc);">@Model.GetInitials(mType?.TypeDesc)</div>
-                        }
-                    </div>
-                    <div class="card-body p-2 text-center text-truncate small fw-bold">@mType?.TypeDesc</div>
-                </a>
-            }
+        @if (Model.Expansions.Any())
+        {
+            <div class="collection-section">
+                <h4 class="mb-3">Expansions <span class="badge bg-secondary rounded-pill">@Model.Expansions.Count</span></h4>
+                <div class="scrolling-wrapper">
+                    @foreach (var expansion in Model.Expansions)
+                    {
+                        var playerSummary = GetExpansionPlayerSummary(Model.BoardGame, expansion);
+                        <a asp-page="./BoardGameDetails" asp-route-id="@expansion.Id" class="card component-card shadow-sm rounded-3 overflow-hidden">
+                            <div class="component-card-img">
+                                <img src="/media/boardgame/front/@expansion.Gid" alt="@expansion.BoardGameName" />
+                            </div>
+                            <div class="card-body p-2 text-center small fw-bold">
+                                <div class="text-truncate">@expansion.BoardGameName</div>
+                                @if (!string.IsNullOrEmpty(playerSummary))
+                                {
+                                    <span class="expansion-player-badge">
+                                        <i class="bi bi-people-fill me-1"></i>@playerSummary
+                                    </span>
+                                }
+                            </div>
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="collection-section">
+            <h4 class="mb-3">Box Components <span class="badge bg-secondary rounded-pill">@Model.BoardGame.BoardGameMarkers.Count(marker => !marker.Inactive)</span></h4>
+            <div class="scrolling-wrapper">
+                @foreach (var marker in Model.BoardGame.BoardGameMarkers.Where(marker => !marker.Inactive).OrderBy(m => m.FkBgdBoardGameMarkerTypeNavigation?.TypeDesc))
+                {
+                    var mType = marker.FkBgdBoardGameMarkerTypeNavigation;
+                    var mImg = (mType != null && Model.MarkerImagesBase64.ContainsKey(mType.Id)) ? Model.MarkerImagesBase64[mType.Id] : null;
+                    <a asp-page="/DataSetup/Markers/Details" asp-route-id="@mType?.Id" class="card component-card shadow-sm rounded-3 overflow-hidden">
+                        <div class="component-card-img">
+                            @if (!string.IsNullOrEmpty(mImg))
+                            {
+                                <img src="@mImg" alt="Marker" />
+                            }
+                            else
+                            {
+                                <div class="w-100 h-100 d-flex align-items-center justify-content-center text-white fw-bold" style="background-color: @Model.GetAvatarColor(mType?.TypeDesc);">@Model.GetInitials(mType?.TypeDesc)</div>
+                            }
+                        </div>
+                        <div class="card-body p-2 text-center text-truncate small fw-bold">@mType?.TypeDesc</div>
+                    </a>
+                }
+            </div>
         </div>
+
+        @if (Model.ExpansionMarkers.Any())
+        {
+            <div class="collection-section">
+                <h4 class="mb-3">Expansion Components <span class="badge bg-secondary rounded-pill">@Model.ExpansionMarkers.Count</span></h4>
+                <div class="scrolling-wrapper">
+                    @foreach (var expansionMarker in Model.ExpansionMarkers)
+                    {
+                        var marker = expansionMarker.Marker;
+                        var mType = marker.FkBgdBoardGameMarkerTypeNavigation;
+                        var mImg = (mType != null && Model.MarkerImagesBase64.ContainsKey(mType.Id)) ? Model.MarkerImagesBase64[mType.Id] : null;
+                        <a asp-page="/DataSetup/Markers/Details" asp-route-id="@mType?.Id" class="card component-card shadow-sm rounded-3 overflow-hidden">
+                            <div class="component-card-img">
+                                @if (!string.IsNullOrEmpty(mImg))
+                                {
+                                    <img src="@mImg" alt="Marker" />
+                                }
+                                else
+                                {
+                                    <div class="w-100 h-100 d-flex align-items-center justify-content-center text-white fw-bold" style="background-color: @Model.GetAvatarColor(mType?.TypeDesc);">@Model.GetInitials(mType?.TypeDesc)</div>
+                                }
+                            </div>
+                            <div class="card-body p-2 text-center small fw-bold">
+                                <div class="text-truncate">@mType?.TypeDesc</div>
+                                <div class="text-info text-truncate" style="font-size: 0.7rem;">@expansionMarker.ExpansionName</div>
+                            </div>
+                        </a>
+                    }
+                </div>
+            </div>
+        }
     }
 </div>

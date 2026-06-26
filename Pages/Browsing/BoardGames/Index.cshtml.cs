@@ -27,13 +27,20 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         public async Task OnGetAsync(string? search)
         {
             SearchTerm = search ?? string.Empty;
+            var linkedExpansionIds = _context.BoardGameExpansions
+                .Where(link => !link.Inactive)
+                .Select(link => link.FkBgdExpansionBoardGame);
 
             // Read-only index: NO TRACKING
             var query = _context.BoardGames
                 .AsNoTracking()
                 .Include(bg => bg.FkBgdPublisherNavigation)
                 .Include(bg => bg.FkBgdBoardGameTypeNavigation)
-                .Where(bg => !bg.Inactive);
+                .Include(bg => bg.BoardGameExpansionBaseGames)
+                    .ThenInclude(link => link.FkBgdExpansionBoardGameNavigation)
+                .Where(bg => !bg.Inactive
+                    && !bg.IsExpansion
+                    && !linkedExpansionIds.Contains(bg.Id));
 
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
@@ -44,6 +51,11 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 {
                     query = query.Where(bg =>
                         (bg.PlayerCountMin <= numericValue && numericValue <= bg.PlayerCountMax)
+                        || bg.BoardGameExpansionBaseGames.Any(link =>
+                            !link.Inactive
+                            && !link.FkBgdExpansionBoardGameNavigation.Inactive
+                            && link.FkBgdExpansionBoardGameNavigation.PlayerCountMin <= numericValue
+                            && numericValue <= link.FkBgdExpansionBoardGameNavigation.PlayerCountMax)
                         || (bg.PlayingTimeMinInMinutes <= numericValue && numericValue <= bg.PlayingTimeMaxInMinutes)
                         || bg.BoardGameName.Contains(SearchTerm)
                         || (bg.FkBgdBoardGameTypeNavigation != null && bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(SearchTerm))
@@ -66,7 +78,20 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             BoardGames = games.Select(game => new BoardGameViewModel
             {
                 BoardGame = game,
-                ImageUrl = $"/media/boardgame/front/{game.Gid}"
+                ImageUrl = $"/media/boardgame/front/{game.Gid}",
+                ExpansionNames = game.BoardGameExpansionBaseGames
+                    .Where(link => !link.Inactive && !link.FkBgdExpansionBoardGameNavigation.Inactive)
+                    .Select(link => link.FkBgdExpansionBoardGameNavigation.BoardGameName)
+                    .OrderBy(name => name)
+                    .ToList(),
+                ExpansionPlayerSummaries = game.BoardGameExpansionBaseGames
+                    .Where(link => !link.Inactive && !link.FkBgdExpansionBoardGameNavigation.Inactive)
+                    .Select(link => BuildExpansionPlayerSummary(game, link.FkBgdExpansionBoardGameNavigation))
+                    .Where(summary => summary != null)
+                    .Select(summary => summary!)
+                    .OrderByDescending(summary => summary.CombinedMaxPlayers)
+                    .ThenBy(summary => summary.ExpansionName)
+                    .ToList()
             }).ToList();
         }
 
@@ -76,16 +101,28 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
             var cleanSearch = term.Replace("min", "", StringComparison.OrdinalIgnoreCase).Trim();
             bool isNumber = int.TryParse(cleanSearch, out int numericValue);
+            var linkedExpansionIds = _context.BoardGameExpansions
+                .Where(link => !link.Inactive)
+                .Select(link => link.FkBgdExpansionBoardGame);
 
             var query = _context.BoardGames
                 .AsNoTracking()
                 .Include(bg => bg.FkBgdBoardGameTypeNavigation)
-                .Where(bg => !bg.Inactive);
+                .Include(bg => bg.BoardGameExpansionBaseGames)
+                    .ThenInclude(link => link.FkBgdExpansionBoardGameNavigation)
+                .Where(bg => !bg.Inactive
+                    && !bg.IsExpansion
+                    && !linkedExpansionIds.Contains(bg.Id));
 
             if (isNumber)
             {
                 query = query.Where(bg =>
                     (bg.PlayerCountMin <= numericValue && numericValue <= bg.PlayerCountMax)
+                    || bg.BoardGameExpansionBaseGames.Any(link =>
+                        !link.Inactive
+                        && !link.FkBgdExpansionBoardGameNavigation.Inactive
+                        && link.FkBgdExpansionBoardGameNavigation.PlayerCountMin <= numericValue
+                        && numericValue <= link.FkBgdExpansionBoardGameNavigation.PlayerCountMax)
                     || (bg.PlayingTimeMinInMinutes <= numericValue && numericValue <= bg.PlayingTimeMaxInMinutes)
                     || bg.BoardGameName.Contains(term)
                     || (bg.FkBgdBoardGameTypeNavigation != null && bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(term))
@@ -107,11 +144,49 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
             return new JsonResult(suggestions);
         }
+
+        private static ExpansionPlayerSummary? BuildExpansionPlayerSummary(BoardGame baseGame, BoardGame expansion)
+        {
+            if (!baseGame.PlayerCountMin.HasValue || !baseGame.PlayerCountMax.HasValue ||
+                !expansion.PlayerCountMin.HasValue || !expansion.PlayerCountMax.HasValue)
+            {
+                return null;
+            }
+
+            var combinedMin = Math.Min(baseGame.PlayerCountMin.Value, expansion.PlayerCountMin.Value);
+            var combinedMax = Math.Max(baseGame.PlayerCountMax.Value, expansion.PlayerCountMax.Value);
+
+            if (combinedMin == baseGame.PlayerCountMin.Value && combinedMax == baseGame.PlayerCountMax.Value)
+            {
+                return null;
+            }
+
+            return new ExpansionPlayerSummary
+            {
+                ExpansionName = expansion.BoardGameName,
+                CombinedPlayerRange = FormatPlayerRange(combinedMin, combinedMax),
+                CombinedMaxPlayers = combinedMax
+            };
+        }
+
+        private static string FormatPlayerRange(byte minPlayers, byte maxPlayers)
+        {
+            return minPlayers == maxPlayers ? minPlayers.ToString() : $"{minPlayers}-{maxPlayers}";
+        }
     }
 
     public class BoardGameViewModel
     {
         public BoardGame BoardGame { get; set; } = null!;
         public string? ImageUrl { get; set; }
+        public List<string> ExpansionNames { get; set; } = new();
+        public List<ExpansionPlayerSummary> ExpansionPlayerSummaries { get; set; } = new();
+    }
+
+    public class ExpansionPlayerSummary
+    {
+        public string ExpansionName { get; set; } = string.Empty;
+        public string CombinedPlayerRange { get; set; } = string.Empty;
+        public int CombinedMaxPlayers { get; set; }
     }
 }

@@ -104,6 +104,18 @@
 
     <form method="post" enctype="multipart/form-data">
         <div asp-validation-summary="All" class="text-danger mb-3"></div>
+        @if (Model.DebugModelStateErrors.Any())
+        {
+            <div class="alert alert-warning border-warning bg-dark text-warning mb-3">
+                <div class="fw-bold mb-2">Debug validation keys</div>
+                <ul class="mb-0 small">
+                    @foreach (var error in Model.DebugModelStateErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
         <input type="hidden" asp-for="BoardGame.Id" />
         <input type="hidden" asp-for="BoardGame.Gid" />
 
@@ -184,6 +196,31 @@
 
                     <hr class="border-secondary my-4">
                     <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" asp-for="BoardGame.IsExpansion" id="expansionSwitch">
+                        <label class="form-check-label" for="expansionSwitch">This is an expansion</label>
+                    </div>
+
+                    <div id="expansionUI" class="mb-4" style="display: @(Model.BoardGame.IsExpansion ? "block" : "none")">
+                        <label class="form-label text-muted small">Base Game(s)</label>
+                        <select asp-for="ExpansionBaseGameIds" class="form-select bg-dark text-white border-secondary" multiple size="6">
+                            @foreach (var baseGame in Model.BaseGames)
+                            {
+                                var isSelected = Model.ExistingExpansionBaseGameIds.Contains(long.Parse(baseGame.Value ?? "0"));
+                                if (isSelected)
+                                {
+                                    <option value="@baseGame.Value" selected>@baseGame.Text</option>
+                                }
+                                else
+                                {
+                                    <option value="@baseGame.Value">@baseGame.Text</option>
+                                }
+                            }
+                        </select>
+                        <div class="form-text text-muted">Hold Ctrl to select more than one base game.</div>
+                    </div>
+
+                    <hr class="border-secondary my-4">
+                    <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" asp-for="BoardGame.HasMarkers" id="markerSwitch">
                         <label class="form-check-label" for="markerSwitch">Includes Markers/Components?</label>
                     </div>
@@ -226,7 +263,7 @@
 
 @* Modal Code for Bulk Adding Markers *@
 <div class="modal fade" id="bulkModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content bg-dark text-white border-secondary">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title">Select Components</h5>
@@ -258,6 +295,9 @@
     <script>
         document.getElementById('markerSwitch').addEventListener('change', function() {
             document.getElementById('markerUI').style.display = this.checked ? 'block' : 'none';
+        });
+        document.getElementById('expansionSwitch').addEventListener('change', function() {
+            document.getElementById('expansionUI').style.display = this.checked ? 'block' : 'none';
         });
         function preview(input) {
             if (input.files && input.files[0]) {

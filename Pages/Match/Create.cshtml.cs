@@ -67,10 +67,17 @@ namespace Board_Game_Software.Pages.Match
             Input.ReturnUrl = returnUrl;
             Input.MatchDate = night.GameNightDate.ToDateTime(new TimeOnly(DateTime.Now.Hour, DateTime.Now.Minute));
 
+            var linkedExpansionIds = _db.BoardGameExpansions
+                .Where(link => !link.Inactive)
+                .Select(link => link.FkBgdExpansionBoardGame);
+
             var games = await _db.BoardGames.AsNoTracking()
-                .Where(g => !g.Inactive)
+                .Include(g => g.BoardGameExpansionBaseGames)
+                    .ThenInclude(link => link.FkBgdExpansionBoardGameNavigation)
+                .Where(g => !g.Inactive
+                    && !g.IsExpansion
+                    && !linkedExpansionIds.Contains(g.Id))
                 .OrderBy(g => g.BoardGameName)
-                .Select(g => new { g.Id, g.Gid, g.BoardGameName, g.PlayerCountMin, g.PlayerCountMax })
                 .ToListAsync();
 
             Games = games.Select(g => new GameRow
@@ -79,8 +86,8 @@ namespace Board_Game_Software.Pages.Match
                 GameGid = g.Gid,
                 Name = g.BoardGameName,
                 CoverUrl = $"/media/boardgame/front/{g.Gid}",
-                MinPlayers = g.PlayerCountMin,
-                MaxPlayers = g.PlayerCountMax
+                MinPlayers = GetCombinedMinPlayers(g),
+                MaxPlayers = GetCombinedMaxPlayers(g)
             }).ToList();
 
             var roster = await _db.BoardGameNightPlayers.AsNoTracking()
@@ -103,14 +110,22 @@ namespace Board_Game_Software.Pages.Match
 
         public async Task<IActionResult> OnGetMarkersAsync(long gameId)
         {
+            var gameIds = await GetGameAndExpansionIds(gameId);
+
             var markers = await _db.BoardGameMarkers.AsNoTracking()
-                .Where(m => !m.Inactive && m.FkBgdBoardGame == gameId)
+                .Where(m => !m.Inactive && gameIds.Contains(m.FkBgdBoardGame))
                 .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
+                .Include(m => m.FkBgdBoardGameNavigation)
+                .OrderBy(m => m.FkBgdBoardGame == gameId ? 0 : 1)
+                .ThenBy(m => m.FkBgdBoardGameNavigation.BoardGameName)
+                .ThenBy(m => m.FkBgdBoardGameMarkerTypeNavigation!.TypeDesc)
                 .Select(m => new
                 {
                     id = m.Id,
                     name = m.FkBgdBoardGameMarkerTypeNavigation.TypeDesc,
-                    typeGid = m.FkBgdBoardGameMarkerTypeNavigation.Gid
+                    typeGid = m.FkBgdBoardGameMarkerTypeNavigation.Gid,
+                    sourceGameId = m.FkBgdBoardGame,
+                    sourceGameName = m.FkBgdBoardGameNavigation.BoardGameName
                 })
                 .ToListAsync();
 
@@ -118,6 +133,9 @@ namespace Board_Game_Software.Pages.Match
             {
                 id = x.id,
                 name = x.name,
+                sourceGameId = x.sourceGameId,
+                sourceGameName = x.sourceGameName,
+                isExpansionMarker = x.sourceGameId != gameId,
                 imageUrl = $"/media/marker-type/{x.typeGid}"
             }));
         }
@@ -249,6 +267,45 @@ namespace Board_Game_Software.Pages.Match
 
             await _db.SaveChangesAsync();
             return Redirect(Input.ReturnUrl ?? $"/GameNight/Details/{Input.NightId}");
+        }
+
+        private static int? GetCombinedMinPlayers(BoardGame game)
+        {
+            var values = game.BoardGameExpansionBaseGames
+                .Where(link => !link.Inactive && !link.FkBgdExpansionBoardGameNavigation.Inactive)
+                .Select(link => (int?)link.FkBgdExpansionBoardGameNavigation.PlayerCountMin)
+                .Append(game.PlayerCountMin)
+                .Where(value => value.HasValue)
+                .Select(value => value!.Value)
+                .ToList();
+
+            return values.Any() ? values.Min() : null;
+        }
+
+        private static int? GetCombinedMaxPlayers(BoardGame game)
+        {
+            var values = game.BoardGameExpansionBaseGames
+                .Where(link => !link.Inactive && !link.FkBgdExpansionBoardGameNavigation.Inactive)
+                .Select(link => (int?)link.FkBgdExpansionBoardGameNavigation.PlayerCountMax)
+                .Append(game.PlayerCountMax)
+                .Where(value => value.HasValue)
+                .Select(value => value!.Value)
+                .ToList();
+
+            return values.Any() ? values.Max() : null;
+        }
+
+        private async Task<List<long>> GetGameAndExpansionIds(long gameId)
+        {
+            var expansionIds = await _db.BoardGameExpansions.AsNoTracking()
+                .Where(link => !link.Inactive
+                    && link.FkBgdBoardGame == gameId
+                    && !link.FkBgdExpansionBoardGameNavigation.Inactive)
+                .Select(link => link.FkBgdExpansionBoardGame)
+                .ToListAsync();
+
+            expansionIds.Insert(0, gameId);
+            return expansionIds;
         }
     }
 }

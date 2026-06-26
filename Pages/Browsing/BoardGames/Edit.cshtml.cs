@@ -36,16 +36,22 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         public List<long> MarkerTypeIds { get; set; } = new();
 
         [BindProperty]
+        public List<long> ExpansionBaseGameIds { get; set; } = new();
+
+        [BindProperty]
         public long? SelectedEloMethodId { get; set; }
 
         public List<BoardGameMarker> ExistingMarkers { get; set; } = new();
         public List<MarkerTypeViewModel> AvailableMarkerTypes { get; set; } = new();
+        public List<long> ExistingExpansionBaseGameIds { get; set; } = new();
 
         public SelectList BoardGameTypes { get; set; } = default!;
         public SelectList VictoryConditions { get; set; } = default!;
         public SelectList Publishers { get; set; } = default!;
         public SelectList EloMethods { get; set; } = default!;
+        public SelectList BaseGames { get; set; } = default!;
         public string? CurrentImageUrl { get; set; }
+        public List<string> DebugModelStateErrors { get; set; } = new();
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
@@ -67,6 +73,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         {
             var gameToUpdate = await _context.BoardGames
                 .Include(bg => bg.BoardGameEloMethods)
+                .Include(bg => bg.BoardGameExpansionExpansionGames)
                 .FirstOrDefaultAsync(x => x.Id == id);
 
             if (gameToUpdate == null) return NotFound();
@@ -75,16 +82,28 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .Where(m => m.FkBgdBoardGame == id)
                 .ToListAsync();
 
-            if (await TryUpdateModelAsync(gameToUpdate, "BoardGame",
+            var updated = await TryUpdateModelAsync(gameToUpdate, "BoardGame",
                 b => b.BoardGameName, b => b.FkBgdBoardGameType, b => b.PlayerCountMin,
                 b => b.PlayerCountMax, b => b.ReleaseDate, b => b.PlayingTimeMinInMinutes,
                 b => b.PlayingTimeMaxInMinutes, b => b.HasMarkers, b => b.ComplexityRating,
-                b => b.HeightCm, b => b.WidthCm, b => b.BoardGameSummary,
+                b => b.HeightCm, b => b.WidthCm, b => b.IsExpansion, b => b.BoardGameSummary,
                 b => b.HowToPlayHyperlink, b => b.FkBgdBoardGameVictoryConditionType,
-                b => b.FkBgdPublisher))
+                b => b.FkBgdPublisher);
+
+            RemoveNavigationModelStateErrors();
+
+            if (ModelState.IsValid)
             {
                 var now = DateTime.Now;
                 var actor = User.Identity?.Name ?? "system";
+
+                if (gameToUpdate.IsExpansion && (ExpansionBaseGameIds == null || !ExpansionBaseGameIds.Any()))
+                {
+                    ModelState.AddModelError(nameof(ExpansionBaseGameIds), "Select at least one base game for this expansion.");
+                    BoardGame = gameToUpdate;
+                    await ReloadPageData(id);
+                    return Page();
+                }
 
                 gameToUpdate.ModifiedBy = actor;
                 gameToUpdate.TimeModified = now;
@@ -174,6 +193,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     }
                 }
 
+                SyncExpansionLinks(gameToUpdate, actor, now);
+
                 if (ImageUpload != null && ImageUpload.Length > 0)
                 {
                     await UpsertBoardGameFrontImageAsync(gameToUpdate, ImageUpload);
@@ -184,8 +205,30 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             }
 
             BoardGame = gameToUpdate;
+            CaptureModelStateDebug();
             await ReloadPageData(id);
             return Page();
+        }
+
+        private void RemoveNavigationModelStateErrors()
+        {
+            foreach (var key in ModelState.Keys
+                .Where(key => key.EndsWith("Navigation", StringComparison.Ordinal)
+                    || key.Contains(".FkBgdBoardGameNavigation", StringComparison.Ordinal)
+                    || key.Contains(".FkBgdExpansionBoardGameNavigation", StringComparison.Ordinal))
+                .ToList())
+            {
+                ModelState.Remove(key);
+            }
+        }
+
+        private void CaptureModelStateDebug()
+        {
+            DebugModelStateErrors = ModelState
+                .Where(entry => entry.Value?.Errors.Count > 0)
+                .SelectMany(entry => entry.Value!.Errors.Select(error =>
+                    $"{entry.Key}: {error.ErrorMessage}"))
+                .ToList();
         }
 
         private async Task ReloadPageData(long id)
@@ -197,8 +240,56 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .ToListAsync();
 
             await LoadSelectLists();
+            await LoadExpansionBaseGames(id);
             await LoadMarkerTypes();
             if (BoardGame != null) await LoadCurrentImageUrl(BoardGame.Gid);
+        }
+
+        private void SyncExpansionLinks(BoardGame gameToUpdate, string actor, DateTime now)
+        {
+            var desiredBaseGameIds = gameToUpdate.IsExpansion
+                ? (ExpansionBaseGameIds ?? new List<long>())
+                    .Where(baseGameId => baseGameId != gameToUpdate.Id)
+                    .Distinct()
+                    .ToHashSet()
+                : new HashSet<long>();
+
+            foreach (var link in gameToUpdate.BoardGameExpansionExpansionGames)
+            {
+                if (!desiredBaseGameIds.Contains(link.FkBgdBoardGame) && !link.Inactive)
+                {
+                    link.Inactive = true;
+                    link.ModifiedBy = actor;
+                    link.TimeModified = now;
+                }
+            }
+
+            foreach (var baseGameId in desiredBaseGameIds)
+            {
+                var existing = gameToUpdate.BoardGameExpansionExpansionGames
+                    .FirstOrDefault(link => link.FkBgdBoardGame == baseGameId);
+
+                if (existing == null)
+                {
+                    _context.BoardGameExpansions.Add(new BoardGameExpansion
+                    {
+                        Gid = Guid.NewGuid(),
+                        FkBgdBoardGame = baseGameId,
+                        FkBgdExpansionBoardGame = gameToUpdate.Id,
+                        Inactive = false,
+                        CreatedBy = actor,
+                        TimeCreated = now,
+                        ModifiedBy = actor,
+                        TimeModified = now
+                    });
+                }
+                else if (existing.Inactive)
+                {
+                    existing.Inactive = false;
+                    existing.ModifiedBy = actor;
+                    existing.TimeModified = now;
+                }
+            }
         }
 
         private async Task UpsertBoardGameFrontImageAsync(BoardGame game, IFormFile upload)
@@ -255,6 +346,32 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.AsNoTracking().Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
             Publishers = new SelectList(await _context.Publishers.AsNoTracking().Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
             EloMethods = new SelectList(await _context.EloMethods.AsNoTracking().Where(e => !e.Inactive).OrderBy(e => e.MethodName).ToListAsync(), "Id", "MethodName");
+        }
+
+        private async Task LoadExpansionBaseGames(long id)
+        {
+            var linkedExpansionIds = _context.BoardGameExpansions
+                .Where(link => !link.Inactive)
+                .Select(link => link.FkBgdExpansionBoardGame);
+
+            ExistingExpansionBaseGameIds = await _context.BoardGameExpansions
+                .AsNoTracking()
+                .Where(link => !link.Inactive && link.FkBgdExpansionBoardGame == id)
+                .Select(link => link.FkBgdBoardGame)
+                .ToListAsync();
+
+            BaseGames = new SelectList(
+                await _context.BoardGames
+                    .AsNoTracking()
+                    .Where(bg => !bg.Inactive
+                        && !bg.IsExpansion
+                        && bg.Id != id
+                        && !linkedExpansionIds.Contains(bg.Id))
+                    .OrderBy(bg => bg.BoardGameName)
+                    .ToListAsync(),
+                "Id",
+                "BoardGameName",
+                ExistingExpansionBaseGameIds);
         }
 
         // PERFORMANCE FIX: Batch Mongo image lookups (no N+1)

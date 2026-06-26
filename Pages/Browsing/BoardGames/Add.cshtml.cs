@@ -33,10 +33,18 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         [BindProperty]
         public List<long> MarkerTypeIds { get; set; } = new();
 
+        [BindProperty]
+        public List<long> ExpansionBaseGameIds { get; set; } = new();
+
+        [BindProperty]
+        public long? SelectedEloMethodId { get; set; }
+
         public List<MarkerTypeViewModel> AvailableMarkerTypes { get; set; } = new();
-        public SelectList BoardGameTypes { get; set; }
-        public SelectList VictoryConditions { get; set; }
-        public SelectList Publishers { get; set; }
+        public SelectList BoardGameTypes { get; set; } = default!;
+        public SelectList VictoryConditions { get; set; } = default!;
+        public SelectList Publishers { get; set; } = default!;
+        public SelectList EloMethods { get; set; } = default!;
+        public SelectList BaseGames { get; set; } = default!;
 
         public async Task<IActionResult> OnGet()
         {
@@ -60,6 +68,11 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             ModelState.Remove("BoardGame.ModifiedBy");
             ModelState.Remove("BoardGame.Gid");
 
+            if (BoardGame.IsExpansion && (ExpansionBaseGameIds == null || !ExpansionBaseGameIds.Any()))
+            {
+                ModelState.AddModelError(nameof(ExpansionBaseGameIds), "Select at least one base game for this expansion.");
+            }
+
             if (!ModelState.IsValid)
             {
                 await LoadSelectLists();
@@ -76,7 +89,24 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 _context.BoardGames.Add(BoardGame);
                 await _context.SaveChangesAsync();
 
-                // 4. Handle Bulk Marker Addition
+                // 4. Handle Elo Method Link
+                if (SelectedEloMethodId.HasValue)
+                {
+                    _context.BoardGameEloMethods.Add(new BoardGameEloMethod
+                    {
+                        Gid = Guid.NewGuid(),
+                        FkBgdBoardGame = BoardGame.Id,
+                        FkBgdEloMethod = SelectedEloMethodId.Value,
+                        CreatedBy = user,
+                        ModifiedBy = user,
+                        TimeCreated = DateTime.Now,
+                        TimeModified = DateTime.Now
+                    });
+
+                    await _context.SaveChangesAsync();
+                }
+
+                // 5. Handle Bulk Marker Addition
                 if (BoardGame.HasMarkers && MarkerTypeIds != null && MarkerTypeIds.Any())
                 {
                     var markersToAdd = MarkerTypeIds.Distinct().Select(typeId => new BoardGameMarker
@@ -94,7 +124,28 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     await _context.SaveChangesAsync();
                 }
 
-                // 5. Handle Box Art Upload (MongoDB)
+                // 6. Handle Expansion Links
+                if (BoardGame.IsExpansion && ExpansionBaseGameIds != null && ExpansionBaseGameIds.Any())
+                {
+                    var expansionLinks = ExpansionBaseGameIds
+                        .Where(id => id != BoardGame.Id)
+                        .Distinct()
+                        .Select(baseGameId => new BoardGameExpansion
+                        {
+                            Gid = Guid.NewGuid(),
+                            FkBgdBoardGame = baseGameId,
+                            FkBgdExpansionBoardGame = BoardGame.Id,
+                            CreatedBy = user,
+                            ModifiedBy = user,
+                            TimeCreated = DateTime.Now,
+                            TimeModified = DateTime.Now
+                        });
+
+                    _context.BoardGameExpansions.AddRange(expansionLinks);
+                    await _context.SaveChangesAsync();
+                }
+
+                // 7. Handle Box Art Upload (MongoDB)
                 if (ImageUpload != null && ImageUpload.Length > 0)
                 {
                     using var ms = new MemoryStream();
@@ -136,11 +187,105 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             }
         }
 
+        public async Task<IActionResult> OnPostQuickAddPublisherAsync(string publisherName)
+        {
+            var name = publisherName?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return BadRequest(new { message = "Publisher name is required." });
+            }
+
+            if (name.Length > 80)
+            {
+                return BadRequest(new { message = "Publisher name must be 80 characters or fewer." });
+            }
+
+            var existing = await _context.Publishers
+                .Where(p => !p.Inactive && p.PublisherName == name)
+                .FirstOrDefaultAsync();
+
+            if (existing != null)
+            {
+                return new JsonResult(new { id = existing.Id, name = existing.PublisherName });
+            }
+
+            var now = DateTime.Now;
+            var actor = User.Identity?.Name ?? "system";
+            var publisher = new Publisher
+            {
+                Gid = Guid.NewGuid(),
+                PublisherName = name,
+                CreatedBy = actor,
+                ModifiedBy = actor,
+                TimeCreated = now,
+                TimeModified = now
+            };
+
+            _context.Publishers.Add(publisher);
+            await _context.SaveChangesAsync();
+
+            return new JsonResult(new { id = publisher.Id, name = publisher.PublisherName });
+        }
+
+        public async Task<IActionResult> OnPostQuickAddGameTypeAsync(string typeDesc)
+        {
+            var name = typeDesc?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return BadRequest(new { message = "Game type is required." });
+            }
+
+            if (name.Length > 50)
+            {
+                return BadRequest(new { message = "Game type must be 50 characters or fewer." });
+            }
+
+            var existing = await _context.BoardGameTypes
+                .Where(t => !t.Inactive && t.TypeDesc == name)
+                .FirstOrDefaultAsync();
+
+            if (existing != null)
+            {
+                return new JsonResult(new { id = existing.Id, name = existing.TypeDesc });
+            }
+
+            var now = DateTime.Now;
+            var actor = User.Identity?.Name ?? "system";
+            var gameType = new BoardGameType
+            {
+                Gid = Guid.NewGuid(),
+                TypeDesc = name,
+                CreatedBy = actor,
+                ModifiedBy = actor,
+                TimeCreated = now,
+                TimeModified = now
+            };
+
+            _context.BoardGameTypes.Add(gameType);
+            await _context.SaveChangesAsync();
+
+            return new JsonResult(new { id = gameType.Id, name = gameType.TypeDesc });
+        }
+
         private async Task LoadSelectLists()
         {
+            var linkedExpansionIds = _context.BoardGameExpansions
+                .Where(link => !link.Inactive)
+                .Select(link => link.FkBgdExpansionBoardGame);
+
             BoardGameTypes = new SelectList(await _context.BoardGameTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
             VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
             Publishers = new SelectList(await _context.Publishers.Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
+            EloMethods = new SelectList(await _context.EloMethods.Where(e => !e.Inactive).OrderBy(e => e.MethodName).ToListAsync(), "Id", "MethodName");
+            BaseGames = new SelectList(
+                await _context.BoardGames
+                    .Where(bg => !bg.Inactive
+                        && !bg.IsExpansion
+                        && !linkedExpansionIds.Contains(bg.Id))
+                    .OrderBy(bg => bg.BoardGameName)
+                    .ToListAsync(),
+                "Id",
+                "BoardGameName");
         }
 
         private async Task LoadAvailableMarkerTypes()
@@ -150,11 +295,14 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .OrderBy(t => t.TypeDesc)
                 .ToListAsync();
 
-            var guids = types.Select(t => t.Gid).ToList();
+            var guids = types.Select(t => (Guid?)t.Gid).ToList();
             var images = await _boardGameImages
                 .Find(x => x.SQLTable == "bgd.BoardGameMarkerType" && guids.Contains(x.GID))
                 .ToListAsync();
-            var imageMap = images.ToDictionary(x => x.GID);
+            var imageMap = images
+                .Where(x => x.GID.HasValue)
+                .GroupBy(x => x.GID!.Value)
+                .ToDictionary(x => x.Key, x => x.First());
 
             foreach (var t in types)
             {
@@ -163,7 +311,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 {
                     Id = t.Id,
                     TypeDesc = t.TypeDesc,
-                    ImageBase64 = img != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
+                    ImageBase64 = img?.ImageBytes != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
                 });
             }
         }

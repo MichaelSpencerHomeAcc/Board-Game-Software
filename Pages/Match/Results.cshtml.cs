@@ -187,7 +187,7 @@ namespace Board_Game_Software.Pages.Match
                 {
                     MatchPlayerId = p.MatchPlayerId,
                     ResultTypeId = p.ExistingResultTypeId ?? ResultTypes.FirstOrDefault()?.Id,
-                    Score = p.ExistingScore,
+                    Score = p.ExistingScore ?? (!ShowPoints && p.ExistingIsWinner ? 1 : null),
                     IsWinner = p.ExistingIsWinner,
                     FinalTeam = p.ExistingFinalTeam
                 }).ToList()

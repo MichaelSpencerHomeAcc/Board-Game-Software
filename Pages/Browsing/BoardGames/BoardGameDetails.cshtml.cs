@@ -40,6 +40,9 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         public decimal? UserRating { get; set; }
         public long? CurrentUserClaimedPlayerId { get; set; }
         public string? EloMethodName { get; set; }
+        public List<BoardGame> Expansions { get; set; } = new();
+        public List<BoardGame> BaseGamesForExpansion { get; set; } = new();
+        public List<ExpansionMarkerDisplay> ExpansionMarkers { get; set; } = new();
 
         public async Task<IActionResult> OnGetAsync(long? id)
         {
@@ -56,9 +59,45 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .Include(bg => bg.PlayerBoardGameStarRatings)
                 .Include(bg => bg.BoardGameEloMethods)
                     .ThenInclude(bem => bem.FkBgdEloMethodNavigation)
+                .Include(bg => bg.BoardGameExpansionBaseGames)
+                    .ThenInclude(link => link.FkBgdExpansionBoardGameNavigation)
+                .Include(bg => bg.BoardGameExpansionExpansionGames)
+                    .ThenInclude(link => link.FkBgdBoardGameNavigation)
                 .FirstOrDefaultAsync(bg => bg.Id == id);
 
             if (BoardGame == null) return NotFound();
+
+            Expansions = BoardGame.BoardGameExpansionBaseGames
+                .Where(link => !link.Inactive && !link.FkBgdExpansionBoardGameNavigation.Inactive)
+                .Select(link => link.FkBgdExpansionBoardGameNavigation)
+                .OrderByDescending(game => game.PlayerCountMax ?? 0)
+                .ThenBy(game => game.BoardGameName)
+                .ToList();
+
+            BaseGamesForExpansion = BoardGame.BoardGameExpansionExpansionGames
+                .Where(link => !link.Inactive && !link.FkBgdBoardGameNavigation.Inactive)
+                .Select(link => link.FkBgdBoardGameNavigation)
+                .OrderBy(game => game.BoardGameName)
+                .ToList();
+
+            if (Expansions.Any())
+            {
+                var expansionIds = Expansions.Select(expansion => expansion.Id).ToList();
+
+                ExpansionMarkers = await _context.BoardGameMarkers
+                    .AsNoTracking()
+                    .Include(marker => marker.FkBgdBoardGameMarkerTypeNavigation)
+                    .Include(marker => marker.FkBgdBoardGameNavigation)
+                    .Where(marker => !marker.Inactive && expansionIds.Contains(marker.FkBgdBoardGame))
+                    .OrderBy(marker => marker.FkBgdBoardGameNavigation.BoardGameName)
+                    .ThenBy(marker => marker.FkBgdBoardGameMarkerTypeNavigation!.TypeDesc)
+                    .Select(marker => new ExpansionMarkerDisplay
+                    {
+                        Marker = marker,
+                        ExpansionName = marker.FkBgdBoardGameNavigation.BoardGameName
+                    })
+                    .ToListAsync();
+            }
 
             // Defensive check for Elo Method
             EloMethodName = BoardGame.BoardGameEloMethods?
@@ -144,9 +183,14 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     BoardGameFrontImageUrl = $"data:{image.ContentType};base64,{Convert.ToBase64String(image.ImageBytes)}";
             }
 
-            if (BoardGame.BoardGameMarkers?.Any() == true)
+            var markersForImages = BoardGame.BoardGameMarkers
+                .Where(marker => !marker.Inactive)
+                .Concat(ExpansionMarkers.Select(marker => marker.Marker))
+                .ToList();
+
+            if (markersForImages.Any())
             {
-                var markerTypeGids = BoardGame.BoardGameMarkers
+                var markerTypeGids = markersForImages
                    .Select(m => (Guid?)m.FkBgdBoardGameMarkerTypeNavigation?.Gid)
                    .Where(g => g.HasValue).Distinct().ToList();
 
@@ -156,7 +200,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
                 var images = await _imagesCollection.Find(filter).ToListAsync();
 
-                foreach (var marker in BoardGame.BoardGameMarkers)
+                foreach (var marker in markersForImages)
                 {
                     var type = marker.FkBgdBoardGameMarkerTypeNavigation;
                     if (type != null && !MarkerImagesBase64.ContainsKey(type.Id))
@@ -183,5 +227,11 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             var colors = new[] { "#d32f2f", "#7b1fa2", "#303f9f", "#1976d2", "#00796b", "#388e3c", "#ffa000", "#e64a19" };
             return colors[Math.Abs(hash) % colors.Length];
         }
+    }
+
+    public class ExpansionMarkerDisplay
+    {
+        public BoardGameMarker Marker { get; set; } = null!;
+        public string ExpansionName { get; set; } = string.Empty;
     }
 }

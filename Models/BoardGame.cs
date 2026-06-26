@@ -46,6 +46,8 @@ public partial class BoardGame
 
     public bool HasMarkers { get; set; }
 
+    public bool IsExpansion { get; set; }
+
     public decimal? HeightCm { get; set; }
 
     public decimal? WidthCm { get; set; }
@@ -55,6 +57,10 @@ public partial class BoardGame
     public string? HowToPlayHyperlink { get; set; }
 
     public virtual ICollection<BoardGameEloMethod> BoardGameEloMethods { get; set; } = new List<BoardGameEloMethod>();
+
+    public virtual ICollection<BoardGameExpansion> BoardGameExpansionBaseGames { get; set; } = new List<BoardGameExpansion>();
+
+    public virtual ICollection<BoardGameExpansion> BoardGameExpansionExpansionGames { get; set; } = new List<BoardGameExpansion>();
 
     public virtual ICollection<BoardGameMarker> BoardGameMarkers { get; set; } = new List<BoardGameMarker>();
 
