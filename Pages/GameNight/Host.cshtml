@@ -1,0 +1,165 @@
+@page "{id:long}"
+@model Board_Game_Software.Pages.GameNight.HostModel
+@{
+    ViewData["Title"] = "Host Mode";
+}
+
+<style>
+    .host-shell { max-width: 760px; margin: 0 auto; }
+    .host-card { border: 1px solid var(--bs-border-color); border-radius: 8px; background: var(--bs-body-tertiary); }
+    .host-cover { width: 74px; height: 74px; object-fit: contain; border-radius: 8px; background: #111; padding: .25rem; }
+    .timer-face { font-size: clamp(2.5rem, 14vw, 5.5rem); font-weight: 900; line-height: 1; }
+    .host-action { min-height: 52px; }
+    .player-chip { display: flex; align-items: center; gap: .5rem; border: 1px solid var(--bs-border-color); border-radius: 999px; padding: .35rem .65rem; background: var(--bs-body-bg); }
+    .player-chip img { width: 32px; height: 32px; object-fit: cover; border-radius: 50%; }
+    @@media (max-width: 575.98px) {
+        main { padding-left: .5rem !important; padding-right: .5rem !important; }
+        .host-card { border-radius: 8px; }
+    }
+</style>
+
+<div class="host-shell py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <a asp-page="Details" asp-route-id="@Model.Night.Id" class="text-secondary text-decoration-none small">
+                <i class="bi bi-arrow-left me-1"></i> Dashboard
+            </a>
+            <h1 class="h3 fw-bold mb-0">Host Mode</h1>
+        </div>
+        <a asp-page="VotingQueue" asp-route-id="@Model.Night.Id" class="btn btn-outline-warning rounded-pill">
+            <i class="bi bi-hand-thumbs-up-fill"></i>
+        </a>
+    </div>
+
+    <section class="host-card p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="text-uppercase small fw-bold text-secondary">Timer</div>
+            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="timerReset">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+        </div>
+        <div class="timer-face text-center" id="timerFace">00:00</div>
+        <button type="button" class="btn btn-info w-100 rounded-pill fw-bold host-action mt-3" id="timerToggle">
+            <i class="bi bi-play-fill me-1"></i> Start
+        </button>
+    </section>
+
+    <section class="host-card p-3 mb-3">
+        <div class="text-uppercase small fw-bold text-secondary mb-2">Current Match</div>
+        @if (Model.CurrentMatch != null)
+        {
+            <div class="d-flex gap-3 align-items-center">
+                <img src="/media/boardgame/front/@Model.CurrentMatch.GameGid" class="host-cover" />
+                <div class="min-w-0 flex-grow-1">
+                    <div class="fw-bold text-truncate">@Model.CurrentMatch.GameName</div>
+                    <div class="small text-secondary">@Model.CurrentMatch.PlayerCount players · started @Model.CurrentMatch.StartedAt?.ToString("HH:mm")</div>
+                </div>
+            </div>
+            <a asp-page="/Match/Results" asp-route-id="@Model.CurrentMatch.MatchId" class="btn btn-warning w-100 rounded-pill fw-bold host-action mt-3">
+                <i class="bi bi-pencil-square me-1"></i> Enter Results
+            </a>
+        }
+        else
+        {
+            <div class="text-secondary mb-3">No open match.</div>
+            <a asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id" class="btn btn-info w-100 rounded-pill fw-bold host-action">
+                <i class="bi bi-plus-lg me-1"></i> Add Match
+            </a>
+        }
+    </section>
+
+    @if (Model.NextGame != null)
+    {
+        <section class="host-card p-3 mb-3">
+            <div class="text-uppercase small fw-bold text-secondary mb-2">Next Game</div>
+            <div class="d-flex gap-3 align-items-center">
+                <img src="/media/boardgame/front/@Model.NextGame.GameGid" class="host-cover" />
+                <div class="min-w-0 flex-grow-1">
+                    <div class="fw-bold text-truncate">@Model.NextGame.Name</div>
+                    <div class="small text-info">@Model.NextGame.Reason</div>
+                </div>
+            </div>
+            <a asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id" asp-route-boardGameId="@Model.NextGame.GameId" class="btn btn-success w-100 rounded-pill fw-bold host-action mt-3">
+                <i class="bi bi-play-fill me-1"></i> Start This
+            </a>
+        </section>
+    }
+
+    <section class="host-card p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="text-uppercase small fw-bold text-secondary">Vote Queue</div>
+            <a asp-page="VotingQueue" asp-route-id="@Model.Night.Id" class="small text-decoration-none">Open</a>
+        </div>
+        @foreach (var item in Model.Queue)
+        {
+            <div class="d-flex justify-content-between border-top border-secondary-subtle py-2">
+                <span class="text-truncate pe-3">@item.Name</span>
+                <span class="fw-bold text-warning">@item.Votes</span>
+            </div>
+        }
+        @if (!Model.Queue.Any())
+        {
+            <div class="text-secondary">No votes yet.</div>
+        }
+    </section>
+
+    <section class="host-card p-3">
+        <div class="text-uppercase small fw-bold text-secondary mb-2">Active Players</div>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var player in Model.Players)
+            {
+                <span class="player-chip">
+                    <img src="/media/player/@player.PlayerGid" />
+                    <span>@player.Name</span>
+                </span>
+            }
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            let elapsed = 0;
+            let lastTick = null;
+            let handle = null;
+            const face = document.getElementById('timerFace');
+            const toggle = document.getElementById('timerToggle');
+            const reset = document.getElementById('timerReset');
+
+            const render = () => {
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = Math.floor(elapsed % 60).toString().padStart(2, '0');
+                face.textContent = `${minutes}:${seconds}`;
+            };
+
+            const stop = () => {
+                clearInterval(handle);
+                handle = null;
+                lastTick = null;
+                toggle.innerHTML = '<i class="bi bi-play-fill me-1"></i> Start';
+            };
+
+            toggle?.addEventListener('click', () => {
+                if (handle) {
+                    stop();
+                    return;
+                }
+                lastTick = Date.now();
+                handle = setInterval(() => {
+                    const now = Date.now();
+                    elapsed += Math.floor((now - lastTick) / 1000);
+                    lastTick = now;
+                    render();
+                }, 1000);
+                toggle.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Pause';
+            });
+
+            reset?.addEventListener('click', () => {
+                elapsed = 0;
+                render();
+                stop();
+            });
+        })();
+    </script>
+}

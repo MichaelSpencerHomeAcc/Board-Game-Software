@@ -150,6 +150,31 @@
             </table>
         </div>
     </div>
+    @if (Model.TotalPages > 1)
+    {
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-4">
+            <div class="text-muted small">
+                Showing @(((Model.PageNumber - 1) * Model.PageSize) + 1)-@Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount)
+                of @Model.TotalCount
+            </div>
+            <nav aria-label="Shelf pages">
+                <ul class="pagination mb-0">
+                    <li class="page-item @(Model.HasPreviousPage ? "" : "disabled")">
+                        <a class="page-link" asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@(Model.PageNumber - 1)">Previous</a>
+                    </li>
+                    @for (var i = Math.Max(1, Model.PageNumber - 2); i <= Math.Min(Model.TotalPages, Model.PageNumber + 2); i++)
+                    {
+                        <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                            <a class="page-link" asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@i">@i</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
+                        <a class="page-link" asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@(Model.PageNumber + 1)">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
 </div>
 
 @section Scripts {

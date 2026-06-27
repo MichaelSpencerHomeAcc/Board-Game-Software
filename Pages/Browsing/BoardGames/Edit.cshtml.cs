@@ -55,12 +55,14 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
-            BoardGame = await _context.BoardGames
+            var boardGame = await _context.BoardGames
                 .AsNoTracking()
                 .Include(bg => bg.BoardGameEloMethods)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (BoardGame == null) return NotFound();
+            if (boardGame == null) return NotFound();
+
+            BoardGame = boardGame;
 
             SelectedEloMethodId = BoardGame.BoardGameEloMethods
                 .FirstOrDefault(x => !x.Inactive)?.FkBgdEloMethod;

@@ -31,4 +31,8 @@ public partial class BoardGameNight
     public virtual ICollection<BoardGameNightBoardGameMatch> BoardGameNightBoardGameMatches { get; set; } = new List<BoardGameNightBoardGameMatch>();
 
     public virtual ICollection<BoardGameNightPlayer> BoardGameNightPlayers { get; set; } = new List<BoardGameNightPlayer>();
+
+    public virtual ICollection<BoardGameVote> BoardGameVotes { get; set; } = new List<BoardGameVote>();
+
+    public virtual ICollection<PlayerAchievement> PlayerAchievements { get; set; } = new List<PlayerAchievement>();
 }

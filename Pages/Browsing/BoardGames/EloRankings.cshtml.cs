@@ -28,8 +28,10 @@ public class EloRankingsModel : PageModel
     {
         if (id == null) return NotFound();
 
-        BoardGame = await _context.BoardGames.FirstOrDefaultAsync(m => m.Id == id);
-        if (BoardGame == null) return NotFound();
+        var boardGame = await _context.BoardGames.FirstOrDefaultAsync(m => m.Id == id);
+        if (boardGame == null) return NotFound();
+
+        BoardGame = boardGame;
 
         // Data is now pre-ranked and pre-sorted by the SQL View logic
         PlayerRankings = await _context.VwEloRankings

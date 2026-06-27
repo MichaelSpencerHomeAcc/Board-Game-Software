@@ -132,11 +132,11 @@
             <table class="table table-hover align-middle mb-0 fixed-table">
                 <thead class="border-bottom border-secondary-subtle">
                     <tr>
-                        <th class="ps-4" style="width: 45%;">Name</th>
+                        <th class="ps-4" style="width: 40%;">Name</th>
                         <th style="width: 15%;">Type</th>
                         <th style="width: 15%;">Players</th>
                         <th style="width: 15%;">Play Time</th>
-                        <th class="text-end pe-4" style="width: 10%;">Actions</th>
+                        <th class="text-end pe-4" style="width: 15%;">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="border-0">
@@ -238,6 +238,23 @@
                                     <a asp-page="./EloRankings" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-warning">
                                         <i class="bi bi-trophy"></i>
                                     </a>
+
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <form method="post"
+                                              asp-page-handler="Delete"
+                                              asp-route-id="@item.BoardGame.Id"
+                                              asp-route-search="@Model.SearchTerm"
+                                              asp-route-pageNumber="@Model.PageNumber"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Delete this game?');">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    }
                                 </div>
                             </td>
                         </tr>
@@ -255,6 +272,31 @@
             </div>
             <h4 class="text-secondary fw-normal">No games found</h4>
             <p class="text-muted">Adjust your search or add a new game.</p>
+        </div>
+    }
+    else if (Model.TotalPages > 1)
+    {
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-4">
+            <div class="text-muted small">
+                Showing @(((Model.PageNumber - 1) * Model.PageSize) + 1)-@Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount)
+                of @Model.TotalCount
+            </div>
+            <nav aria-label="Board games pages">
+                <ul class="pagination mb-0">
+                    <li class="page-item @(Model.HasPreviousPage ? "" : "disabled")">
+                        <a class="page-link" asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@(Model.PageNumber - 1)">Previous</a>
+                    </li>
+                    @for (var i = Math.Max(1, Model.PageNumber - 2); i <= Math.Min(Model.TotalPages, Model.PageNumber + 2); i++)
+                    {
+                        <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                            <a class="page-link" asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@i">@i</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
+                        <a class="page-link" asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@(Model.PageNumber + 1)">Next</a>
+                    </li>
+                </ul>
+            </nav>
         </div>
     }
 </div>

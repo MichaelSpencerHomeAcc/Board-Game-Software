@@ -8,6 +8,14 @@
     var canEdit = isAdmin && !Model.Night.Finished;
     var finished = Model.Night.Finished;
     var hasStandings = Model.HasStandings;
+    var completedMatches = Model.Matches.Count(m => m.IsComplete);
+    var openMatches = Model.Matches.Count(m => !m.IsComplete);
+    var latestMatch = Model.Matches
+        .OrderByDescending(m => m.StartTime ?? DateTime.MinValue)
+        .FirstOrDefault();
+    var leader = Model.RankedPlayers.FirstOrDefault();
+    var nextSuggestion = Model.Suggestions.FirstOrDefault();
+    var statusText = finished ? "Finished" : openMatches > 0 ? "Recording" : completedMatches > 0 ? "In Progress" : "Ready";
 }
 
 <style>
@@ -35,6 +43,139 @@
         border: 1px solid rgba(13, 202, 240, 0.4) !important;
         border-radius: 12px;
         background: linear-gradient(135deg, rgba(13, 202, 240, 0.12) 0%, rgba(75, 13, 184, 0.12) 100%) !important;
+    }
+
+    .host-hero {
+        border: 1px solid var(--bs-border-color-translucent);
+        background:
+            radial-gradient(circle at 15% 20%, rgba(13,202,240,0.16), transparent 28%),
+            linear-gradient(135deg, rgba(25,135,84,0.16), rgba(33,37,41,0.96) 48%, rgba(255,193,7,0.10));
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .host-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        border: 1px solid rgba(13,202,240,0.35);
+        background: rgba(13,202,240,0.10);
+        color: #7ee4f5;
+        border-radius: 999px;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .dashboard-metric {
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.035);
+        border-radius: 8px;
+        padding: 14px;
+        min-height: 94px;
+    }
+
+    .dashboard-metric .metric-label {
+        color: #aab2bd;
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 6px;
+    }
+
+    .dashboard-metric .metric-value {
+        color: #fff;
+        font-size: 1.55rem;
+        line-height: 1.1;
+        font-weight: 900;
+    }
+
+    .dashboard-metric .metric-sub {
+        color: #adb5bd;
+        font-size: 0.78rem;
+        margin-top: 4px;
+    }
+
+    .action-panel {
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.035);
+        border-radius: 8px;
+        padding: 16px;
+    }
+
+    .match-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 999px;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .match-status.complete {
+        background: rgba(25,135,84,0.16);
+        color: #7bdba1;
+        border: 1px solid rgba(25,135,84,0.28);
+    }
+
+    .match-status.open {
+        background: rgba(255,193,7,0.16);
+        color: #ffd86b;
+        border: 1px solid rgba(255,193,7,0.30);
+    }
+
+    .empty-panel {
+        border: 1px dashed rgba(255,255,255,0.18);
+        border-radius: 8px;
+        padding: 28px;
+        background: rgba(255,255,255,0.025);
+    }
+
+    .insight-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .insight-card {
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.025);
+        border-radius: 8px;
+        padding: 14px;
+        min-height: 96px;
+    }
+
+    .insight-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255,255,255,0.06);
+        flex: 0 0 auto;
+    }
+
+    .insight-title {
+        color: #fff;
+        font-weight: 800;
+        font-size: 0.9rem;
+    }
+
+    .insight-detail {
+        color: #aab2bd;
+        font-size: 0.78rem;
+        line-height: 1.35;
     }
 
     .stat-value-hud {
@@ -304,6 +445,22 @@
             opacity: 1;
         }
     }
+
+    @@media (max-width: 991.98px) {
+        .dashboard-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .insight-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 <div class="container-fluid px-4 py-4">
@@ -314,35 +471,106 @@
         </div>
     }
 
-    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-secondary border-opacity-25">
-        <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-1 small">
-                    <li class="breadcrumb-item"><a asp-page="Index" class="text-decoration-none text-secondary">Game Nights</a></li>
-                    <li class="breadcrumb-item active text-light">Details</li>
-                </ol>
-            </nav>
-            <h1 class="fw-bold mb-0 text-white">Game Night <span class="text-info">@Model.Night.GameNightDate.ToString("MMM dd")</span></h1>
-        </div>
+    <section class="host-hero mb-4 shadow-sm">
+        <div class="p-4 p-lg-5">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-2 small">
+                            <li class="breadcrumb-item"><a asp-page="Index" class="text-decoration-none text-secondary">Game Nights</a></li>
+                            <li class="breadcrumb-item active text-light">Dashboard</li>
+                        </ol>
+                    </nav>
 
-        <div class="d-flex gap-2">
-            @if (canEdit)
-            {
-                <a class="btn btn-info btn-sm rounded-pill px-4 fw-bold text-dark" asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id">
-                    <i class="bi bi-plus-lg me-1"></i> Add Match
-                </a>
-                <form method="post" asp-page-handler="EndNight" asp-route-id="@Model.Night.Id" onsubmit="return confirm('End the night?');">
-                    <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4 fw-bold">End Night</button>
-                </form>
-            }
-            @if (isAdmin && !Model.Night.Finished)
-            {
-                <form method="post" asp-page-handler="DeleteNight" asp-route-id="@Model.Night.Id" onsubmit="return confirm('Delete entire Game Night?');">
-                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-4">Delete Night</button>
-                </form>
-            }
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <span class="host-status">
+                            <i class="bi @(finished ? "bi-check2-circle" : "bi-broadcast-pin")"></i>
+                            @statusText
+                        </span>
+                        <span class="text-secondary small">@Model.Night.GameNightDate.ToString("dddd, MMMM dd yyyy")</span>
+                    </div>
+
+                    <h1 class="fw-bold mb-2 text-white">Game Night Dashboard</h1>
+                    <div class="text-secondary">
+                        @if (leader != null && hasStandings)
+                        {
+                            <span><i class="bi bi-trophy-fill text-warning me-1"></i>@leader.Name leads with @leader.Points.ToString("0.00") points.</span>
+                        }
+                        else
+                        {
+                            <span><i class="bi bi-people-fill text-info me-1"></i>@Model.Players.Count players are ready for the first match.</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap align-content-start gap-2 justify-content-lg-end">
+                    @if (canEdit)
+                    {
+                        <a class="btn btn-info rounded-pill px-4 fw-bold text-dark" asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id">
+                            <i class="bi bi-plus-lg me-1"></i> Add Match
+                        </a>
+                        <a class="btn btn-outline-info rounded-pill px-4 fw-bold" asp-page="Host" asp-route-id="@Model.Night.Id">
+                            <i class="bi bi-phone-fill me-1"></i> Host Mode
+                        </a>
+                        <a class="btn btn-outline-warning rounded-pill px-4 fw-bold" asp-page="VotingQueue" asp-route-id="@Model.Night.Id">
+                            <i class="bi bi-hand-thumbs-up-fill me-1"></i> Vote Queue
+                        </a>
+                        @if (nextSuggestion != null)
+                        {
+                            <a class="btn btn-outline-info rounded-pill px-4 fw-bold"
+                               asp-page="/Match/Create"
+                               asp-route-nightId="@Model.Night.Id"
+                               asp-route-boardGameId="@nextSuggestion.GameId">
+                                <i class="bi bi-lightning-charge-fill me-1"></i> Start Suggested
+                            </a>
+                        }
+                        <form method="post" asp-page-handler="EndNight" asp-route-id="@Model.Night.Id" onsubmit="return confirm('End the night?');">
+                            <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">
+                                <i class="bi bi-flag-fill me-1"></i> End Night
+                            </button>
+                        </form>
+                    }
+                    @if (finished)
+                    {
+                        <a class="btn btn-outline-success rounded-pill px-4 fw-bold" asp-page="Recap" asp-route-id="@Model.Night.Id">
+                            <i class="bi bi-newspaper me-1"></i> Recap
+                        </a>
+                    }
+                    @if (isAdmin && !Model.Night.Finished)
+                    {
+                        <form method="post" asp-page-handler="DeleteNight" asp-route-id="@Model.Night.Id" onsubmit="return confirm('Delete entire Game Night?');">
+                            <button type="submit" class="btn btn-outline-danger rounded-pill px-4">
+                                <i class="bi bi-trash me-1"></i> Delete
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+
+            <div class="dashboard-grid mt-4">
+                <div class="dashboard-metric">
+                    <div class="metric-label">Players</div>
+                    <div class="metric-value">@Model.Players.Count</div>
+                    <div class="metric-sub">Checked in</div>
+                </div>
+                <div class="dashboard-metric">
+                    <div class="metric-label">Matches</div>
+                    <div class="metric-value">@Model.Matches.Count</div>
+                    <div class="metric-sub">@completedMatches complete, @openMatches open</div>
+                </div>
+                <div class="dashboard-metric">
+                    <div class="metric-label">Leader</div>
+                    <div class="metric-value text-truncate">@(leader?.Name ?? "None yet")</div>
+                    <div class="metric-sub">@(leader != null ? $"{leader.Points:0.00} points" : "Finish a match")</div>
+                </div>
+                <div class="dashboard-metric">
+                    <div class="metric-label">Latest</div>
+                    <div class="metric-value text-truncate">@(latestMatch?.GameName ?? "No match")</div>
+                    <div class="metric-sub">@(latestMatch?.StartTime?.ToString("HH:mm") ?? "Not started")</div>
+                </div>
+            </div>
         </div>
-    </div>
+    </section>
 
     <div class="row g-4">
         <div class="col-xl-8">
@@ -508,8 +736,105 @@
                 </div>
             </div>
 
-            <h5 class="fw-bold mb-3 text-white">Played Matches</h5>
-            @foreach (var m in Model.Matches)
+            <div class="row g-4 mb-4">
+                <div class="col-lg-6">
+                    <div class="card roster-card border-0 shadow-sm h-100">
+                        <div class="card-body p-4">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <h6 class="text-uppercase fw-bold text-info mb-0 small tracking-widest">
+                                    <i class="bi bi-lightning-charge-fill me-2"></i>Player Rivalries
+                                </h6>
+                            </div>
+
+                            @if (Model.Rivalries.Any())
+                            {
+                                <div class="d-grid gap-2">
+                                    @foreach (var r in Model.Rivalries)
+                                    {
+                                        <div class="insight-card">
+                                            <div class="d-flex gap-3">
+                                                <div class="insight-icon @r.AccentClass">
+                                                    <i class="bi @r.Icon"></i>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="insight-title">@r.Title</div>
+                                                    <div class="insight-detail">@r.Detail</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="empty-panel text-secondary small">
+                                    Rivalry data appears once tonight's players share enough recorded matches.
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card roster-card border-0 shadow-sm h-100">
+                        <div class="card-body p-4">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <h6 class="text-uppercase fw-bold text-warning mb-0 small tracking-widest">
+                                    <i class="bi bi-award-fill me-2"></i>Achievements
+                                </h6>
+                            </div>
+
+                            @if (Model.Achievements.Any())
+                            {
+                                <div class="d-grid gap-2">
+                                    @foreach (var a in Model.Achievements)
+                                    {
+                                        <div class="insight-card">
+                                            <div class="d-flex gap-3">
+                                                <div class="insight-icon @a.AccentClass">
+                                                    <i class="bi @a.Icon"></i>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="insight-title">@a.Title</div>
+                                                    <div class="insight-detail">@a.Detail</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="empty-panel text-secondary small">
+                                    Badges will light up as matches complete: first wins, records, streaks, shelf sweeps, and rating jumps.
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h5 class="fw-bold mb-0 text-white">Match Timeline</h5>
+                <span class="small text-secondary">@completedMatches recorded, @openMatches awaiting results</span>
+            </div>
+
+            @if (!Model.Matches.Any())
+            {
+                <div class="empty-panel text-center text-secondary">
+                    <i class="bi bi-dice-5 fs-1 text-info d-block mb-3"></i>
+                    <h5 class="text-white fw-bold">No matches yet</h5>
+                    <p class="mb-3">Start with a suggested game or add a match manually.</p>
+                    @if (canEdit)
+                    {
+                        <a class="btn btn-info rounded-pill px-4 fw-bold text-dark" asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id">
+                            <i class="bi bi-plus-lg me-1"></i> Add First Match
+                        </a>
+                    }
+                </div>
+            }
+
+            @foreach (var m in Model.Matches.OrderByDescending(x => x.StartTime ?? DateTime.MinValue))
             {
                 <div class="card gn-card overflow-hidden mb-3 shadow-sm">
                     <div class="row g-0 align-items-center">
@@ -519,11 +844,23 @@
                                  loading="lazy" decoding="async" />
                         </div>
                         <div class="col ps-4">
-                            <h6 class="fw-bold mb-1 text-white">@m.GameName</h6>
-                            <div class="small fw-bold text-info">@string.Join(", ", m.Winners)</div>
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                <h6 class="fw-bold mb-0 text-white">@m.GameName</h6>
+                                <span class="match-status @(m.IsComplete ? "complete" : "open")">
+                                    <i class="bi @(m.IsComplete ? "bi-check2-circle" : "bi-pencil-square")"></i>
+                                    @(m.IsComplete ? "Complete" : "Needs Results")
+                                </span>
+                            </div>
+                            <div class="small text-secondary mb-1">@(m.StartTime?.ToString("HH:mm") ?? "No time recorded")</div>
+                            <div class="small fw-bold @(m.Winners.Any() ? "text-info" : "text-warning")">
+                                @(m.Winners.Any() ? $"Winner: {string.Join(", ", m.Winners)}" : "Awaiting winner")
+                            </div>
                         </div>
                         <div class="col-auto pe-4 d-flex gap-2">
-                            <a asp-page="/Match/Results" asp-route-id="@m.MatchId" class="btn btn-sm btn-outline-info rounded-pill px-3 fw-bold">Record</a>
+                            <a asp-page="/Match/Results" asp-route-id="@m.MatchId" class="btn btn-sm @(m.IsComplete ? "btn-outline-secondary" : "btn-outline-info") rounded-pill px-3 fw-bold">
+                                <i class="bi @(m.IsComplete ? "bi-eye" : "bi-pencil-square") me-1"></i>
+                                @(m.IsComplete ? "View" : "Record")
+                            </a>
                             @if (canEdit)
                             {
                                 <form method="post" asp-page-handler="DeleteMatch" asp-route-id="@Model.Night.Id" asp-route-matchId="@m.MatchId" onsubmit="return confirm('Delete match?');">
@@ -537,27 +874,92 @@
         </div>
 
         <div class="col-xl-4">
+            <div class="action-panel mb-4 shadow-sm">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h6 class="text-uppercase fw-bold text-warning mb-0 small tracking-widest">
+                        <i class="bi bi-compass me-2"></i>Next Move
+                    </h6>
+                    <span class="small text-secondary">@statusText</span>
+                </div>
+
+                @if (finished)
+                {
+                    <div class="text-secondary small mb-3">The night is closed. Use the standings and timeline as the final recap.</div>
+                    <a class="btn btn-outline-info w-100 rounded-pill fw-bold" asp-page="Index">
+                        <i class="bi bi-arrow-left me-1"></i> Back to Nights
+                    </a>
+                }
+                else if (openMatches > 0)
+                {
+                    var openMatch = Model.Matches
+                        .Where(m => !m.IsComplete)
+                        .OrderByDescending(m => m.StartTime ?? DateTime.MinValue)
+                        .First();
+
+                    <div class="text-secondary small mb-2">There is an unfinished match waiting for results.</div>
+                    <div class="fw-bold text-white text-truncate mb-3">@openMatch.GameName</div>
+                    <a class="btn btn-warning w-100 rounded-pill fw-bold text-dark" asp-page="/Match/Results" asp-route-id="@openMatch.MatchId">
+                        <i class="bi bi-pencil-square me-1"></i> Record Results
+                    </a>
+                }
+                else if (nextSuggestion != null)
+                {
+                    <div class="text-secondary small mb-2">Recommended next game for this table:</div>
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <img src="@(nextSuggestion.CoverUrl ?? "/images/default-cover.png")"
+                             alt=""
+                             style="width:52px;height:52px;object-fit:cover;border-radius:6px;"
+                             loading="lazy" decoding="async" />
+                        <div class="min-w-0">
+                            <div class="fw-bold text-white text-truncate">@nextSuggestion.Name</div>
+                            <div class="small text-info">@nextSuggestion.Reason</div>
+                        </div>
+                    </div>
+                    <a class="btn btn-info w-100 rounded-pill fw-bold text-dark"
+                       asp-page="/Match/Create"
+                       asp-route-nightId="@Model.Night.Id"
+                       asp-route-boardGameId="@nextSuggestion.GameId">
+                        <i class="bi bi-play-fill me-1"></i> Start This Match
+                    </a>
+                }
+                else
+                {
+                    <div class="text-secondary small mb-3">No recommendation is available yet. Add a match manually.</div>
+                    <a class="btn btn-info w-100 rounded-pill fw-bold text-dark" asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id">
+                        <i class="bi bi-plus-lg me-1"></i> Add Match
+                    </a>
+                }
+            </div>
+
             <div class="card roster-card border-0 p-4 shadow-sm mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-uppercase fw-bold text-info mb-0 small tracking-widest">Game Intel</h6>
-                    <button type="button" onclick="shuffleIntel()" class="shuffle-btn"><i id="shuffle-icon" class="bi bi-shuffle fs-5"></i></button>
+                    <h6 class="text-uppercase fw-bold text-info mb-0 small tracking-widest">
+                        <i class="bi bi-stars me-2"></i>Game Intel
+                    </h6>
+                    @if (!finished)
+                    {
+                        <button type="button" onclick="shuffleIntel()" class="shuffle-btn" title="Shuffle suggestions"><i id="shuffle-icon" class="bi bi-shuffle fs-5"></i></button>
+                    }
                 </div>
                 <div id="intel-container" class="d-flex flex-column gap-2">
                     <partial name="_GameIntelPartial" model="Model.Suggestions" view-data="ViewData" />
                 </div>
             </div>
 
-            <div class="card stat-card text-white shadow mb-4 text-center p-4">
-                <h6 class="stat-label-hud mb-3">Summary</h6>
-                <div class="d-flex justify-content-between align-items-center px-3">
-                    <div>
-                        <div class="h2 stat-value-hud mb-0">@Model.Players.Count</div>
-                        <div class="stat-label-hud">Players</div>
+            <div class="card stat-card text-white shadow mb-4 p-4">
+                <h6 class="stat-label-hud mb-3">Session Pulse</h6>
+                <div class="d-grid gap-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-secondary small">Completed matches</span>
+                        <span class="stat-value-hud fs-5">@completedMatches</span>
                     </div>
-                    <div class="vr opacity-25" style="height: 40px;"></div>
-                    <div>
-                        <div class="h2 stat-value-hud mb-0">@Model.Matches.Count</div>
-                        <div class="stat-label-hud">Matches</div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-secondary small">Open matches</span>
+                        <span class="stat-value-hud fs-5">@openMatches</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-secondary small">Players ranked</span>
+                        <span class="stat-value-hud fs-5">@Model.RankedPlayers.Count</span>
                     </div>
                 </div>
             </div>

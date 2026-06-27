@@ -24,11 +24,13 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
         public async Task<IActionResult> OnGetAsync(long shelfId, int? row, int? col)
         {
-            Shelf = await _context.Shelves
+            var shelf = await _context.Shelves
                 .Include(s => s.ShelfSections)
                 .FirstOrDefaultAsync(m => m.Id == shelfId);
 
-            if (Shelf == null) return NotFound();
+            if (shelf == null) return NotFound();
+
+            Shelf = shelf;
 
             ExistingSections = Shelf.ShelfSections.Where(ss => !ss.Inactive).ToList();
 
@@ -88,8 +90,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
             if (!ModelState.IsValid)
             {
-                Shelf = await _context.Shelves.Include(s => s.ShelfSections).FirstOrDefaultAsync(m => m.Id == ShelfSection.FkBgdShelf);
-                ExistingSections = Shelf?.ShelfSections.Where(ss => !ss.Inactive).ToList() ?? new();
+                var shelf = await _context.Shelves.Include(s => s.ShelfSections).FirstOrDefaultAsync(m => m.Id == ShelfSection.FkBgdShelf);
+                if (shelf != null)
+                {
+                    Shelf = shelf;
+                    ExistingSections = Shelf.ShelfSections.Where(ss => !ss.Inactive).ToList();
+                }
                 return Page();
             }
 
@@ -103,7 +109,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
             {
                 var msg = ex.InnerException?.InnerException?.Message ?? ex.InnerException?.Message ?? ex.Message;
                 ModelState.AddModelError(string.Empty, $"Database Error: {msg}");
-                Shelf = await _context.Shelves.Include(s => s.ShelfSections).FirstOrDefaultAsync(m => m.Id == ShelfSection.FkBgdShelf);
+                var shelf = await _context.Shelves.Include(s => s.ShelfSections).FirstOrDefaultAsync(m => m.Id == ShelfSection.FkBgdShelf);
+                if (shelf != null)
+                {
+                    Shelf = shelf;
+                    ExistingSections = Shelf.ShelfSections.Where(ss => !ss.Inactive).ToList();
+                }
                 return Page();
             }
         }

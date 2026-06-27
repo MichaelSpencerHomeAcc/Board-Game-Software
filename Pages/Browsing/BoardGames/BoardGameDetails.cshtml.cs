@@ -48,7 +48,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         {
             if (id == null) return NotFound();
 
-            BoardGame = await _context.BoardGames
+            var boardGame = await _context.BoardGames
                 .Include(bg => bg.FkBgdBoardGameTypeNavigation)
                 .Include(bg => bg.FkBgdBoardGameVictoryConditionTypeNavigation)
                 .Include(bg => bg.FkBgdPublisherNavigation)
@@ -65,7 +65,9 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     .ThenInclude(link => link.FkBgdBoardGameNavigation)
                 .FirstOrDefaultAsync(bg => bg.Id == id);
 
-            if (BoardGame == null) return NotFound();
+            if (boardGame == null) return NotFound();
+
+            BoardGame = boardGame;
 
             Expansions = BoardGame.BoardGameExpansionBaseGames
                 .Where(link => !link.Inactive && !link.FkBgdExpansionBoardGameNavigation.Inactive)

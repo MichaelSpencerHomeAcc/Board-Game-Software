@@ -27,13 +27,15 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
-            ShelfSection = await _context.ShelfSections
+            var shelfSection = await _context.ShelfSections
                 .Include(s => s.FkBgdShelfNavigation)
                 .Include(s => s.BoardGameShelfSections)
                     .ThenInclude(bgss => bgss.FkBgdBoardGameNavigation)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (ShelfSection == null) return NotFound();
+            if (shelfSection == null) return NotFound();
+
+            ShelfSection = shelfSection;
 
             // 1. Calculate Space
             decimal usedWidth = ShelfSection.BoardGameShelfSections
@@ -66,7 +68,7 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
             GameWidths = allGames.ToDictionary(bg => bg.Id, bg => bg.WidthCm ?? 0m);
 
-            if (ShelfSection?.Blocked == true)
+            if (ShelfSection.Blocked == true)
             {
                 // Redirect or return an error if the shelf is blocked
                 return RedirectToPage("./Details", new { id = id });
@@ -88,7 +90,7 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
             if (section == null || gameToMove == null) return NotFound();
 
-            if (ShelfSection?.Blocked == true)
+            if (section.Blocked == true)
             {
                 ModelState.AddModelError(string.Empty, "Cannot add games to a blocked shelf.");
                 return Page();

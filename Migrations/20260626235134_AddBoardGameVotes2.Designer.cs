@@ -4,6 +4,7 @@ using Board_Game_Software.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Board_Game_Software.Migrations
 {
     [DbContext(typeof(BoardGameDbContext))]
-    partial class BoardGameDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260626235134_AddBoardGameVotes2")]
+    partial class AddBoardGameVotes2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4132,18 +4135,21 @@ namespace Board_Game_Software.Migrations
                     b.HasOne("Board_Game_Software.Models.BoardGame", "FkBgdBoardGameNavigation")
                         .WithMany("BoardGameVotes")
                         .HasForeignKey("FkBgdBoardGame")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_bgd_BoardGameVote__bgd_BoardGame");
 
                     b.HasOne("Board_Game_Software.Models.BoardGameNight", "FkBgdBoardGameNightNavigation")
                         .WithMany("BoardGameVotes")
                         .HasForeignKey("FkBgdBoardGameNight")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_bgd_BoardGameVote__bgd_BoardGameNight");
 
                     b.HasOne("Board_Game_Software.Models.Player", "FkBgdPlayerNavigation")
                         .WithMany("BoardGameVotes")
                         .HasForeignKey("FkBgdPlayer")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_bgd_BoardGameVote__bgd_Player");
 

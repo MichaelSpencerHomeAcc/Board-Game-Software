@@ -132,6 +132,38 @@
             opacity: 0.8;
             color: #0dcaf0;
         }
+
+    .rating-impact-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: .75rem;
+    }
+
+    .rating-impact-card {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 8px;
+        background: var(--bs-body-tertiary);
+        padding: .85rem;
+    }
+
+    .stepper-wrap {
+        display: grid;
+        grid-template-columns: 42px minmax(70px, 1fr) 42px;
+        gap: .35rem;
+        align-items: center;
+    }
+
+    @@media (max-width: 767.98px) {
+        .game-banner-header { height: auto; min-height: 210px; border-radius: 8px; }
+        .banner-content { padding: 1.25rem; }
+        .player-card { border-radius: 8px; }
+        .player-card .row { row-gap: 1rem; }
+        .player-avatar-circle { width: 64px; height: 64px; }
+        .score-input { min-height: 48px; font-size: 1.35rem; }
+        .winner-btn, .quick-winner-btn { width: 100%; min-height: 46px; }
+        .results-actions { position: sticky; bottom: .75rem; z-index: 20; background: rgba(22,25,28,.94); border: 1px solid var(--bs-border-color); border-radius: 8px; padding: .75rem; }
+        .results-actions .btn { width: 100%; }
+    }
 </style>
 
 <div class="container py-4" style="max-width: 960px;">
@@ -265,18 +297,34 @@
                                 @if (Model.ShowPoints)
                                 {
                                     <label class="small fw-bold opacity-50 text-uppercase mb-1">Score</label>
-                                    <input asp-for="Input.PlayerResults[i].Score" class="form-control score-input bg-transparent border-0 p-0 score-field" data-index="@i" disabled="@(isLocked ? "disabled" : null)" />
+                                    <div class="stepper-wrap">
+                                        <button type="button" class="btn btn-outline-secondary score-step" data-index="@i" data-step="-1" disabled="@(isLocked ? "disabled" : null)">
+                                            <i class="bi bi-dash-lg"></i>
+                                        </button>
+                                        <input asp-for="Input.PlayerResults[i].Score" class="form-control score-input bg-transparent p-0 score-field" data-index="@i" disabled="@(isLocked ? "disabled" : null)" />
+                                        <button type="button" class="btn btn-outline-secondary score-step" data-index="@i" data-step="1" disabled="@(isLocked ? "disabled" : null)">
+                                            <i class="bi bi-plus-lg"></i>
+                                        </button>
+                                    </div>
                                 }
                                 else
                                 {
                                     <label class="small fw-bold opacity-50 text-uppercase mb-1">Place</label>
-                                    <select asp-for="Input.PlayerResults[i].Score" class="form-select form-select-sm placement-field" data-index="@i" disabled="@(isLocked ? "disabled" : null)">
-                                        <option value="">-</option>
-                                        @for (var place = 1; place <= Model.Input.PlayerResults.Count; place++)
-                                        {
-                                            <option value="@place">@place</option>
-                                        }
-                                    </select>
+                                    <div class="stepper-wrap">
+                                        <button type="button" class="btn btn-outline-secondary place-step" data-index="@i" data-step="-1" disabled="@(isLocked ? "disabled" : null)">
+                                            <i class="bi bi-dash-lg"></i>
+                                        </button>
+                                        <select asp-for="Input.PlayerResults[i].Score" class="form-select placement-field" data-index="@i" disabled="@(isLocked ? "disabled" : null)">
+                                            <option value="">-</option>
+                                            @for (var place = 1; place <= Model.Input.PlayerResults.Count; place++)
+                                            {
+                                                <option value="@place">@place</option>
+                                            }
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary place-step" data-index="@i" data-step="1" disabled="@(isLocked ? "disabled" : null)">
+                                            <i class="bi bi-plus-lg"></i>
+                                        </button>
+                                    </div>
                                 }
                             </div>
 
@@ -285,6 +333,9 @@
                                 <label class="btn btn-outline-secondary btn-sm winner-btn px-4" for="win-@i">
                                     <i class="bi bi-trophy-fill me-1"></i> Win
                                 </label>
+                                <button type="button" class="btn btn-outline-warning btn-sm quick-winner-btn mt-2 px-4" data-index="@i" disabled="@(isLocked ? "disabled" : null)">
+                                    <i class="bi bi-lightning-charge-fill me-1"></i> Toggle
+                                </button>
                                 <input type="hidden" asp-for="Input.PlayerResults[i].IsWinner" class="hidden-winner" data-index="@i" />
                             </div>
                         </div>
@@ -293,7 +344,37 @@
             }
         </div>
 
-        <div class="mt-5 text-center d-flex flex-column align-items-center gap-3">
+        <div class="rating-impact-card mt-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
+                <div>
+                    <h3 class="h5 fw-bold mb-1"><i class="bi bi-activity text-info me-2"></i>Rating Impact</h3>
+                    <div class="text-secondary small">@Model.RatingMethodReason</div>
+                </div>
+                <span class="badge text-bg-info align-self-start">@Model.RatingMethodName</span>
+            </div>
+            <div class="rating-impact-grid">
+                @foreach (var player in Model.Players)
+                {
+                    <div class="rating-impact-card">
+                        <div class="fw-bold text-truncate">@player.PlayerName</div>
+                        <div class="d-flex justify-content-between small text-secondary mt-2">
+                            <span>Pre</span>
+                            <span>@(player.PreMatchRatingMu?.ToString("0.00") ?? "-")</span>
+                        </div>
+                        <div class="d-flex justify-content-between small">
+                            <span>Delta</span>
+                            <span class="@(player.RatingChangeMu >= 0 ? "text-success" : "text-danger")">@(player.RatingChangeMu?.ToString("+0.00;-0.00;0.00") ?? "-")</span>
+                        </div>
+                        <div class="d-flex justify-content-between small text-secondary">
+                            <span>Post</span>
+                            <span>@(player.PostMatchRatingMu?.ToString("0.00") ?? "-")</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="mt-5 text-center d-flex flex-column align-items-center gap-3 results-actions">
             @if (!isLocked)
             {
                 <div class="d-flex gap-3">
@@ -336,6 +417,36 @@
                     $hiddenWinner.val('false');
                     $card.removeClass('border-warning').addClass('border-secondary');
                 }
+            });
+
+            $('.quick-winner-btn').on('click', function() {
+                const index = $(this).data('index');
+                const $checkbox = $(`#win-${index}`);
+                const $hiddenWinner = $(`.hidden-winner[data-index="${index}"]`);
+                const $card = $(this).closest('.player-card');
+                const next = !$checkbox.prop('checked');
+                $checkbox.prop('checked', next);
+                $hiddenWinner.val(next ? 'true' : 'false');
+                $card.toggleClass('border-warning', next);
+                $card.toggleClass('border-secondary', !next);
+            });
+
+            $('.score-step').on('click', function() {
+                const index = $(this).data('index');
+                const step = parseFloat($(this).data('step'));
+                const $field = $(`.score-field[data-index="${index}"]`);
+                const current = parseFloat($field.val());
+                $field.val((isNaN(current) ? 0 : current) + step).trigger('input');
+            });
+
+            $('.place-step').on('click', function() {
+                const index = $(this).data('index');
+                const step = parseInt($(this).data('step'), 10);
+                const $field = $(`.placement-field[data-index="${index}"]`);
+                const current = parseInt($field.val(), 10);
+                const max = @Model.Input.PlayerResults.Count;
+                const next = Math.min(max, Math.max(1, (isNaN(current) ? 1 : current) + step));
+                $field.val(next).trigger('change');
             });
 
             if (isPointGame) {

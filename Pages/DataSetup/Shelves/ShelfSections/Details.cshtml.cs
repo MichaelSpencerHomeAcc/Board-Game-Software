@@ -32,13 +32,15 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
         {
             if (id == null) return NotFound();
 
-            ShelfSection = await _context.ShelfSections
+            var shelfSection = await _context.ShelfSections
                 .Include(s => s.FkBgdShelfNavigation)
                 .Include(s => s.BoardGameShelfSections)
                     .ThenInclude(bgss => bgss.FkBgdBoardGameNavigation)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (ShelfSection == null) return NotFound();
+            if (shelfSection == null) return NotFound();
+
+            ShelfSection = shelfSection;
 
             // 1. Calculate space
             decimal usedWidth = ShelfSection.BoardGameShelfSections

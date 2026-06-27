@@ -22,9 +22,11 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
         {
             if (id == null) return NotFound();
 
-            Shelf = await _context.Shelves.FirstOrDefaultAsync(m => m.Id == id);
+            var shelf = await _context.Shelves.FirstOrDefaultAsync(m => m.Id == id);
 
-            if (Shelf == null) return NotFound();
+            if (shelf == null) return NotFound();
+
+            Shelf = shelf;
 
             return Page();
         }

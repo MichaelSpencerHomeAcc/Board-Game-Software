@@ -147,6 +147,26 @@
         font-weight: 800;
         margin-bottom: 0.2rem;
     }
+
+    .profile-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: .75rem;
+    }
+
+    .profile-stat {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 8px;
+        background: var(--bs-body-tertiary);
+        padding: .85rem;
+    }
+
+    .badge-tile {
+        border: 1px solid rgba(255,193,7,.35);
+        border-radius: 8px;
+        background: rgba(255,193,7,.08);
+        padding: .85rem;
+    }
 </style>
 
 <div class="container-fluid py-4 px-md-5">
@@ -266,6 +286,84 @@
         </div>
 
         <div class="col-lg-9">
+            <div class="mb-5">
+                <div class="d-flex justify-content-between align-items-end mb-3">
+                    <div>
+                        <h1 class="display-6 fw-bold mb-0">
+                            <i class="bi bi-person-vcard-fill text-info me-2"></i>Profile 2.0
+                        </h1>
+                        <p class="text-muted mb-0">Form, rivalries, badges, and table identity.</p>
+                    </div>
+                </div>
+
+                <div class="profile-grid mb-4">
+                    <div class="profile-stat">
+                        <div class="detail-label">Record</div>
+                        <div class="h4 fw-bold mb-0">@Model.ProfileStats.Wins / @Model.ProfileStats.Matches</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="detail-label">Favorite Game</div>
+                        <div class="fw-bold text-truncate">@Model.ProfileStats.FavoriteGame</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="detail-label">Nemesis</div>
+                        <div class="fw-bold text-truncate">@Model.ProfileStats.Nemesis</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="detail-label">Best Teammate</div>
+                        <div class="fw-bold text-truncate">@Model.ProfileStats.BestTeammate</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="detail-label">Strongest Type</div>
+                        <div class="fw-bold text-truncate">@Model.ProfileStats.StrongestType</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="detail-label">Best Rating Gain</div>
+                        <div class="fw-bold @(Model.ProfileStats.BestRatingGain > 0 ? "text-success" : "text-secondary")">@Model.ProfileStats.BestRatingGain.ToString("+0.00;-0.00;0.00")</div>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <div class="profile-stat h-100">
+                            <div class="detail-label">Recent Form</div>
+                            @foreach (var form in Model.RecentForm)
+                            {
+                                <div class="d-flex justify-content-between border-top border-secondary-subtle py-2">
+                                    <div class="text-truncate pe-2">
+                                        <span class="fw-semibold">@form.GameName</span>
+                                        <div class="small text-secondary">@form.FinishedDate?.ToString("dd MMM yyyy")</div>
+                                    </div>
+                                    <span class="fw-bold @(form.Won ? "text-success" : "text-secondary")">@(form.Won ? "Win" : "Played")</span>
+                                </div>
+                            }
+                            @if (!Model.RecentForm.Any())
+                            {
+                                <div class="text-secondary">No completed matches yet.</div>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="profile-stat h-100">
+                            <div class="detail-label">Badges</div>
+                            <div class="d-grid gap-2">
+                                @foreach (var badge in Model.Badges)
+                                {
+                                    <div class="badge-tile">
+                                        <div class="fw-bold text-warning"><i class="bi bi-award-fill me-1"></i>@badge.Title</div>
+                                        <div class="small text-secondary">@badge.Detail</div>
+                                    </div>
+                                }
+                                @if (!Model.Badges.Any())
+                                {
+                                    <div class="text-secondary">No badges unlocked yet.</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
                     <h1 class="display-6 fw-bold mb-0">

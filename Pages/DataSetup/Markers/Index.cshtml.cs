@@ -27,6 +27,12 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
         }
 
         public IList<MarkerTypeRow> MarkerTypes { get; private set; } = new List<MarkerTypeRow>();
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; } = 25;
+        public int TotalCount { get; set; }
+        public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+        public bool HasPreviousPage => PageNumber > 1;
+        public bool HasNextPage => PageNumber < TotalPages;
 
         [BindProperty(SupportsGet = true)]
         public string? SearchTerm { get; set; }
@@ -34,9 +40,10 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
         public int? DeleteLinkedCount { get; set; }
         public bool ShowDeleteError => DeleteLinkedCount.HasValue && DeleteLinkedCount.Value > 0;
 
-        public async Task OnGetAsync(string? search)
+        public async Task OnGetAsync(string? search, int pageNumber = 1)
         {
             SearchTerm = search;
+            PageNumber = Math.Max(1, pageNumber);
 
             var query = _context.BoardGameMarkerTypes
                 .AsNoTracking()
@@ -54,8 +61,13 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
                 );
             }
 
+            TotalCount = await query.CountAsync();
+            PageNumber = Math.Min(PageNumber, Math.Max(TotalPages, 1));
+
             MarkerTypes = await query
                 .OrderBy(mt => mt.TypeDesc)
+                .Skip((PageNumber - 1) * PageSize)
+                .Take(PageSize)
                 .Select(m => new MarkerTypeRow
                 {
                     Id = m.Id,
@@ -80,13 +92,13 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
             if (linkedCount > 0)
             {
                 DeleteLinkedCount = linkedCount;
-                await OnGetAsync(SearchTerm); // refresh list
+                await OnGetAsync(SearchTerm, PageNumber); // refresh list
                 return Page();
             }
 
             markerType.Inactive = true;
             await _context.SaveChangesAsync();
-            return RedirectToPage(new { search = SearchTerm });
+            return RedirectToPage(new { search = SearchTerm, pageNumber = PageNumber });
         }
     }
 }

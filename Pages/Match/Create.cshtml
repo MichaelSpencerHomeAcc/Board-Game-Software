@@ -148,6 +148,56 @@
             cursor: not-allowed;
             filter: grayscale(1);
         }
+
+    @@media (max-width: 767.98px) {
+        .container.py-4 { padding-left: .75rem; padding-right: .75rem; }
+        .game-card { border-radius: 8px; min-height: 210px; }
+        .game-card:hover { transform: none; }
+        .game-card img { height: 150px; }
+        .player-tile {
+            min-height: 88px;
+            border-radius: 8px;
+            padding: 1rem !important;
+        }
+        .player-tile img,
+        .initials-avatar {
+            width: 64px;
+            height: 64px;
+            flex-basis: 64px;
+        }
+        .marker-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            max-height: none;
+        }
+        .marker-option {
+            min-height: 96px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #step2 > .d-flex {
+            align-items: flex-start !important;
+            gap: .75rem;
+        }
+        #step2 > .d-flex .ms-auto {
+            width: 100%;
+            margin-left: 0 !important;
+            text-align: left !important;
+        }
+        .step-nav {
+            position: sticky;
+            bottom: .75rem;
+            z-index: 25;
+            background: rgba(22,25,28,.94);
+            border: 1px solid var(--bs-border-color);
+            border-radius: 8px;
+            padding: .75rem;
+        }
+        .step-nav .btn {
+            min-height: 48px;
+        }
+    }
 </style>
 
 <div class="container py-4">
@@ -229,7 +279,7 @@
                 }
             </div>
 
-            <div class="mt-5 d-flex gap-3 justify-content-center">
+            <div class="mt-5 d-flex gap-3 justify-content-center step-nav">
                 <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 shadow">Save Match</button>
                 <a href="/GameNight/Details/@Model.Input.NightId" class="btn btn-outline-secondary btn-lg rounded-pill px-4">Cancel</a>
             </div>
@@ -258,6 +308,7 @@
         let currentGameMarkers = [];
         let activePlayerId = null;
         let maxPlayers = 99;
+        const preselectedGame = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.PreselectedGame));
 
         $('#gameSearchInput').on('keyup', function () {
             const val = $(this).val().toLowerCase();
@@ -372,7 +423,18 @@
             return true;
         });
 
-                function getInitials(fullName) {
+        $(async function () {
+            if (preselectedGame) {
+                await selectGame(
+                    preselectedGame.Id,
+                    preselectedGame.Name,
+                    preselectedGame.CoverUrl,
+                    preselectedGame.MaxPlayers || 99
+                );
+            }
+        });
+
+        function getInitials(fullName) {
             if (!fullName) return "?";
             const parts = fullName.trim().split(/\s+/).filter(Boolean);
             if (parts.length === 0) return "?";

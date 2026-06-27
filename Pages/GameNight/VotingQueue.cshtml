@@ -1,0 +1,258 @@
+@page "{id:long}"
+@model Board_Game_Software.Pages.GameNight.VotingQueueModel
+@{
+    ViewData["Title"] = "Voting Queue";
+}
+
+<style>
+    .vote-shell { max-width: 1180px; }
+    .vote-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+    .vote-card { border: 1px solid var(--bs-border-color); border-radius: 8px; background: var(--bs-body-tertiary); overflow: hidden; }
+    .vote-cover { width: 100%; height: 150px; object-fit: contain; background: #111; padding: .5rem; }
+    .vote-meta { color: var(--bs-secondary-color); font-size: .82rem; }
+    .vote-count { font-size: 1.75rem; font-weight: 800; color: #ffc107; line-height: 1; }
+    .vote-card-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 44px;
+        gap: .75rem;
+        align-items: start;
+    }
+    .vote-title {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        min-height: 2.4em;
+        line-height: 1.2;
+    }
+    .vote-total {
+        width: 44px;
+        text-align: right;
+        flex: 0 0 44px;
+    }
+    .vote-card.is-vote-pending { opacity: .84; }
+    .vote-card.is-vote-pending .vote-button { pointer-events: none; }
+    .fit-pill { border: 1px solid var(--bs-border-color); border-radius: 999px; padding: .2rem .55rem; font-size: .75rem; }
+    .queue-search {
+        max-width: 420px;
+        border-radius: 999px;
+        min-height: 46px;
+    }
+    .queue-empty {
+        display: none;
+        border: 1px dashed var(--bs-border-color);
+        border-radius: 8px;
+        padding: 2rem;
+        text-align: center;
+        color: var(--bs-secondary-color);
+    }
+    @@media (max-width: 575.98px) {
+        .vote-grid { grid-template-columns: 1fr; }
+        .vote-card .btn { min-height: 46px; }
+        .queue-search { max-width: none; }
+    }
+</style>
+
+<div class="container py-4 vote-shell">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3 mb-4">
+        <div>
+            <a asp-page="Details" asp-route-id="@Model.Night.Id" class="text-secondary text-decoration-none small">
+                <i class="bi bi-arrow-left me-1"></i> Game Night
+            </a>
+            <h1 class="fw-bold mb-1">Wishlist Queue</h1>
+            <div class="text-secondary">@Model.Night.GameNightDate.ToString("dddd, MMMM dd yyyy")</div>
+        </div>
+        <a asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id" class="btn btn-info rounded-pill px-4 fw-bold text-dark">
+            <i class="bi bi-play-fill me-1"></i> Start Match
+        </a>
+    </div>
+
+    <div class="mb-4">
+        <div class="input-group queue-search">
+            <span class="input-group-text bg-transparent border-secondary">
+                <i class="bi bi-search"></i>
+            </span>
+            <input id="queueSearchInput" type="search" class="form-control bg-transparent border-secondary text-body" placeholder="Search games" autocomplete="off" />
+        </div>
+    </div>
+
+    @if (!Model.CurrentPlayerId.HasValue)
+    {
+        <div class="alert alert-warning rounded-4">
+            Link your account to a player on this game night before voting.
+        </div>
+    }
+
+    <div class="vote-grid">
+        @foreach (var game in Model.Games)
+        {
+            var voteHandler = game.CurrentPlayerVoted ? "Unvote" : "Vote";
+            <div class="vote-card" data-game-name="@game.Name.ToLowerInvariant()" data-game-meta="@($"{game.ShelfLocation} {game.VoterNames}".ToLowerInvariant())">
+                <img src="@game.CoverUrl" class="vote-cover" loading="lazy" decoding="async" />
+                <div class="p-3">
+                    <div class="vote-card-head mb-2">
+                        <div class="min-w-0">
+                            <h5 class="fw-bold mb-1 vote-title" title="@game.Name">@game.Name</h5>
+                            <div class="vote-meta text-truncate">
+                                <i class="bi bi-people me-1"></i>@(game.MinPlayers?.ToString() ?? "?")-@(game.MaxPlayers?.ToString() ?? "?")
+                                @if (game.UsesExpansionPlayerCount)
+                                {
+                                    <span class="ms-1 text-info">expanded</span>
+                                }
+                                @if (game.MaxMinutes.HasValue)
+                                {
+                                    <span class="ms-2"><i class="bi bi-clock me-1"></i>@game.MaxMinutes min</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="vote-total">
+                            <div class="vote-count" data-vote-count>@game.VoteCount</div>
+                            <div class="vote-meta">votes</div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <span class="fit-pill @(game.ValidPlayerCount ? "text-success" : "text-warning")">
+                            <i class="bi @(game.ValidPlayerCount ? "bi-check2-circle" : "bi-exclamation-triangle") me-1"></i>
+                            @(game.ValidPlayerCount ? "Fits table" : "Count mismatch")
+                        </span>
+                        @if (!string.IsNullOrWhiteSpace(game.ShelfLocation))
+                        {
+                            <span class="fit-pill text-secondary">@game.ShelfLocation</span>
+                        }
+                    </div>
+
+                    <div class="vote-meta text-truncate mb-3" data-voter-names style="@(string.IsNullOrWhiteSpace(game.VoterNames) ? "visibility:hidden;" : "")">
+                        @(string.IsNullOrWhiteSpace(game.VoterNames) ? "No votes yet" : game.VoterNames)
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <form method="post"
+                              asp-page-handler="@voteHandler"
+                              asp-route-id="@Model.Night.Id"
+                              asp-route-boardGameId="@game.GameId"
+                              class="flex-grow-1 js-vote-form"
+                              data-voted="@game.CurrentPlayerVoted.ToString().ToLowerInvariant()"
+                              data-vote-url="@Url.Page("VotingQueue", "Vote", new { id = Model.Night.Id, boardGameId = game.GameId })"
+                              data-unvote-url="@Url.Page("VotingQueue", "Unvote", new { id = Model.Night.Id, boardGameId = game.GameId })">
+                            <button type="submit"
+                                    class="btn @(game.CurrentPlayerVoted ? "btn-warning" : "btn-outline-warning") w-100 rounded-pill fw-bold vote-button"
+                                    disabled="@(!Model.CurrentPlayerId.HasValue)">
+                                <i class="bi @(game.CurrentPlayerVoted ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up") me-1"></i>
+                                <span>@(game.CurrentPlayerVoted ? "Voted" : "Vote")</span>
+                            </button>
+                        </form>
+                        <a asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id" asp-route-boardGameId="@game.GameId" class="btn btn-outline-info rounded-circle" title="Start">
+                            <i class="bi bi-play-fill"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div id="queueEmptyState" class="queue-empty mt-4">
+        <i class="bi bi-search fs-3 d-block mb-2"></i>
+        No matching games
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const input = document.getElementById('queueSearchInput');
+            const cards = Array.from(document.querySelectorAll('.vote-card'));
+            const empty = document.getElementById('queueEmptyState');
+
+            if (!input) return;
+
+            const applyFilter = () => {
+                const terms = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+                let shown = 0;
+
+                cards.forEach(card => {
+                    const haystack = `${card.dataset.gameName || ''} ${card.dataset.gameMeta || ''}`;
+                    const match = terms.every(term => haystack.includes(term));
+                    card.style.display = match ? '' : 'none';
+                    if (match) shown++;
+                });
+
+                if (empty) empty.style.display = shown === 0 ? 'block' : 'none';
+            };
+
+            input.addEventListener('input', applyFilter);
+        })();
+
+        (() => {
+            const forms = Array.from(document.querySelectorAll('.js-vote-form'));
+
+            const actionFor = (form, voted) => voted ? form.dataset.unvoteUrl : form.dataset.voteUrl;
+
+            const setVoteState = (form, voted, count, voterNames) => {
+                const card = form.closest('.vote-card');
+                const button = form.querySelector('.vote-button');
+                const icon = button?.querySelector('i');
+                const label = button?.querySelector('span');
+                const countEl = card?.querySelector('[data-vote-count]');
+                const namesEl = card?.querySelector('[data-voter-names]');
+
+                form.dataset.voted = voted ? 'true' : 'false';
+                form.action = actionFor(form, voted) || form.action;
+
+                button?.classList.toggle('btn-warning', voted);
+                button?.classList.toggle('btn-outline-warning', !voted);
+                icon?.classList.toggle('bi-hand-thumbs-up-fill', voted);
+                icon?.classList.toggle('bi-hand-thumbs-up', !voted);
+                if (label) label.textContent = voted ? 'Voted' : 'Vote';
+                if (countEl) countEl.textContent = String(Math.max(0, count));
+                if (namesEl && voterNames !== undefined) {
+                    namesEl.textContent = voterNames || 'No votes yet';
+                    namesEl.style.visibility = voterNames ? 'visible' : 'hidden';
+                }
+            };
+
+            forms.forEach(form => {
+                form.addEventListener('submit', async event => {
+                    event.preventDefault();
+                    if (form.dataset.busy === 'true') return;
+
+                    const card = form.closest('.vote-card');
+                    const button = form.querySelector('.vote-button');
+                    const countEl = card?.querySelector('[data-vote-count]');
+                    const wasVoted = form.dataset.voted === 'true';
+                    const previousCount = parseInt(countEl?.textContent || '0', 10) || 0;
+                    const nextVoted = !wasVoted;
+                    const optimisticCount = previousCount + (nextVoted ? 1 : -1);
+                    const requestAction = actionFor(form, wasVoted) || form.action;
+
+                    form.dataset.busy = 'true';
+                    card?.classList.add('is-vote-pending');
+                    if (button) button.disabled = true;
+                    setVoteState(form, nextVoted, optimisticCount);
+
+                    try {
+                        const response = await fetch(requestAction, {
+                            method: 'POST',
+                            body: new FormData(form),
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+
+                        if (!response.ok) throw new Error(`Vote failed: ${response.status}`);
+
+                        const state = await response.json();
+                        setVoteState(form, Boolean(state.voted), Number(state.count), state.voterNames || '');
+                    } catch {
+                        setVoteState(form, wasVoted, previousCount);
+                    } finally {
+                        form.dataset.busy = 'false';
+                        card?.classList.remove('is-vote-pending');
+                        if (button) button.disabled = @(!Model.CurrentPlayerId.HasValue).ToString().ToLowerInvariant();
+                    }
+                });
+            });
+        })();
+    </script>
+}

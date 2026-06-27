@@ -17,12 +17,14 @@ namespace Board_Game_Software.Pages.Match
         private readonly IMongoCollection<BoardGameImages> _imagesCollection;
         private readonly BoardGameImagesService _imagesService;
         private readonly RatingService _ratingService;
+        private readonly AchievementService _achievementService;
 
-        public ResultsModel(BoardGameDbContext db, IMongoClient mongo, IConfiguration config, BoardGameImagesService imagesService, RatingService ratingService)
+        public ResultsModel(BoardGameDbContext db, IMongoClient mongo, IConfiguration config, BoardGameImagesService imagesService, RatingService ratingService, AchievementService achievementService)
         {
             _db = db;
             _imagesService = imagesService;
             _ratingService = ratingService;
+            _achievementService = achievementService;
             var dbName = config["MongoDbSettings:Database"];
             _imagesCollection = mongo.GetDatabase(dbName).GetCollection<BoardGameImages>("BoardGameImages");
         }
@@ -37,6 +39,8 @@ namespace Board_Game_Software.Pages.Match
         public bool? MatchComplete { get; private set; }
         public long NightId { get; private set; }
         public string? GameBoxArt { get; private set; }
+        public string RatingMethodName { get; private set; } = "Rating";
+        public string RatingMethodReason { get; private set; } = "Ratings are calculated when the match is completed.";
 
         [BindProperty] public InputModel Input { get; set; } = new();
         public List<ResultTypeRow> ResultTypes { get; private set; } = new();
@@ -63,6 +67,11 @@ namespace Board_Game_Software.Pages.Match
             public string? PlayerAvatarUrl { get; set; }
             public Guid? MarkerTypeGid { get; init; }
             public Guid? PlayerGid { get; init; }
+            public decimal? PreMatchRatingMu { get; init; }
+            public decimal? RatingChangeMu { get; init; }
+            public decimal? PostMatchRatingMu => PreMatchRatingMu.HasValue && RatingChangeMu.HasValue
+                ? PreMatchRatingMu.Value + RatingChangeMu.Value
+                : null;
         }
 
         public sealed class InputModel
@@ -103,6 +112,22 @@ namespace Board_Game_Software.Pages.Match
                 var bannerMap = await _imagesService.GetFrontImagesAsync(new[] { game.Gid }, bannerTypeId);
                 GameBannerUrl = bannerMap.GetValueOrDefault(game.Gid);
                 GameBoxArt = GameBannerUrl;
+
+                var methods = await _db.BoardGameEloMethods.AsNoTracking()
+                    .Include(m => m.FkBgdEloMethodNavigation)
+                    .Where(m => m.FkBgdBoardGame == game.Id && !m.Inactive)
+                    .Select(m => m.FkBgdEloMethodNavigation!.MethodName)
+                    .ToListAsync();
+
+                if (methods.Any())
+                {
+                    RatingMethodName = string.Join(" + ", methods);
+                    RatingMethodReason = IsTeamVictoryGame
+                        ? "Team victory games use the configured team-aware rating method so aligned players move together."
+                        : ShowPoints
+                            ? "Point-score games use the configured method with final scores and winners to size each rating move."
+                            : "Placement games use the configured method with finishing order and winner flags.";
+                }
             }
 
             var link = await _db.BoardGameNightBoardGameMatches
@@ -117,7 +142,7 @@ namespace Board_Game_Software.Pages.Match
                 .Select(r => new ResultTypeRow
                 {
                     Id = r.Id,
-                    Name = r.TypeDesc,
+                    Name = r.TypeDesc ?? string.Empty,
                     IsVictory = r.IsVictory == true,
                     IsDefeat = r.IsDefeat == true
                 }).ToListAsync();
@@ -126,7 +151,7 @@ namespace Board_Game_Software.Pages.Match
                 .AsNoTracking()
                 .Include(mp => mp.FkBgdPlayerNavigation)
                 .Include(mp => mp.FkBgdBoardGameMarkerNavigation)
-                    .ThenInclude(mk => mk.FkBgdBoardGameMarkerTypeNavigation)
+                    .ThenInclude(mk => mk!.FkBgdBoardGameMarkerTypeNavigation)
                 .Where(mp => mp.FkBgdBoardGameMatch == id && !mp.Inactive)
                 .ToListAsync();
 
@@ -158,7 +183,9 @@ namespace Board_Game_Software.Pages.Match
                     ExistingFinalTeam = res?.FinalTeam,
                     MarkerTypeName = markerType?.TypeDesc,
                     MarkerTypeGid = markerType?.Gid,
-                    PlayerGid = mp.FkBgdPlayerNavigation?.Gid
+                    PlayerGid = mp.FkBgdPlayerNavigation?.Gid,
+                    PreMatchRatingMu = res?.PreMatchRatingMu,
+                    RatingChangeMu = res?.RatingChangeMu
                 };
                 if (row.MarkerTypeGid.HasValue) wantGids.Add(row.MarkerTypeGid.Value);
                 if (row.PlayerGid.HasValue) wantGids.Add(row.PlayerGid.Value);
@@ -168,7 +195,9 @@ namespace Board_Game_Software.Pages.Match
             if (wantGids.Any())
             {
                 var images = await _imagesCollection.Find(Builders<BoardGameImages>.Filter.In(x => x.GID, wantGids.Cast<Guid?>())).ToListAsync();
-                var byGid = images.ToDictionary(d => d.GID!.Value, d => $"data:{d.ContentType};base64,{Convert.ToBase64String(d.ImageBytes)}");
+                var byGid = images
+                    .Where(d => d.GID.HasValue && d.ImageBytes != null)
+                    .ToDictionary(d => d.GID!.Value, d => $"data:{d.ContentType};base64,{Convert.ToBase64String(d.ImageBytes!)}");
 
                 foreach (var r in rows)
                 {
@@ -253,6 +282,8 @@ namespace Board_Game_Software.Pages.Match
             match.MatchComplete = true;
             match.TimeModified = DateTime.UtcNow;
             await _db.SaveChangesAsync();
+
+            await _achievementService.UnlockForMatchAsync(match.Id, Input.NightId > 0 ? Input.NightId : null, User.Identity?.Name ?? "system");
 
             // Store Location in TempData for the "One-Time" popup
             var section = match.FkBgdBoardGameNavigation?.BoardGameShelfSections.FirstOrDefault(x => !x.Inactive);

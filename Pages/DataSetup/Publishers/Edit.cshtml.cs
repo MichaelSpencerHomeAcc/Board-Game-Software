@@ -37,12 +37,14 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
             // Capture returnUrl from query string if present
             ReturnUrl = returnUrl;
 
-            Publisher = await _context.Publishers.FirstOrDefaultAsync(m => m.Id == id);
+            var publisher = await _context.Publishers.FirstOrDefaultAsync(m => m.Id == id);
 
-            if (Publisher == null)
+            if (publisher == null)
             {
                 return NotFound();
             }
+
+            Publisher = publisher;
 
             // Fetch current image from MongoDB
             var imageType = await _context.BoardGameImageTypes
@@ -54,7 +56,7 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
                     .Find(img => img.GID == Publisher.Gid && img.ImageTypeGID == imageType.Gid)
                     .FirstOrDefaultAsync();
 
-                if (imageDoc != null)
+                if (imageDoc?.ImageBytes != null)
                 {
                     ExistingImageBase64 = Convert.ToBase64String(imageDoc.ImageBytes);
                     ExistingImageContentType = imageDoc.ContentType;
