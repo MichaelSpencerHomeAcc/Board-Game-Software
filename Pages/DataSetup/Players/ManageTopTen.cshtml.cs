@@ -27,8 +27,10 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
-            Player = await _context.Players.FindAsync(id);
-            if (Player == null) return NotFound();
+            var player = await _context.Players.FindAsync(id);
+            if (player == null) return NotFound();
+
+            Player = player;
 
             CurrentTopTen = await _context.PlayerBoardGames
                 .Include(pbg => pbg.BoardGame)

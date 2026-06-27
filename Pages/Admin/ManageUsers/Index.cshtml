@@ -1,27 +1,130 @@
-﻿@page
+@page
 @model Board_Game_Software.Pages.Admin.ManageUsers.IndexModel
-@using Microsoft.AspNetCore.Identity
-
-<h2>User Role Management</h2>
-
-@foreach (var user in Model.Users)
-{
-    <form method="post">
-        <input type="hidden" name="UserId" value="@user.Id" />
-        <div class="mb-3 border rounded p-3">
-            <strong>@user.Email</strong>
-
-            <div class="mt-2">
-                @foreach (var role in Model.AllRoles)
-                {
-                    var isInRole = await Model.IsUserInRoleAsync(user, role);
-                    <input type="checkbox" name="SelectedRoles" value="@role" @(isInRole ? "checked" : "") />
-                    <label>@role</label>
-                }
-
-            </div>
-
-            <button type="submit" class="btn btn-sm btn-primary mt-2">Update Roles</button>
-        </div>
-    </form>
+@{
+    ViewData["Title"] = "Manage Users";
 }
+
+<style>
+    .admin-shell { max-width: 1200px; }
+    .admin-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; }
+    .admin-metric, .user-card { border: 1px solid var(--bs-border-color); border-radius: 8px; background: var(--bs-body-tertiary); }
+    .metric-value { font-size: 2rem; font-weight: 900; line-height: 1; }
+    .role-grid { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .role-pill { border: 1px solid var(--bs-border-color); border-radius: 999px; padding: .4rem .7rem; }
+    .role-pill input { margin-right: .35rem; }
+    .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+    .account-dot { width: .65rem; height: .65rem; border-radius: 50%; display: inline-block; }
+    @@media (max-width: 575.98px) { .user-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="container py-4 admin-shell">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3 mb-4">
+        <div>
+            <h1 class="fw-bold mb-1">Manage Users</h1>
+            <div class="text-secondary">Roles, account status, and player profile links.</div>
+        </div>
+        <a asp-page="/Admin/DataHealth/Index" class="btn btn-outline-info rounded-pill">
+            <i class="bi bi-clipboard2-pulse me-1"></i> Data Health
+        </a>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success rounded-4">@Model.StatusMessage</div>
+    }
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-4"></div>
+    }
+
+    <div class="admin-metrics mb-4">
+        <div class="admin-metric p-3"><div class="text-secondary small text-uppercase fw-bold">Accounts</div><div class="metric-value">@Model.Users.Count</div></div>
+        <div class="admin-metric p-3"><div class="text-secondary small text-uppercase fw-bold">Admins</div><div class="metric-value text-danger">@Model.AdminCount</div></div>
+        <div class="admin-metric p-3"><div class="text-secondary small text-uppercase fw-bold">Linked Players</div><div class="metric-value text-success">@Model.LinkedCount</div></div>
+        <div class="admin-metric p-3"><div class="text-secondary small text-uppercase fw-bold">Unlinked Players</div><div class="metric-value text-warning">@Model.UnlinkedPlayerCount</div></div>
+    </div>
+
+    <div class="user-grid">
+        @foreach (var user in Model.Users)
+        {
+            var isLocked = user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow;
+            <div class="user-card p-3">
+                <div class="d-flex justify-content-between gap-3 mb-3">
+                    <div class="min-w-0">
+                        <h2 class="h5 fw-bold mb-1 text-truncate">@user.Email</h2>
+                        <div class="small text-secondary text-truncate">@user.Id</div>
+                    </div>
+                    <div class="text-end">
+                        <span class="account-dot @(isLocked ? "bg-danger" : "bg-success")"></span>
+                        <div class="small text-secondary">@(isLocked ? "Locked" : "Active")</div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge rounded-pill @(user.EmailConfirmed ? "text-bg-success" : "text-bg-secondary")">
+                        <i class="bi @(user.EmailConfirmed ? "bi-envelope-check" : "bi-envelope") me-1"></i>
+                        @(user.EmailConfirmed ? "Email confirmed" : "Email unconfirmed")
+                    </span>
+                    @if (user.Roles.Any())
+                    {
+                        @foreach (var role in user.Roles)
+                        {
+                            <span class="badge rounded-pill text-bg-info">@role</span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="badge rounded-pill text-bg-warning">No roles</span>
+                    }
+                </div>
+
+                <form method="post" asp-page-handler="UpdateRoles" class="mb-3">
+                    <input type="hidden" asp-for="UserId" value="@user.Id" />
+                    <div class="role-grid mb-3">
+                        @foreach (var role in Model.AllRoles)
+                        {
+                            <label class="role-pill">
+                                <input type="checkbox" name="SelectedRoles" value="@role" checked="@user.Roles.Contains(role)" />
+                                @role
+                            </label>
+                        }
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">
+                        <i class="bi bi-shield-check me-1"></i> Save Roles
+                    </button>
+                </form>
+
+                <div class="border-top border-secondary-subtle pt-3">
+                    <div class="small text-secondary text-uppercase fw-bold mb-2">Player Link</div>
+                    @if (user.PlayerId.HasValue)
+                    {
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <a asp-page="/DataSetup/Players/Details" asp-route-id="@user.PlayerId" class="fw-bold text-decoration-none text-truncate">
+                                <i class="bi bi-person-badge me-1"></i>@user.PlayerName
+                            </a>
+                            <form method="post" asp-page-handler="UnlinkPlayer">
+                                <input type="hidden" asp-for="UserId" value="@user.Id" />
+                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </form>
+                        </div>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page-handler="LinkPlayer" class="d-flex gap-2">
+                            <input type="hidden" asp-for="UserId" value="@user.Id" />
+                            <select asp-for="PlayerId" asp-items="Model.PlayerOptions" class="form-select form-select-sm">
+                                <option value="">Link player...</option>
+                            </select>
+                            <button type="submit" class="btn btn-outline-success btn-sm rounded-pill px-3">
+                                <i class="bi bi-link-45deg"></i>
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>

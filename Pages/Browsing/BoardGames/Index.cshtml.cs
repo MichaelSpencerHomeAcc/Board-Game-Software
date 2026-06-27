@@ -20,13 +20,20 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         }
 
         public List<BoardGameViewModel> BoardGames { get; set; } = new();
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; } = 25;
+        public int TotalCount { get; set; }
+        public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+        public bool HasPreviousPage => PageNumber > 1;
+        public bool HasNextPage => PageNumber < TotalPages;
 
         [BindProperty(SupportsGet = true)]
         public string SearchTerm { get; set; } = string.Empty;
 
-        public async Task OnGetAsync(string? search)
+        public async Task OnGetAsync(string? search, int pageNumber = 1)
         {
             SearchTerm = search ?? string.Empty;
+            PageNumber = Math.Max(1, pageNumber);
             var linkedExpansionIds = _context.BoardGameExpansions
                 .Where(link => !link.Inactive)
                 .Select(link => link.FkBgdExpansionBoardGame);
@@ -70,9 +77,13 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 }
             }
 
+            TotalCount = await query.CountAsync();
+            PageNumber = Math.Min(PageNumber, Math.Max(TotalPages, 1));
+
             var games = await query
                 .OrderBy(bg => bg.BoardGameName)
-                .Take(50)
+                .Skip((PageNumber - 1) * PageSize)
+                .Take(PageSize)
                 .ToListAsync();
 
             BoardGames = games.Select(game => new BoardGameViewModel
@@ -143,6 +154,21 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .ToListAsync();
 
             return new JsonResult(suggestions);
+        }
+
+        public async Task<IActionResult> OnPostDeleteAsync(long id, string? search, int pageNumber = 1)
+        {
+            if (!User.IsInRole("Admin")) return Forbid();
+
+            var game = await _context.BoardGames.FirstOrDefaultAsync(bg => bg.Id == id);
+            if (game == null) return NotFound();
+
+            game.Inactive = true;
+            game.ModifiedBy = User.Identity?.Name ?? "System";
+            game.TimeModified = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+            return RedirectToPage(new { search, pageNumber });
         }
 
         private static ExpansionPlayerSummary? BuildExpansionPlayerSummary(BoardGame baseGame, BoardGame expansion)

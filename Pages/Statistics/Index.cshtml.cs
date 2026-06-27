@@ -1,36 +1,30 @@
-using Board_Game_Software.Data;
-using Board_Game_Software.Models;
+ï»¿using Board_Game_Software.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.Statistics
 {
     public class IndexModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
 
-        public IndexModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
+        public IndexModel(BoardGameDbContext context)
         {
             _context = context;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            _imagesCollection = mongoClient.GetDatabase(databaseName).GetCollection<BoardGameImages>("BoardGameImages");
         }
 
+        public DashboardStats Summary { get; private set; } = new();
         public List<HighScoreEntry> GlobalRecords { get; set; } = new();
         public List<HighScoreEntry> PersonalBests { get; set; } = new();
-        public string? PlayerProfileImage { get; set; }
+        public List<RecentMatchRow> RecentMatches { get; private set; } = new();
+        public List<MonthlyActivityRow> MonthlyActivity { get; private set; } = new();
         public SelectList PlayerList { get; set; } = default!;
         public SelectList YearList { get; set; } = default!;
         public SelectList MonthList { get; set; } = default!;
+        public string SelectedPlayerName { get; private set; } = string.Empty;
 
         [BindProperty(SupportsGet = true)] public long? SelectedPlayerId { get; set; }
         [BindProperty(SupportsGet = true)] public int? SelectedYear { get; set; }
@@ -38,233 +32,171 @@ namespace Board_Game_Software.Pages.Statistics
 
         public async Task OnGetAsync()
         {
-            // Players dropdown (no tracking)
-            var players = await _context.Players
-                .AsNoTracking()
-                .Where(p => !p.Inactive)
-                .Select(p => new
+            await LoadFiltersAsync();
+
+            var completedMatches = _context.BoardGameMatches.AsNoTracking()
+                .Where(m => !m.Inactive && m.MatchComplete == true);
+
+            if (SelectedYear.HasValue)
+                completedMatches = completedMatches.Where(m => m.FinishedDate.HasValue && m.FinishedDate.Value.Year == SelectedYear.Value);
+
+            if (SelectedMonth.HasValue)
+                completedMatches = completedMatches.Where(m => m.FinishedDate.HasValue && m.FinishedDate.Value.Month == SelectedMonth.Value);
+
+            var completedMatchIds = await completedMatches.Select(m => m.Id).ToListAsync();
+
+            var playerResultRows = await _context.BoardGameMatchPlayerResults.AsNoTracking()
+                .Where(r => !r.Inactive && completedMatchIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch))
+                .Select(r => new
                 {
-                    p.Id,
-                    Name = (p.FirstName ?? "") + " " + (p.LastName ?? "")
+                    MatchId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch,
+                    GameId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame,
+                    GameGid = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.Gid,
+                    GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
+                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer,
+                    PlayerGid = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.Gid,
+                    PlayerName = (r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.FirstName + " " + r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.LastName).Trim(),
+                    MatchDate = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FinishedDate ?? r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.MatchDate,
+                    r.FinalScore,
+                    r.Win,
+                    IsPointGame = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.FkBgdBoardGameVictoryConditionTypeNavigation!.Points == true
                 })
+                .ToListAsync();
+
+            Summary = new DashboardStats
+            {
+                CompletedMatches = playerResultRows.Select(r => r.MatchId).Distinct().Count(),
+                ActivePlayers = playerResultRows.Select(r => r.PlayerId).Distinct().Count(),
+                GamesPlayed = playerResultRows.Select(r => r.GameId).Distinct().Count(),
+                TopGame = playerResultRows.GroupBy(r => r.GameName).OrderByDescending(g => g.Select(x => x.MatchId).Distinct().Count()).Select(g => g.Key).FirstOrDefault() ?? "None yet",
+                TopWinner = playerResultRows.Where(r => r.Win).GroupBy(r => r.PlayerName).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault() ?? "None yet"
+            };
+
+            RecentMatches = playerResultRows
+                .GroupBy(r => r.MatchId)
+                .Select(g => new RecentMatchRow
+                {
+                    MatchId = g.Key,
+                    GameName = g.First().GameName,
+                    GameGid = g.First().GameGid,
+                    MatchDate = g.First().MatchDate,
+                    Winners = string.Join(", ", g.Where(x => x.Win).Select(x => x.PlayerName).Distinct())
+                })
+                .OrderByDescending(r => r.MatchDate)
+                .Take(8)
+                .ToList();
+
+            MonthlyActivity = playerResultRows
+                .Where(r => r.MatchDate.HasValue)
+                .GroupBy(r => new { r.MatchDate!.Value.Year, r.MatchDate.Value.Month })
+                .Select(g => new MonthlyActivityRow
+                {
+                    SortKey = g.Key.Year * 100 + g.Key.Month,
+                    Label = CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(g.Key.Month) + " " + g.Key.Year,
+                    Matches = g.Select(x => x.MatchId).Distinct().Count()
+                })
+                .OrderByDescending(x => x.SortKey)
+                .Take(6)
+                .OrderBy(x => x.SortKey)
+                .ToList();
+
+            GlobalRecords = playerResultRows
+                .Where(r => r.IsPointGame && r.FinalScore.HasValue)
+                .GroupBy(r => r.GameId)
+                .Select(g => g.OrderByDescending(x => x.FinalScore).ThenByDescending(x => x.MatchDate).First())
+                .OrderBy(x => x.GameName)
+                .Select(x => new HighScoreEntry
+                {
+                    GameId = x.GameId,
+                    GameGid = x.GameGid,
+                    PlayerGid = x.PlayerGid,
+                    GameName = x.GameName,
+                    PlayerName = x.PlayerName,
+                    Score = x.FinalScore ?? 0,
+                    Date = x.MatchDate
+                })
+                .ToList();
+
+            if (!SelectedPlayerId.HasValue) return;
+
+            SelectedPlayerName = playerResultRows.FirstOrDefault(r => r.PlayerId == SelectedPlayerId.Value)?.PlayerName ?? string.Empty;
+            var playerScores = playerResultRows.Where(r => r.PlayerId == SelectedPlayerId.Value && r.IsPointGame && r.FinalScore.HasValue).ToList();
+            var bestPerGame = playerScores.GroupBy(r => r.GameId).Select(g => g.OrderByDescending(x => x.FinalScore).ThenByDescending(x => x.MatchDate).First()).ToList();
+            var bestGameIds = bestPerGame.Select(b => b.GameId).ToHashSet();
+
+            var bestScoresByGame = playerResultRows
+                .Where(r => r.IsPointGame && r.FinalScore.HasValue && bestGameIds.Contains(r.GameId))
+                .GroupBy(r => new { r.GameId, r.PlayerId })
+                .Select(g => new { g.Key.GameId, g.Key.PlayerId, Score = g.Max(x => x.FinalScore ?? 0) })
+                .GroupBy(x => x.GameId)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Score).ToList());
+
+            PersonalBests = bestPerGame
+                .Select(x =>
+                {
+                    bestScoresByGame.TryGetValue(x.GameId, out var ranks);
+                    return new HighScoreEntry
+                    {
+                        GameId = x.GameId,
+                        GameGid = x.GameGid,
+                        GameName = x.GameName,
+                        Score = x.FinalScore ?? 0,
+                        Date = x.MatchDate,
+                        Rank = ranks == null ? 0 : ranks.FindIndex(r => r.PlayerId == SelectedPlayerId.Value) + 1
+                    };
+                })
+                .OrderBy(x => x.Rank == 0 ? int.MaxValue : x.Rank)
+                .ThenBy(x => x.GameName)
+                .ToList();
+        }
+
+        private async Task LoadFiltersAsync()
+        {
+            var players = await _context.Players.AsNoTracking()
+                .Where(p => !p.Inactive)
+                .Select(p => new { p.Id, Name = (p.FirstName + " " + p.LastName).Trim() })
                 .OrderBy(p => p.Name)
                 .ToListAsync();
 
             PlayerList = new SelectList(players, "Id", "Name");
 
-            // Year / Month dropdowns (no tracking)
-            var years = await _context.BoardGameMatchPlayerResults
-                .AsNoTracking()
-                .Select(r => r.TimeCreated.Year)
+            var years = await _context.BoardGameMatches.AsNoTracking()
+                .Where(m => m.FinishedDate.HasValue)
+                .Select(m => m.FinishedDate!.Value.Year)
                 .Distinct()
                 .OrderByDescending(y => y)
                 .ToListAsync();
 
             YearList = new SelectList(years);
-
-            MonthList = new SelectList(
-                Enumerable.Range(1, 12).Select(m => new
-                {
-                    Value = m,
-                    Text = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)
-                }),
-                "Value", "Text"
-            );
-
-            // Base query for point-based games only (no tracking)
-            var baseQuery = _context.BoardGameMatchPlayerResults
-                .AsNoTracking()
-                .Where(r =>
-                    r.FkBgdBoardGameMatchPlayerNavigation
-                     .FkBgdBoardGameMatchNavigation
-                     .FkBgdBoardGameNavigation
-                     .FkBgdBoardGameVictoryConditionTypeNavigation.Points == true
-                );
-
-            if (SelectedYear.HasValue)
-                baseQuery = baseQuery.Where(r => r.TimeCreated.Year == SelectedYear.Value);
-
-            if (SelectedMonth.HasValue)
-                baseQuery = baseQuery.Where(r => r.TimeCreated.Month == SelectedMonth.Value);
-
-            // --------------------------
-            // 1) GLOBAL RECORDS (Top score per game)
-            // --------------------------
-
-            // Pull only the fields we need (avoid dragging whole entities)
-            var globalRows = await baseQuery
-                .Select(r => new HighScoreEntry
-                {
-                    GameId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame,
-                    GameGid = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.Gid,
-                    GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
-                    PlayerName =
-                        (r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.FirstName ?? "") + " " +
-                        (r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.LastName ?? ""),
-                    PlayerGid = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.Gid,
-                    Score = r.FinalScore ?? 0,
-                    Date = r.TimeCreated
-                })
-                .ToListAsync();
-
-            // Top per game in-memory (still OK after trimming columns; next step would be window funcs)
-            var topGlobal = globalRows
-                .GroupBy(x => x.GameId)
-                .Select(g => g.OrderByDescending(x => x.Score).ThenByDescending(x => x.Date).First())
-                .OrderBy(x => x.GameName)
-                .ToList();
-
-            // Batch load player images for global records
-            var globalPlayerGids = topGlobal
-                .Where(x => x.PlayerGid.HasValue)
-                .Select(x => x.PlayerGid!.Value)
-                .Distinct()
-                .ToList();
-
-            if (globalPlayerGids.Any())
-            {
-                var globalImages = await _imagesCollection.Find(Builders<BoardGameImages>.Filter.And(
-                    Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player"),
-                    Builders<BoardGameImages>.Filter.In(x => x.GID, globalPlayerGids.Select(g => (Guid?)g))
-                )).ToListAsync();
-
-                foreach (var entry in topGlobal)
-                {
-                    if (!entry.PlayerGid.HasValue) continue;
-
-                    var img = globalImages.FirstOrDefault(i => i.GID == entry.PlayerGid);
-                    if (img?.ImageBytes != null)
-                    {
-                        entry.PlayerBase64Image = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
-                        entry.AvatarFocusX = img.AvatarFocusX;
-                        entry.AvatarFocusY = img.AvatarFocusY;
-                        entry.AvatarZoom = img.AvatarZoom;
-                    }
-                }
-            }
-
-            GlobalRecords = topGlobal;
-
-            // --------------------------
-            // 2) PERSONAL BESTS
-            // --------------------------
-            if (!SelectedPlayerId.HasValue)
-                return;
-
-            // Load the selected player's profile image (no tracking)
-            var player = await _context.Players
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == SelectedPlayerId.Value);
-
-            if (player != null)
-                await LoadPlayerImage(player.Gid);
-
-            // Player’s scores in filtered window
-            var pScores = await baseQuery
-                .Where(r => r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer == SelectedPlayerId.Value)
-                .Select(r => new HighScoreEntry
-                {
-                    GameId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame,
-                    GameGid = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.Gid,
-                    GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
-                    Score = r.FinalScore ?? 0,
-                    Date = r.TimeCreated
-                })
-                .ToListAsync();
-
-            var bestPerGame = pScores
-                .GroupBy(x => x.GameId)
-                .Select(g => g.OrderByDescending(x => x.Score).ThenByDescending(x => x.Date).First())
-                .ToList();
-
-            if (!bestPerGame.Any())
-            {
-                PersonalBests = new List<HighScoreEntry>();
-                return;
-            }
-
-            // Only compute ranking for games that matter (BIG speed win vs whole DB)
-            var gameIds = bestPerGame.Select(b => b.GameId).Distinct().ToList();
-
-            // For those games, compute best score per player per game
-            var bestScoresAllPlayersForThoseGames = await baseQuery
-                .Where(r => gameIds.Contains(
-                    r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame
-                ))
-                .Select(r => new
-                {
-                    GameId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame,
-                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer,
-                    Score = r.FinalScore ?? 0
-                })
-                .ToListAsync();
-
-            // Pre-group once (avoid repeated Where/OrderBy in loop)
-            var perGameGroups = bestScoresAllPlayersForThoseGames
-                .GroupBy(x => x.GameId)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
-            // Batch load BoardGame Front images for personal bests in ONE Mongo query
-            var frontType = await _context.BoardGameImageTypes
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-
-            if (frontType != null)
-            {
-                var gameGids = bestPerGame.Select(b => (Guid?)b.GameGid).Distinct().ToList();
-
-                var gameImgs = await _imagesCollection.Find(Builders<BoardGameImages>.Filter.And(
-                    Builders<BoardGameImages>.Filter.In(x => x.GID, gameGids),
-                    Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, frontType.Gid)
-                )).ToListAsync();
-
-                var imgByGid = gameImgs
-                    .Where(i => i.GID.HasValue)
-                    .GroupBy(i => i.GID!.Value)
-                    .ToDictionary(g => g.Key, g => g.First());
-
-                foreach (var entry in bestPerGame)
-                {
-                    // Rank (1-based)
-                    if (perGameGroups.TryGetValue(entry.GameId, out var list))
-                    {
-                        var ordered = list.OrderByDescending(x => x.Score).ToList();
-                        entry.Rank = ordered.FindIndex(x => x.PlayerId == SelectedPlayerId.Value) + 1;
-                    }
-
-                    if (imgByGid.TryGetValue(entry.GameGid, out var img) && img?.ImageBytes != null)
-                    {
-                        entry.Base64Image = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
-                    }
-                }
-            }
-            else
-            {
-                // Still compute ranks even if frontType missing
-                foreach (var entry in bestPerGame)
-                {
-                    if (perGameGroups.TryGetValue(entry.GameId, out var list))
-                    {
-                        var ordered = list.OrderByDescending(x => x.Score).ToList();
-                        entry.Rank = ordered.FindIndex(x => x.PlayerId == SelectedPlayerId.Value) + 1;
-                    }
-                }
-            }
-
-            PersonalBests = bestPerGame.OrderBy(x => x.Rank).ToList();
+            MonthList = new SelectList(Enumerable.Range(1, 12).Select(m => new { Value = m, Text = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m) }), "Value", "Text");
         }
 
-        private async Task LoadPlayerImage(Guid gid)
+        public sealed class DashboardStats
         {
-            var img = await _imagesCollection
-                .Find(i => i.SQLTable == "bgd.Player" && i.GID == gid)
-                .FirstOrDefaultAsync();
-
-            if (img?.ImageBytes != null)
-                PlayerProfileImage = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+            public int CompletedMatches { get; init; }
+            public int ActivePlayers { get; init; }
+            public int GamesPlayed { get; init; }
+            public string TopGame { get; init; } = "None yet";
+            public string TopWinner { get; init; } = "None yet";
         }
 
-        public class HighScoreEntry
+        public sealed class RecentMatchRow
+        {
+            public long MatchId { get; init; }
+            public string GameName { get; init; } = string.Empty;
+            public Guid GameGid { get; init; }
+            public DateTime? MatchDate { get; init; }
+            public string Winners { get; init; } = string.Empty;
+        }
+
+        public sealed class MonthlyActivityRow
+        {
+            public int SortKey { get; init; }
+            public string Label { get; init; } = string.Empty;
+            public int Matches { get; init; }
+        }
+
+        public sealed class HighScoreEntry
         {
             public long GameId { get; set; }
             public Guid GameGid { get; set; }
@@ -272,13 +204,8 @@ namespace Board_Game_Software.Pages.Statistics
             public string GameName { get; set; } = "";
             public string PlayerName { get; set; } = "";
             public decimal Score { get; set; }
-            public DateTime Date { get; set; }
+            public DateTime? Date { get; set; }
             public int Rank { get; set; }
-            public string? Base64Image { get; set; }
-            public string? PlayerBase64Image { get; set; }
-            public int AvatarFocusX { get; set; } = 50;
-            public int AvatarFocusY { get; set; } = 50;
-            public int AvatarZoom { get; set; } = 100;
         }
     }
 }

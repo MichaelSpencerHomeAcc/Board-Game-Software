@@ -41,17 +41,18 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
-            MarkerType = await _context.BoardGameMarkerTypes
+            var markerType = await _context.BoardGameMarkerTypes
                 .Include(m => m.FkBgdMarkerAlignmentTypeNavigation)
                 .Include(m => m.FkBgdMarkerAdditionalTypeNavigation)  // Add this!
                 .FirstOrDefaultAsync(m => m.Id == id);
 
 
-            if (MarkerType == null)
+            if (markerType == null)
             {
                 return NotFound();
             }
 
+            MarkerType = markerType;
             await LoadMarkerImage(MarkerType.Gid);
             await PopulateAlignmentTypesSelectList(MarkerType.FkBgdMarkerAlignmentType);
             await PopulateAdditionalTypesSelectList(MarkerType.FkBgdMarkerAdditionalType);

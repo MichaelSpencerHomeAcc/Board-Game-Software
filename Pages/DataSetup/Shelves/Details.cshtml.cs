@@ -26,13 +26,15 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
         {
             if (id == null) return NotFound();
 
-            Shelf = await _context.Shelves
+            var shelf = await _context.Shelves
                 .Include(s => s.ShelfSections)
                     .ThenInclude(ss => ss.BoardGameShelfSections)
                         .ThenInclude(bgss => bgss.FkBgdBoardGameNavigation)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (Shelf == null) return NotFound();
+            if (shelf == null) return NotFound();
+
+            Shelf = shelf;
 
             ActiveSections = Shelf.ShelfSections
                 .Where(ss => !ss.Inactive)

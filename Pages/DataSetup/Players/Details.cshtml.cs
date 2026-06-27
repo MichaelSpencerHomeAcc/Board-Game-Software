@@ -42,6 +42,9 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
         public List<PlayerBoardGame> TopTenGames { get; set; } = new();
         public Dictionary<long, string> GameImages { get; set; } = new(); // entryId -> image url
+        public PlayerProfileStats ProfileStats { get; private set; } = new();
+        public List<ProfileBadgeRow> Badges { get; private set; } = new();
+        public List<RecentFormRow> RecentForm { get; private set; } = new();
 
         // Focus / zoom (defaults)
         public int AvatarX { get; set; } = 50;
@@ -50,6 +53,32 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         public int PodiumX { get; set; } = 50;
         public int PodiumY { get; set; } = 50;
         public int PodiumZoom { get; set; } = 100;
+
+        public sealed class PlayerProfileStats
+        {
+            public int Matches { get; init; }
+            public int Wins { get; init; }
+            public string FavoriteGame { get; init; } = "None yet";
+            public string Nemesis { get; init; } = "None yet";
+            public string BestTeammate { get; init; } = "None yet";
+            public string StrongestType { get; init; } = "Unknown";
+            public decimal BestRatingGain { get; init; }
+        }
+
+        public sealed class ProfileBadgeRow
+        {
+            public string Title { get; init; } = string.Empty;
+            public string Detail { get; init; } = string.Empty;
+            public DateTime UnlockedAt { get; init; }
+        }
+
+        public sealed class RecentFormRow
+        {
+            public string GameName { get; init; } = string.Empty;
+            public DateTime? FinishedDate { get; init; }
+            public bool Won { get; init; }
+            public decimal? RatingChange { get; init; }
+        }
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
@@ -83,7 +112,91 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                 GameImages[entry.Id] = $"/media/boardgame/front/{entry.BoardGame.Gid}";
             }
 
+            await LoadProfile2Async(id);
+
             return Page();
+        }
+
+        private async Task LoadProfile2Async(long playerId)
+        {
+            var rows = await _context.BoardGameMatchPlayerResults.AsNoTracking()
+                .Where(r => !r.Inactive
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer == playerId
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.MatchComplete == true)
+                .Select(r => new
+                {
+                    MatchId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch,
+                    GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
+                    GameType = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.FkBgdBoardGameTypeNavigation!.TypeDesc,
+                    FinishedDate = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FinishedDate,
+                    r.Win,
+                    r.RatingChangeMu,
+                    r.FinalTeam
+                })
+                .ToListAsync();
+
+            var matchIds = rows.Select(r => r.MatchId).Distinct().ToList();
+            var otherPlayers = await _context.BoardGameMatchPlayers.AsNoTracking()
+                .Where(mp => matchIds.Contains(mp.FkBgdBoardGameMatch) && mp.FkBgdPlayer != playerId && !mp.Inactive)
+                .Select(mp => new
+                {
+                    mp.FkBgdBoardGameMatch,
+                    mp.FkBgdPlayer,
+                    Name = (mp.FkBgdPlayerNavigation.FirstName + " " + mp.FkBgdPlayerNavigation.LastName).Trim(),
+                    Result = mp.BoardGameMatchPlayerResults.Where(r => !r.Inactive).Select(r => new { r.Win, r.FinalTeam }).FirstOrDefault()
+                })
+                .ToListAsync();
+
+            var lossesByOpponent = new Dictionary<long, (string Name, int Count)>();
+            var teammateWins = new Dictionary<long, (string Name, int Count)>();
+
+            foreach (var row in rows)
+            {
+                var others = otherPlayers.Where(o => o.FkBgdBoardGameMatch == row.MatchId).ToList();
+                if (!row.Win)
+                {
+                    foreach (var winner in others.Where(o => o.Result?.Win == true))
+                    {
+                        var current = lossesByOpponent.GetValueOrDefault(winner.FkBgdPlayer);
+                        lossesByOpponent[winner.FkBgdPlayer] = (winner.Name, current.Count + 1);
+                    }
+                }
+
+                if (row.Win && row.FinalTeam.HasValue)
+                {
+                    foreach (var teammate in others.Where(o => o.Result?.FinalTeam == row.FinalTeam))
+                    {
+                        var current = teammateWins.GetValueOrDefault(teammate.FkBgdPlayer);
+                        teammateWins[teammate.FkBgdPlayer] = (teammate.Name, current.Count + 1);
+                    }
+                }
+            }
+
+            ProfileStats = new PlayerProfileStats
+            {
+                Matches = rows.Select(r => r.MatchId).Distinct().Count(),
+                Wins = rows.Count(r => r.Win),
+                FavoriteGame = rows.GroupBy(r => r.GameName).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => g.Key).FirstOrDefault() ?? "None yet",
+                Nemesis = lossesByOpponent.OrderByDescending(x => x.Value.Count).Select(x => x.Value.Name).FirstOrDefault() ?? "None yet",
+                BestTeammate = teammateWins.OrderByDescending(x => x.Value.Count).Select(x => x.Value.Name).FirstOrDefault() ?? "None yet",
+                StrongestType = rows.Where(r => r.Win && !string.IsNullOrWhiteSpace(r.GameType)).GroupBy(r => r.GameType).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault() ?? "Unknown",
+                BestRatingGain = rows.Max(r => r.RatingChangeMu ?? 0)
+            };
+
+            RecentForm = rows.OrderByDescending(r => r.FinishedDate).Take(6).Select(r => new RecentFormRow
+            {
+                GameName = r.GameName,
+                FinishedDate = r.FinishedDate,
+                Won = r.Win,
+                RatingChange = r.RatingChangeMu
+            }).ToList();
+
+            Badges = await _context.PlayerAchievements.AsNoTracking()
+                .Where(a => a.FkBgdPlayer == playerId && !a.Inactive)
+                .OrderByDescending(a => a.UnlockedAt)
+                .Take(8)
+                .Select(a => new ProfileBadgeRow { Title = a.BadgeTitle, Detail = a.BadgeDetail, UnlockedAt = a.UnlockedAt })
+                .ToListAsync();
         }
 
         private async Task LoadPlayerImageMeta(Guid playerGid)

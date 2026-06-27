@@ -1,255 +1,155 @@
-﻿@page "{id:long?}"
+@page "{id:long?}"
 @model Board_Game_Software.Pages.Statistics.GameRankingsModel
 @{
     ViewData["Title"] = "Game Rankings";
 }
 
-@functions {
-    public string GetInitials(string? fullName)
-    {
-        if (string.IsNullOrWhiteSpace(fullName)) return "?";
-        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
-        if (parts.Length > 1) return (parts[0][0].ToString() + parts[parts.Length - 1][0].ToString()).ToUpper();
-        return "?";
-    }
-
-    public string GetAvatarColor(string? name)
-    {
-        if (string.IsNullOrEmpty(name)) return "#6c757d";
-        int hash = 0;
-        foreach (char c in name) { hash = c + ((hash << 5) - hash); }
-        var colors = new[] { "#d32f2f", "#c2185b", "#7b1fa2", "#512da8", "#303f9f", "#1976d2", "#0288d1", "#0097a7", "#00796b", "#388e3c", "#689f38", "#fbc02d", "#ffa000", "#f57c00", "#e64a19", "#5d4037", "#616161", "#455a64" };
-        return colors[Math.Abs(hash) % colors.Length];
-    }
-}
-
 <style>
-    .game-header {
-        display: flex;
-        align-items: center;
-        gap: 30px;
-        margin-bottom: 3rem;
-        background: rgba(255,255,255,0.02);
-        padding: 2rem;
-        border-radius: 15px;
-    }
-
-    .game-art-lockdown {
-        width: 140px;
-        height: 140px;
-        border-radius: 12px;
-        object-fit: cover;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        border: 1px solid rgba(255,255,255,0.1);
-    }
-
-    .podium-window {
-        position: relative;
-        height: 200px;
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.1);
-        background-color: #1a1d21;
-    }
-
-    .player-bg-art {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        opacity: 0.25;
-        z-index: 1;
-        filter: grayscale(100%);
-        transition: object-position 0.3s ease;
-    }
-
-    .window-overlay {
-        position: relative;
-        z-index: 2;
-        padding: 1.25rem;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        background: linear-gradient(45deg, rgba(0,0,0,0.9) 30%, transparent 100%);
-    }
-
-    /* INITIALS FALLBACK */
-    .avatar-text {
-        color: white;
-        font-weight: 600;
-        font-size: 1.2rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        height: 100%;
-    }
-
-    /* TABLE STYLES */
-    .fixed-table {
-        table-layout: fixed;
-        width: 100%;
-    }
-
-        .fixed-table tr {
-            height: 92px !important;
-        }
-
-    .avatar-table-wrapper {
-        width: 48px;
-        height: 48px;
+    .rankings-shell { max-width: 1320px; }
+    .rankings-header, .ranking-card, .rankings-table-wrap {
+        border: 1px solid var(--bs-border-color);
         border-radius: 8px;
-        overflow: hidden;
-        flex-shrink: 0;
-        background-color: #1a1d21;
+        background: var(--bs-body-tertiary);
     }
-
-    .player-avatar-small {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        transition: transform 0.2s ease-in-out;
-    }
-
-    /* HIGH SCORE HUD STYLE */
-    .score-badge-hud {
-        font-family: 'Consolas', 'Monaco', monospace;
-        font-weight: 900;
-        font-size: 1.15rem;
-        color: #0dcaf0;
-        background: rgba(13, 202, 240, 0.1);
-        border: 1px solid rgba(13, 202, 240, 0.3);
-        padding: 4px 12px;
-        border-radius: 4px;
-        letter-spacing: 1px;
-        min-width: 95px;
-        display: inline-block;
-        text-align: center;
-    }
-
-    .glow-1 {
-        border: 1px solid #ffd700 !important;
-        box-shadow: 0 0 20px rgba(255,215,0,0.2);
-    }
-
-    .glow-2 {
-        border: 1px solid #c0c0c0 !important;
-        box-shadow: 0 0 20px rgba(192,192,192,0.15);
-    }
-
-    .glow-3 {
-        border: 1px solid #cd7f32 !important;
-        box-shadow: 0 0 20px rgba(205,127,50,0.1);
+    .game-cover { width: 118px; height: 118px; border-radius: 8px; object-fit: cover; background: var(--bs-secondary-bg); }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
+    .summary-item { border: 1px solid var(--bs-border-color); border-radius: 8px; background: var(--bs-body-bg); }
+    .summary-value { font-size: 1.85rem; font-weight: 900; line-height: 1; }
+    .podium-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    .podium-card { border: 1px solid var(--bs-border-color); border-radius: 8px; background: var(--bs-body-bg); overflow: hidden; }
+    .podium-rank { font-size: 2.5rem; font-weight: 900; line-height: 1; }
+    .player-avatar { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; background: var(--bs-secondary-bg); }
+    .ranking-table td, .ranking-table th { white-space: nowrap; }
+    .ranking-table .player-cell { white-space: normal; min-width: 220px; }
+    @@media (max-width: 767.98px) {
+        .rankings-header-inner { align-items: flex-start !important; }
+        .game-cover { width: 84px; height: 84px; }
+        .podium-grid { grid-template-columns: 1fr; }
     }
 </style>
 
-<div class="container-fluid py-4">
-    <div class="mb-4">
-        <form method="get">
-            <div class="input-group shadow-sm border border-secondary border-opacity-25 rounded-3 overflow-hidden">
-                <span class="input-group-text bg-body border-0 text-muted"><i class="bi bi-controller"></i></span>
-                <select asp-for="SelectedGameId" asp-items="Model.GameList" class="form-select border-0 bg-body" onchange="this.form.submit()">
-                    <option value="">Switch Game Module...</option>
-                </select>
-                <button class="btn btn-primary px-4 fw-bold">Load Rankings</button>
-            </div>
+<div class="container-fluid py-4 rankings-shell">
+    <div class="rankings-header p-4 mb-4">
+        <form method="get" class="d-flex flex-column flex-md-row gap-2 mb-4">
+            <select asp-for="SelectedGameId" asp-items="Model.GameList" class="form-select">
+                <option value="">Choose a point-scoring game...</option>
+            </select>
+            <button class="btn btn-primary px-4" type="submit">
+                <i class="bi bi-trophy me-1"></i> Load Rankings
+            </button>
         </form>
+
+        @if (Model.SelectedGameId.HasValue)
+        {
+            <div class="d-flex rankings-header-inner align-items-center gap-3">
+                <img src="/media/boardgame/front/@Model.Game.Gid" class="game-cover" alt="@Model.Game.BoardGameName cover" />
+                <div class="min-w-0">
+                    <h1 class="fw-bold mb-1 text-truncate">@Model.Game.BoardGameName</h1>
+                    <div class="text-secondary">
+                        @(Model.Game.FkBgdPublisherNavigation?.PublisherName ?? "Unknown publisher") leaderboard
+                    </div>
+                    <div class="small text-secondary mt-1">
+                        Last played: @(Model.Summary.LastPlayed?.ToString("dd MMM yyyy") ?? "No completed plays")
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <h1 class="fw-bold mb-1">Game Rankings</h1>
+            <div class="text-secondary">Pick a point-scoring game to see the current leaderboard.</div>
+        }
     </div>
 
     @if (Model.SelectedGameId.HasValue)
     {
-        <div class="game-header shadow-sm">
-            @if (!string.IsNullOrEmpty(Model.GameBoxArt))
-            {
-                <img src="@Model.GameBoxArt" class="game-art-lockdown" alt="Box Art" />
-            }
-            <div>
-                <h1 class="display-5 fw-black m-0 text-white">@Model.Game.BoardGameName</h1>
-                <p class="text-info tracking-widest text-uppercase fw-bold mb-0">@Model.Game.FkBgdPublisherNavigation?.PublisherName Leaderboard</p>
+        <div class="summary-grid mb-4">
+            <div class="summary-item p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Leader</div>
+                <div class="fw-bold fs-5 text-truncate">@Model.Summary.LeaderName</div>
+            </div>
+            <div class="summary-item p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Best Score</div>
+                <div class="summary-value">@Model.Summary.BestScore.ToString("N0")</div>
+            </div>
+            <div class="summary-item p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Players Ranked</div>
+                <div class="summary-value">@Model.Summary.PlayersRanked</div>
+            </div>
+            <div class="summary-item p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Scores Recorded</div>
+                <div class="summary-value">@Model.Summary.ScoresRecorded</div>
+            </div>
+            <div class="summary-item p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Average Score</div>
+                <div class="summary-value">@Model.Summary.AverageScore.ToString("N0")</div>
             </div>
         </div>
 
-        <div class="row g-4 mb-5">
-            @for (int i = 0; i < Math.Min(3, Model.Leaderboard.Count); i++)
-            {
-                var p = Model.Leaderboard[i];
-                var rank = i + 1;
-                <div class="col-md-4">
-                    <div class="podium-window glow-@rank">
-                        @if (!string.IsNullOrEmpty(p.ProfileImage))
-                        {
-                            <img src="@p.ProfileImage" class="player-bg-art"
-                                 style="object-position: @(p.FocusX)% @(p.FocusY)%; transform: scale(@(p.Zoom / 100.0));" alt="" />
-                        }
-                        else
-                        {
-                            <div class="player-bg-art" style="background-color: @GetAvatarColor(p.PlayerName); opacity: 0.15;"></div>
-                        }
-                        <div class="window-overlay p-4">
+        @if (Model.Leaderboard.Any())
+        {
+            <div class="podium-grid mb-4">
+                @foreach (var entry in Model.Leaderboard.Take(3).Select((value, index) => new { value, rank = index + 1 }))
+                {
+                    <article class="podium-card p-3">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
                             <div>
-                                <h1 class="display-3 fw-black m-0 @(rank == 1 ? "text-warning" : "text-white")">#@rank</h1>
-                                <span class="text-uppercase tracking-widest small fw-bold text-muted">Global Position</span>
+                                <div class="podium-rank @(entry.rank == 1 ? "text-warning" : "text-secondary")">#@entry.rank</div>
+                                <div class="text-secondary small text-uppercase fw-bold">Position</div>
                             </div>
-                            <div class="mt-auto">
-                                <h4 class="text-white fw-bold mb-0">@p.PlayerName</h4>
-                                <span class="fs-5 text-info fw-bold">@p.Score.ToString("N0") PTS</span>
-                            </div>
+                            <img src="/media/player/@entry.value.PlayerGid" class="player-avatar" alt="@entry.value.PlayerName" />
                         </div>
-                    </div>
-                </div>
-            }
-        </div>
-
-        <div class="card shadow-sm border-0 bg-transparent">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 fixed-table">
-                    <thead class="border-bottom border-secondary-subtle text-muted small text-uppercase">
-                        <tr>
-                            <th class="ps-4" style="width: 10%;">Rank</th>
-                            <th style="width: 40%;">Personnel</th>
-                            <th class="text-center" style="width: 25%;">High Score</th>
-                            <th class="text-end pe-4" style="width: 25%;">Date Set</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var entry in Model.Leaderboard.Select((val, idx) => new { val, idx }))
-                        {
-                            <tr class="border-bottom border-secondary-subtle">
-                                <td class="ps-4 fw-black fs-4 text-muted">#@(entry.idx + 1)</td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <div class="avatar-table-wrapper me-3 shadow-sm">
-                                            @if (!string.IsNullOrEmpty(entry.val.ProfileImage))
-                                            {
-                                                <img src="@entry.val.ProfileImage"
-                                                     class="player-avatar-small"
-                                                     style="object-position: @(entry.val.AvatarX)% @(entry.val.AvatarY)%; transform: scale(@(entry.val.AvatarZoom / 100.0));" />
-                                            }
-                                            else
-                                            {
-                                                <div class="avatar-text" style="background-color: @GetAvatarColor(entry.val.PlayerName);">
-                                                    @GetInitials(entry.val.PlayerName)
-                                                </div>
-                                            }
-                                        </div>
-                                        <span class="fw-bold text-white">@entry.val.PlayerName</span>
-                                    </div>
-                                </td>
-                                <td class="text-center">
-                                    <span class="score-badge-hud">
-                                        @entry.val.Score.ToString("N0")
-                                    </span>
-                                </td>
-                                <td class="text-end pe-4 text-muted small">@entry.val.Date.ToString("yyyy-MM-dd")</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+                        <h2 class="h5 fw-bold mb-1 text-truncate">@entry.value.PlayerName</h2>
+                        <div class="fs-4 fw-bold text-info">@entry.value.Score.ToString("N0")</div>
+                        <div class="small text-secondary">@entry.value.Plays play@(entry.value.Plays == 1 ? "" : "s") · avg @entry.value.AverageScore.ToString("N0")</div>
+                    </article>
+                }
             </div>
-        </div>
+
+            <section class="rankings-table-wrap p-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 fw-bold mb-0">Full Leaderboard</h2>
+                    <span class="badge rounded-pill text-bg-secondary">@Model.Leaderboard.Count players</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle ranking-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th class="player-cell">Player</th>
+                                <th class="text-end">Best Score</th>
+                                <th class="text-end">Average</th>
+                                <th class="text-end">Plays</th>
+                                <th class="text-end">Date Set</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in Model.Leaderboard.Select((value, index) => new { value, rank = index + 1 }))
+                            {
+                                <tr>
+                                    <td class="fw-bold">#@entry.rank</td>
+                                    <td class="player-cell">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <img src="/media/player/@entry.value.PlayerGid" class="player-avatar" alt="@entry.value.PlayerName" />
+                                            <span class="fw-semibold">@entry.value.PlayerName</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-end fw-bold">@entry.value.Score.ToString("N0")</td>
+                                    <td class="text-end">@entry.value.AverageScore.ToString("N0")</td>
+                                    <td class="text-end">@entry.value.Plays</td>
+                                    <td class="text-end text-secondary">@(entry.value.Date?.ToString("dd MMM yyyy") ?? "-")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+        else
+        {
+            <div class="ranking-card p-5 text-center text-secondary">
+                No completed point scores have been recorded for this game yet.
+            </div>
+        }
     }
 </div>

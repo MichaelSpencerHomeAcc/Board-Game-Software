@@ -38,6 +38,8 @@ public partial class BoardGameMatch
 
     public virtual ICollection<BoardGameNightBoardGameMatch> BoardGameNightBoardGameMatches { get; set; } = new List<BoardGameNightBoardGameMatch>();
 
+    public virtual ICollection<PlayerAchievement> PlayerAchievements { get; set; } = new List<PlayerAchievement>();
+
     public virtual BoardGame FkBgdBoardGameNavigation { get; set; } = null!;
 
     public virtual ResultType? FkBgdResultTypeNavigation { get; set; }

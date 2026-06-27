@@ -39,12 +39,21 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         }
 
         public IList<PlayerRow> Players { get; private set; } = new List<PlayerRow>();
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; } = 25;
+        public int TotalCount { get; set; }
+        public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+        public bool HasPreviousPage => PageNumber > 1;
+        public bool HasNextPage => PageNumber < TotalPages;
 
         [BindProperty(SupportsGet = true)]
         public string? SearchTerm { get; set; }
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(string? search, int pageNumber = 1)
         {
+            SearchTerm = search;
+            PageNumber = Math.Max(1, pageNumber);
+
             // 1) SQL: lightweight projection
             var query = _context.VwPlayers
                 .AsNoTracking()
@@ -53,11 +62,16 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
                 var term = SearchTerm.Trim();
-                query = query.Where(p => p.FullName.Contains(term));
+                query = query.Where(p => p.FullName != null && p.FullName.Contains(term));
             }
+
+            TotalCount = await query.CountAsync();
+            PageNumber = Math.Min(PageNumber, Math.Max(TotalPages, 1));
 
             var players = await query
                 .OrderBy(p => p.FullName)
+                .Skip((PageNumber - 1) * PageSize)
+                .Take(PageSize)
                 .Select(p => new
                 {
                     p.Id,

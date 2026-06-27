@@ -38,9 +38,11 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
         {
             // 1. Fetch Publisher (Using View or Entity, here keeping your View usage if strictly read-only, 
             // but usually we want the Entity for relationships. Let's use the View for display properties)
-            Publisher = await _context.VwPublishers.FirstOrDefaultAsync(p => p.Id == id);
+            var publisher = await _context.VwPublishers.FirstOrDefaultAsync(p => p.Id == id);
 
-            if (Publisher == null) return NotFound();
+            if (publisher == null) return NotFound();
+
+            Publisher = publisher;
 
             // 2. Fetch Publisher Logo
             // Note: In your Edit page, you used "Image" as the TypeDesc for Publisher logos.

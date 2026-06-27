@@ -80,6 +80,10 @@ public partial class BoardGame
 
     public virtual ICollection<PlayerBoardGameStarRating> PlayerBoardGameStarRatings { get; set; } = new List<PlayerBoardGameStarRating>();
 
+    public virtual ICollection<BoardGameVote> BoardGameVotes { get; set; } = new List<BoardGameVote>();
+
+    public virtual ICollection<PlayerAchievement> PlayerAchievements { get; set; } = new List<PlayerAchievement>();
+
     public ICollection<PlayerBoardGame> PlayerBoardGames { get; set; } = new List<PlayerBoardGame>();
 
 }

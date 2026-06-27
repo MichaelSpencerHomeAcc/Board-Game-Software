@@ -12,7 +12,7 @@ public class EditModel : PageModel
     private readonly IMongoCollection<BoardGameImages> _imagesCollection;
 
     [BindProperty]
-    public Player Player { get; set; }
+    public Player Player { get; set; } = null!;
 
     [BindProperty]
     public IFormFile? Upload { get; set; }
@@ -29,11 +29,11 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(long id)
     {
-        Player = await _context.Players.FindAsync(id);
-
-        if (Player == null)
+        var player = await _context.Players.FindAsync(id);
+        if (player == null)
             return NotFound();
 
+        Player = player;
         await LoadProfileImage(Player.Gid);
 
         return Page();
@@ -52,10 +52,11 @@ public class EditModel : PageModel
                 }
             }
 
-            Player = await _context.Players.FindAsync(Player.Id);
-            if (Player == null)
+            var player = await _context.Players.FindAsync(Player.Id);
+            if (player == null)
                 return NotFound();
 
+            Player = player;
             await LoadProfileImage(Player.Gid);
 
             return Page();
@@ -98,7 +99,11 @@ public class EditModel : PageModel
             {
                 ModelState.AddModelError(string.Empty, $"Image upload failed: {ex.Message}");
 
-                Player = await _context.Players.FindAsync(Player.Id);
+                var player = await _context.Players.FindAsync(Player.Id);
+                if (player == null)
+                    return NotFound();
+
+                Player = player;
                 await LoadProfileImage(Player.Gid);
                 return Page();
             }

@@ -2,6 +2,6 @@
 
 public class BoardGameViewModel
 {
-    public BoardGame BoardGame { get; set; }
+    public BoardGame BoardGame { get; set; } = null!;
     public string? Base64Image { get; set; }
 }

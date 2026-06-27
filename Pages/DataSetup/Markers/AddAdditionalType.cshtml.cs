@@ -19,11 +19,11 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
         }
 
         [BindProperty]
-        public string TypeDesc { get; set; }
+        public string TypeDesc { get; set; } = string.Empty;
 
         public List<string> ExistingTypes { get; set; } = new List<string>();
 
-        public string Message { get; set; }
+        public string Message { get; set; } = string.Empty;
 
         public async Task OnGetAsync()
         {

@@ -19,6 +19,7 @@ namespace Board_Game_Software.Pages.Match
         public DateOnly? NightDate { get; private set; }
         public List<GameRow> Games { get; private set; } = new();
         public List<NightPlayerRow> Players { get; private set; } = new();
+        public GameRow? PreselectedGame { get; private set; }
 
         [BindProperty]
         public InputModel Input { get; set; } = new();
@@ -57,7 +58,7 @@ namespace Board_Game_Software.Pages.Match
             public string? PlayerMarkersJson { get; set; }
         }
 
-        public async Task<IActionResult> OnGetAsync(long nightId, string? returnUrl = null)
+        public async Task<IActionResult> OnGetAsync(long nightId, string? returnUrl = null, long? boardGameId = null)
         {
             var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == nightId);
             if (night == null) return NotFound();
@@ -90,6 +91,12 @@ namespace Board_Game_Software.Pages.Match
                 MaxPlayers = GetCombinedMaxPlayers(g)
             }).ToList();
 
+            if (boardGameId.HasValue)
+            {
+                PreselectedGame = Games.FirstOrDefault(g => g.Id == boardGameId.Value);
+                Input.BoardGameId = PreselectedGame?.Id;
+            }
+
             var roster = await _db.BoardGameNightPlayers.AsNoTracking()
                 .Include(r => r.FkBgdPlayerNavigation)
                 .Where(r => r.FkBgdBoardGameNight == nightId && !r.Inactive)
@@ -117,15 +124,15 @@ namespace Board_Game_Software.Pages.Match
                 .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
                 .Include(m => m.FkBgdBoardGameNavigation)
                 .OrderBy(m => m.FkBgdBoardGame == gameId ? 0 : 1)
-                .ThenBy(m => m.FkBgdBoardGameNavigation.BoardGameName)
+                .ThenBy(m => m.FkBgdBoardGameNavigation!.BoardGameName)
                 .ThenBy(m => m.FkBgdBoardGameMarkerTypeNavigation!.TypeDesc)
                 .Select(m => new
                 {
                     id = m.Id,
-                    name = m.FkBgdBoardGameMarkerTypeNavigation.TypeDesc,
+                    name = m.FkBgdBoardGameMarkerTypeNavigation!.TypeDesc,
                     typeGid = m.FkBgdBoardGameMarkerTypeNavigation.Gid,
                     sourceGameId = m.FkBgdBoardGame,
-                    sourceGameName = m.FkBgdBoardGameNavigation.BoardGameName
+                    sourceGameName = m.FkBgdBoardGameNavigation!.BoardGameName
                 })
                 .ToListAsync();
 
@@ -209,7 +216,7 @@ namespace Board_Game_Software.Pages.Match
                     .Include(m => m.FkBgdBoardGameMarkerTypeNavigation)
                     .ToDictionaryAsync(
                         m => m.Id,
-                        m => (long?)m.FkBgdBoardGameMarkerTypeNavigation.FkBgdMarkerAlignmentType
+                        m => (long?)m.FkBgdBoardGameMarkerTypeNavigation!.FkBgdMarkerAlignmentType
                     );
             }
 
@@ -300,7 +307,7 @@ namespace Board_Game_Software.Pages.Match
             var expansionIds = await _db.BoardGameExpansions.AsNoTracking()
                 .Where(link => !link.Inactive
                     && link.FkBgdBoardGame == gameId
-                    && !link.FkBgdExpansionBoardGameNavigation.Inactive)
+                    && !link.FkBgdExpansionBoardGameNavigation!.Inactive)
                 .Select(link => link.FkBgdExpansionBoardGame)
                 .ToListAsync();
 

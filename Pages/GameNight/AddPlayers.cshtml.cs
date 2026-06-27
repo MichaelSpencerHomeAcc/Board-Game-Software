@@ -35,9 +35,12 @@ namespace Board_Game_Software.Pages.GameNight
 
         public async Task<IActionResult> OnPostAsync()
         {
+            var fallbackUrl = Url.Page("/GameNight/Details", new { id = Input.NightId })
+                ?? $"/GameNight/Details/{Input.NightId}";
+
             if (Input.SelectedPlayerIds == null || !Input.SelectedPlayerIds.Any())
             {
-                return Redirect(Input.ReturnUrl ?? Url.Page("/GameNight/Details", new { id = Input.NightId }));
+                return Redirect(Input.ReturnUrl ?? fallbackUrl);
             }
 
             var now = DateTime.UtcNow;
@@ -58,7 +61,7 @@ namespace Board_Game_Software.Pages.GameNight
             _db.AddRange(links);
             await _db.SaveChangesAsync();
 
-            return Redirect(Input.ReturnUrl ?? Url.Page("/GameNight/Details", new { id = Input.NightId }));
+            return Redirect(Input.ReturnUrl ?? fallbackUrl);
         }
 
         private async Task LoadPlayersAsync()
@@ -79,13 +82,14 @@ namespace Board_Game_Software.Pages.GameNight
 
             var imageDocs = await _imagesCollection.Find(img =>
                 img.SQLTable == "bgd.Player" &&
-                gidStrings.Contains(img.GID.ToString()))
+                img.GID.HasValue &&
+                gidStrings.Contains(img.GID.Value.ToString()))
                 .ToListAsync();
 
             AllPlayers = players.Select(p =>
             {
                 var playerGidStr = p.Gid.ToString();
-                var imgDoc = imageDocs.FirstOrDefault(x => x.GID.ToString() == playerGidStr);
+                var imgDoc = imageDocs.FirstOrDefault(x => x.GID.HasValue && x.GID.Value.ToString() == playerGidStr);
 
                 return new PlayerRow
                 {

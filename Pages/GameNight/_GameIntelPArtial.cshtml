@@ -1,13 +1,55 @@
-﻿@model List<Board_Game_Software.Pages.GameNight.DetailsModel.GameSuggestion>
+@model List<Board_Game_Software.Pages.GameNight.DetailsModel.GameSuggestion>
+
+@{
+    long? nightId = null;
+    var nightIdValue = ViewData["NightId"];
+
+    if (nightIdValue is long longValue)
+    {
+        nightId = longValue;
+    }
+    else if (nightIdValue is int intValue)
+    {
+        nightId = intValue;
+    }
+    else if (nightIdValue is string textValue && long.TryParse(textValue, out var parsedNightId))
+    {
+        nightId = parsedNightId;
+    }
+
+    if (!nightId.HasValue)
+    {
+        var routeId = Context.Request.RouteValues["id"]?.ToString();
+        if (long.TryParse(routeId, out var parsedRouteId))
+        {
+            nightId = parsedRouteId;
+        }
+    }
+
+    if (!nightId.HasValue)
+    {
+        var queryId = Context.Request.Query["id"].ToString();
+        if (long.TryParse(queryId, out var parsedQueryId))
+        {
+            nightId = parsedQueryId;
+        }
+    }
+}
+
+@if (!Model.Any())
+{
+    <div class="intel-item p-3 text-secondary small">
+        <i class="bi bi-info-circle me-1"></i>No suggestions available for this roster yet.
+    </div>
+}
 
 @foreach (var s in Model)
 {
-    <a href="/Browsing/BoardGames/BoardGameDetails/@s.GameId"
-       target="_blank"
-       class="intel-item p-2 d-flex align-items-center gap-3">
-
+    <div class="intel-item p-2 d-flex align-items-center gap-3">
         <img src="@(s.CoverUrl ?? "/images/default-cover.png")"
-             style="width:40px; height:40px; object-fit:cover; border-radius: 4px;" />
+             style="width:46px; height:46px; object-fit:cover; border-radius: 4px;"
+             loading="lazy"
+             decoding="async" />
 
         <div class="min-w-0 flex-grow-1">
             <div class="text-white fw-bold small text-truncate">@s.Name</div>
@@ -15,8 +57,29 @@
                 <i class="bi @s.CategoryIcon"></i>
                 <span>@s.Reason</span>
             </div>
+            @if (!string.IsNullOrWhiteSpace(s.Detail))
+            {
+                <div class="text-secondary text-truncate" style="font-size: 0.65rem;">@s.Detail</div>
+            }
         </div>
 
-        <i class="bi bi-box-arrow-up-right text-secondary ms-auto me-1" style="font-size: 0.7rem;"></i>
-    </a>
+        <div class="d-flex align-items-center gap-1 ms-auto">
+            @if (nightId.HasValue)
+            {
+                <a class="btn btn-sm btn-info rounded-circle text-dark"
+                   title="Start match"
+                   asp-page="/Match/Create"
+                   asp-route-nightId="@nightId.Value"
+                   asp-route-boardGameId="@s.GameId">
+                    <i class="bi bi-play-fill"></i>
+                </a>
+            }
+            <a href="/Browsing/BoardGames/BoardGameDetails/@s.GameId"
+               target="_blank"
+               class="btn btn-sm btn-outline-secondary rounded-circle"
+               title="Game details">
+                <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+        </div>
+    </div>
 }

@@ -16,12 +16,21 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
         }
 
         public IList<Shelf> Shelves { get; set; } = default!;
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; } = 25;
+        public int TotalCount { get; set; }
+        public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+        public bool HasPreviousPage => PageNumber > 1;
+        public bool HasNextPage => PageNumber < TotalPages;
 
         [BindProperty(SupportsGet = true)]
         public string SearchTerm { get; set; } = string.Empty;
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(string? search, int pageNumber = 1)
         {
+            SearchTerm = search ?? string.Empty;
+            PageNumber = Math.Max(1, pageNumber);
+
             var query = _context.Shelves
                 .Include(s => s.ShelfSections)
                 .Where(s => !s.Inactive) // Only show active shelves
@@ -32,8 +41,13 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
                 query = query.Where(s => s.ShelfName.Contains(SearchTerm));
             }
 
+            TotalCount = await query.CountAsync();
+            PageNumber = Math.Min(PageNumber, Math.Max(TotalPages, 1));
+
             Shelves = await query
                 .OrderBy(s => s.ShelfName)
+                .Skip((PageNumber - 1) * PageSize)
+                .Take(PageSize)
                 .ToListAsync();
         }
 

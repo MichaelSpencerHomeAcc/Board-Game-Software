@@ -1,0 +1,64 @@
+@page
+@model Board_Game_Software.Pages.Admin.DataHealth.IndexModel
+@{
+    ViewData["Title"] = "Data Health";
+    var sections = new[]
+    {
+        ("Missing Covers", "bi-image", Model.MissingCovers),
+        ("Games Without Shelves", "bi-bookshelf", Model.GamesWithoutShelves),
+        ("Player Count Conflicts", "bi-people", Model.PlayerCountConflicts),
+        ("Expansion Link Issues", "bi-link-45deg", Model.ExpansionLinkIssues),
+        ("Games Without Rating Method", "bi-graph-up-arrow", Model.GamesWithoutRatingMethod),
+        ("Players Without Accounts", "bi-person-exclamation", Model.PlayersWithoutAccounts)
+    };
+}
+
+<style>
+    .health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+    .health-card { border: 1px solid var(--bs-border-color); border-radius: 8px; background: var(--bs-body-tertiary); }
+    .health-count { font-size: 2rem; font-weight: 900; color: #ffc107; }
+</style>
+
+<div class="container py-4">
+    <div class="mb-4">
+        <h1 class="fw-bold mb-1">Data Health</h1>
+        <div class="text-secondary">Admin cleanup checks for collection, player, shelf, expansion, and rating data.</div>
+    </div>
+
+    @if (!User.IsInRole("Admin"))
+    {
+        <div class="alert alert-danger rounded-4">Admin access required.</div>
+    }
+    else
+    {
+        <div class="health-grid">
+            @foreach (var healthSection in sections)
+            {
+                <div class="health-card p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h2 class="h5 fw-bold mb-0"><i class="bi @healthSection.Item2 me-2 text-info"></i>@healthSection.Item1</h2>
+                            <div class="small text-secondary">Showing up to 25 items</div>
+                        </div>
+                        <div class="health-count">@healthSection.Item3.Count</div>
+                    </div>
+
+                    @if (healthSection.Item3.Any())
+                    {
+                        @foreach (var item in healthSection.Item3)
+                        {
+                            <div class="border-top border-secondary-subtle py-2">
+                                <a href="@($"{item.LinkPage}/{item.Id}")" class="fw-bold text-decoration-none">@item.Name</a>
+                                <div class="small text-secondary">@item.Detail</div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-success"><i class="bi bi-check2-circle me-1"></i>Looks good</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>

@@ -1,0 +1,141 @@
+@page "{id:long}"
+@model Board_Game_Software.Pages.GameNight.RecapModel
+@{
+    ViewData["Title"] = "Session Recap";
+}
+
+<style>
+    .recap-hero { border: 1px solid rgba(13,202,240,.35); border-radius: 8px; background: linear-gradient(135deg, rgba(13,202,240,.12), rgba(255,193,7,.10)); }
+    .podium-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    .recap-card { border: 1px solid var(--bs-border-color); border-radius: 8px; background: var(--bs-body-tertiary); }
+    .cover-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: .75rem; }
+    .cover-tile { border: 1px solid var(--bs-border-color); border-radius: 8px; background: #111; padding: .4rem; }
+    .cover-tile img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; }
+    .avatar-xl { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; border: 3px solid #ffc107; }
+    @@media (max-width: 767.98px) {
+        .podium-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div class="container py-4" style="max-width: 1180px;">
+    <div class="recap-hero p-4 mb-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+            <div>
+                <a asp-page="Details" asp-route-id="@Model.Night.Id" class="text-secondary text-decoration-none small">
+                    <i class="bi bi-arrow-left me-1"></i> Game Night
+                </a>
+                <h1 class="fw-bold mb-1">Session Recap</h1>
+                <div class="text-secondary">@Model.Night.GameNightDate.ToString("dddd, MMMM dd yyyy")</div>
+            </div>
+            <a asp-page="VotingQueue" asp-route-id="@Model.Night.Id" class="btn btn-outline-warning rounded-pill align-self-start">
+                <i class="bi bi-hand-thumbs-up-fill me-1"></i> Next Queue
+            </a>
+        </div>
+    </div>
+
+    <div class="podium-grid mb-4">
+        @for (var i = 0; i < Model.Podium.Count; i++)
+        {
+            var player = Model.Podium[i];
+            <div class="recap-card p-4 text-center">
+                <div class="display-6 fw-bold text-warning">#@(i + 1)</div>
+                <img src="@player.AvatarUrl" class="avatar-xl my-3" />
+                <h4 class="fw-bold mb-1">@player.Name</h4>
+                <div class="text-info fw-bold">@player.Points.ToString("0.00") points</div>
+                <div class="text-secondary small">@player.Firsts wins · @player.Seconds seconds · @player.Thirds thirds</div>
+            </div>
+        }
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="recap-card p-4 h-100">
+                <h3 class="h5 fw-bold"><i class="bi bi-stars text-info me-2"></i>Best Match</h3>
+                @if (Model.BestMatch != null)
+                {
+                    <div class="d-flex gap-3 align-items-center">
+                        <img src="/media/boardgame/front/@Model.BestMatch.GameGid" style="width:90px;height:90px;object-fit:contain;background:#111;border-radius:8px;" />
+                        <div>
+                            <h4 class="fw-bold mb-1">@Model.BestMatch.GameName</h4>
+                            <div class="text-secondary">@Model.BestMatch.PlayerCount players · winner @Model.BestMatch.Winners</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="recap-card p-4 h-100">
+                <h3 class="h5 fw-bold"><i class="bi bi-graph-up-arrow text-success me-2"></i>Biggest Upset</h3>
+                @if (Model.BiggestUpset != null)
+                {
+                    <h4 class="fw-bold mb-1">@Model.BiggestUpset.PlayerName</h4>
+                    <div class="text-secondary">@Model.BiggestUpset.GameName</div>
+                    <div class="text-success fw-bold mt-2">+@Model.BiggestUpset.Delta.ToString("0.00") rating</div>
+                }
+                else
+                {
+                    <div class="text-secondary">No rating swing recorded yet.</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="recap-card p-4 mb-4">
+        <h3 class="h5 fw-bold"><i class="bi bi-images text-info me-2"></i>Games Played</h3>
+        <div class="cover-strip">
+            @foreach (var match in Model.Matches)
+            {
+                <a asp-page="/Match/Results" asp-route-id="@match.MatchId" class="cover-tile text-decoration-none">
+                    <img src="/media/boardgame/front/@match.GameGid" loading="lazy" decoding="async" />
+                    <div class="small text-truncate text-light mt-2">@match.GameName</div>
+                </a>
+            }
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="recap-card p-4 h-100">
+                <h3 class="h5 fw-bold"><i class="bi bi-record-circle text-warning me-2"></i>New Records</h3>
+                @foreach (var record in Model.NewRecords)
+                {
+                    <div class="border-top border-secondary-subtle py-3">
+                        <div class="fw-bold">@record.PlayerName</div>
+                        <div class="text-secondary small">@record.GameName</div>
+                        <div class="text-info fw-bold">@record.Score.ToString("0.##") points</div>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="recap-card p-4 h-100">
+                <h3 class="h5 fw-bold"><i class="bi bi-bar-chart-fill text-info me-2"></i>Player Stats</h3>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Player</th>
+                                <th>Matches</th>
+                                <th>Wins</th>
+                                <th>Avg score</th>
+                                <th>Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var player in Model.PlayerStats)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">@player.Name</td>
+                                    <td>@player.Matches</td>
+                                    <td>@player.Wins</td>
+                                    <td>@(player.AverageScore?.ToString("0.##") ?? "-")</td>
+                                    <td class="@(player.RatingDelta >= 0 ? "text-success" : "text-danger")">@player.RatingDelta.ToString("+0.00;-0.00;0.00")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

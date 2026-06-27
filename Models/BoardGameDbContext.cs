@@ -47,11 +47,15 @@ public partial class BoardGameDbContext : DbContext
 
     public virtual DbSet<BoardGameVictoryConditionType> BoardGameVictoryConditionTypes { get; set; }
 
+    public virtual DbSet<BoardGameVote> BoardGameVotes { get; set; }
+
     public virtual DbSet<EloMethod> EloMethods { get; set; }
 
     public virtual DbSet<MarkerAlignmentType> MarkerAlignmentTypes { get; set; }
 
     public virtual DbSet<Player> Players { get; set; }
+
+    public virtual DbSet<PlayerAchievement> PlayerAchievements { get; set; }
 
     public virtual DbSet<PlayerBoardGameRating> PlayerBoardGameRatings { get; set; }
 
@@ -1807,6 +1811,92 @@ public partial class BoardGameDbContext : DbContext
                 .WithMany(p => p.PlayerBoardGameStarRatings)
                 .HasForeignKey(d => d.FkBgdPlayer)
                 .HasConstraintName("FK_bgd_PlayerBoardGameStarRating__bgd_Player");
+        });
+
+        modelBuilder.Entity<BoardGameVote>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_bgd_BoardGameVote");
+
+            entity.ToTable("BoardGameVote", "bgd");
+
+            entity.HasIndex(e => e.Gid, "AK_bgd_BoardGameVote_GID").IsUnique();
+            entity.HasIndex(e => new { e.FkBgdBoardGameNight, e.FkBgdBoardGame, e.FkBgdPlayer }, "UQ_bgd_BoardGameVote_Night_Game_Player").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.Gid).HasColumnName("GID").HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.TimeCreated).HasColumnType("datetime");
+            entity.Property(e => e.TimeModified).HasColumnType("datetime");
+            entity.Property(e => e.VersionStamp).IsRowVersion().IsConcurrencyToken();
+            entity.Property(e => e.FkBgdBoardGameNight).HasColumnName("FK_bgd_BoardGameNight");
+            entity.Property(e => e.FkBgdBoardGame).HasColumnName("FK_bgd_BoardGame");
+            entity.Property(e => e.FkBgdPlayer).HasColumnName("FK_bgd_Player");
+
+            entity.HasOne(d => d.FkBgdBoardGameNightNavigation)
+                .WithMany(p => p.BoardGameVotes)
+                .HasForeignKey(d => d.FkBgdBoardGameNight)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_bgd_BoardGameVote__bgd_BoardGameNight");
+
+            entity.HasOne(d => d.FkBgdBoardGameNavigation)
+                .WithMany(p => p.BoardGameVotes)
+                .HasForeignKey(d => d.FkBgdBoardGame)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_bgd_BoardGameVote__bgd_BoardGame");
+
+            entity.HasOne(d => d.FkBgdPlayerNavigation)
+                .WithMany(p => p.BoardGameVotes)
+                .HasForeignKey(d => d.FkBgdPlayer)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_bgd_BoardGameVote__bgd_Player");
+        });
+
+        modelBuilder.Entity<PlayerAchievement>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_bgd_PlayerAchievement");
+
+            entity.ToTable("PlayerAchievement", "bgd");
+
+            entity.HasIndex(e => e.Gid, "AK_bgd_PlayerAchievement_GID").IsUnique();
+            entity.HasIndex(e => new { e.FkBgdPlayer, e.BadgeCode, e.FkBgdBoardGame, e.FkBgdBoardGameMatch, e.FkBgdBoardGameNight }, "UQ_bgd_PlayerAchievement_Scope").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.Gid).HasColumnName("GID").HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.TimeCreated).HasColumnType("datetime");
+            entity.Property(e => e.TimeModified).HasColumnType("datetime");
+            entity.Property(e => e.UnlockedAt).HasColumnType("datetime");
+            entity.Property(e => e.VersionStamp).IsRowVersion().IsConcurrencyToken();
+            entity.Property(e => e.FkBgdPlayer).HasColumnName("FK_bgd_Player");
+            entity.Property(e => e.FkBgdBoardGame).HasColumnName("FK_bgd_BoardGame");
+            entity.Property(e => e.FkBgdBoardGameMatch).HasColumnName("FK_bgd_BoardGameMatch");
+            entity.Property(e => e.FkBgdBoardGameNight).HasColumnName("FK_bgd_BoardGameNight");
+            entity.Property(e => e.BadgeCode).HasMaxLength(60).IsUnicode(false);
+            entity.Property(e => e.BadgeTitle).HasMaxLength(80);
+            entity.Property(e => e.BadgeDetail).HasMaxLength(240);
+
+            entity.HasOne(d => d.FkBgdPlayerNavigation)
+                .WithMany(p => p.PlayerAchievements)
+                .HasForeignKey(d => d.FkBgdPlayer)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_bgd_PlayerAchievement__bgd_Player");
+
+            entity.HasOne(d => d.FkBgdBoardGameNavigation)
+                .WithMany(p => p.PlayerAchievements)
+                .HasForeignKey(d => d.FkBgdBoardGame)
+                .HasConstraintName("FK_bgd_PlayerAchievement__bgd_BoardGame");
+
+            entity.HasOne(d => d.FkBgdBoardGameMatchNavigation)
+                .WithMany(p => p.PlayerAchievements)
+                .HasForeignKey(d => d.FkBgdBoardGameMatch)
+                .HasConstraintName("FK_bgd_PlayerAchievement__bgd_BoardGameMatch");
+
+            entity.HasOne(d => d.FkBgdBoardGameNightNavigation)
+                .WithMany(p => p.PlayerAchievements)
+                .HasForeignKey(d => d.FkBgdBoardGameNight)
+                .HasConstraintName("FK_bgd_PlayerAchievement__bgd_BoardGameNight");
         });
 
         modelBuilder.Entity<VwEloRanking>(entity =>

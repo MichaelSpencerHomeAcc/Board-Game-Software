@@ -9,37 +9,7 @@ using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// =========================
-// DEBUG CONFIG DUMP (safe)
-// =========================
-static string MaskSqlPassword(string conn)
-{
-    if (string.IsNullOrWhiteSpace(conn)) return conn;
-    conn = Regex.Replace(conn, @"(?i)(Password\s*=\s*)([^;]*)(;|$)", "$1***$3");
-    conn = Regex.Replace(conn, @"(?i)(Pwd\s*=\s*)([^;]*)(;|$)", "$1***$3");
-    return conn;
-}
-
-Console.WriteLine($"DEBUG: ASPNETCORE_ENVIRONMENT = {builder.Environment.EnvironmentName}");
-
 var resolvedSql = builder.Configuration.GetConnectionString("DefaultConnection");
-if (string.IsNullOrWhiteSpace(resolvedSql))
-{
-    Console.WriteLine("DEBUG: SQL DefaultConnection is NULL/EMPTY");
-}
-else
-{
-    Console.WriteLine("DEBUG: SQL DefaultConnection = " + MaskSqlPassword(resolvedSql));
-}
-
-var resolvedMongoConn = builder.Configuration["MongoDbSettings:ConnectionString"];
-var resolvedMongoDb = builder.Configuration["MongoDbSettings:Database"];
-
-Console.WriteLine(string.IsNullOrWhiteSpace(resolvedMongoConn)
-    ? "DEBUG: MongoDbSettings:ConnectionString is NULL/EMPTY"
-    : "DEBUG: MongoDbSettings:ConnectionString is PRESENT");
-
-Console.WriteLine($"DEBUG: MongoDbSettings:Database = {(string.IsNullOrWhiteSpace(resolvedMongoDb) ? "(NULL/EMPTY)" : resolvedMongoDb)}");
 
 // =========================
 // SQL Database & Identity
@@ -63,7 +33,23 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 builder.Services.AddScoped<IUserClaimsPrincipalFactory<IdentityUser>,
     UserClaimsPrincipalFactory<IdentityUser, IdentityRole>>();
 
-builder.Services.AddRazorPages();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+});
+
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.AuthorizeFolder("/Admin", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/DataSetup");
+    options.Conventions.AuthorizeFolder("/DataSetup/Markers", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/DataSetup/Publishers", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/DataSetup/Shelves", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/GameNight");
+    options.Conventions.AuthorizeFolder("/Match");
+    options.Conventions.AuthorizePage("/Browsing/BoardGames/Add", "AdminOnly");
+    options.Conventions.AuthorizePage("/Browsing/BoardGames/Edit", "AdminOnly");
+});
 builder.Services.AddControllers();
 
 // =========================
@@ -91,8 +77,9 @@ builder.Services.AddSingleton<BoardGameImagesService>();
 
 // Added the RatingService for ELO calculations
 builder.Services.AddScoped<RatingService>();
+builder.Services.AddScoped<BoardGamePlayabilityService>();
+builder.Services.AddScoped<AchievementService>();
 
-// NEW: Added the GameNightService for night-specific scoring and management
 builder.Services.AddScoped<GameNightService>();
 
 var app = builder.Build();
@@ -116,41 +103,42 @@ try
         }
     }
 
-    var adminEmail = "mike_j_spencer@sky.com";
-    var adminUser = await userManager.FindByEmailAsync(adminEmail);
-
-    if (adminUser != null && !await userManager.IsInRoleAsync(adminUser, "Admin"))
+    var adminEmail = app.Configuration["Identity:BootstrapAdminEmail"];
+    if (!string.IsNullOrWhiteSpace(adminEmail))
     {
-        await userManager.AddToRoleAsync(adminUser, "Admin");
+        var adminUser = await userManager.FindByEmailAsync(adminEmail);
+
+        if (adminUser != null && !await userManager.IsInRoleAsync(adminUser, "Admin"))
+        {
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+        }
     }
 
-    Console.WriteLine("DEBUG: Startup seeding completed successfully.");
+    app.Logger.LogInformation("Startup role seeding completed successfully.");
 }
 catch (Exception ex)
 {
     app.Logger.LogError(ex, "Startup seeding failed (DB/Identity). App will continue to start.");
-    Console.WriteLine("DEBUG: Startup seeding failed: " + ex.Message);
 }
 
 // =========================
 // Middleware
 // =========================
-app.UseDeveloperExceptionPage();
-
-// TODO: restore for production once error is diagnosed:
-// if (app.Environment.IsDevelopment())
-// {
-//     app.UseMigrationsEndPoint();
-// }
-// else
-// {
-//     app.UseExceptionHandler("/Error");
-//     app.UseHsts();
-// }
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    app.UseMigrationsEndPoint();
+}
+else
+{
+    app.UseExceptionHandler("/Error");
+    app.UseHsts();
+}
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapRazorPages();
 app.MapControllers();
