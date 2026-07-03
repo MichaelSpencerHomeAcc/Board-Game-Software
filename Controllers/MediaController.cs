@@ -83,6 +83,8 @@ namespace Board_Game_Software.Controllers
                 image = await FindStoredImageAsync(ImageService.GameCoverOwnerType, game.TemplateId.Value);
             }
 
+            image ??= await FindBoardGameFrontImageByLegacyBlobKeyAsync(gid);
+
             return image != null ? RedirectToStoredImage(image) : NotFound();
         }
 
@@ -97,6 +99,18 @@ namespace Board_Game_Software.Controllers
             return await _db.StoredImages
                 .AsNoTracking()
                 .Where(image => image.OwnerType == ownerType && image.OwnerId == ownerId)
+                .OrderByDescending(image => image.CreatedAtUtc)
+                .FirstOrDefaultAsync();
+        }
+
+        private async Task<StoredImage?> FindBoardGameFrontImageByLegacyBlobKeyAsync(Guid gid)
+        {
+            var legacyPrefix = $"boardgame/front/{gid:D}";
+
+            return await _db.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.GameCoverOwnerType
+                    && image.BlobKey.StartsWith(legacyPrefix))
                 .OrderByDescending(image => image.CreatedAtUtc)
                 .FirstOrDefaultAsync();
         }
