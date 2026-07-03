@@ -36,6 +36,18 @@ The committed run:
 2. Runs the club tenancy/player club/board game template migrations.
 3. Runs `deploy/sql/AddStoredImages.sql`, which adds later migrations including `StoredImage`.
 
+The legacy SQL copy does not create a default club. After the committed import, run the club backfill if the Azure app needs the old single-club data to appear under a club:
+
+```powershell
+$target = "<Azure SQL connection string>"
+
+powershell.exe -ExecutionPolicy Bypass -File .\deploy\scripts\Backfill-AzureClubData.ps1 `
+  -TargetConnectionString $target `
+  -Commit
+```
+
+The club backfill creates or finds `Mike's Clubhouse`, links ASP.NET users and active players to it, copies platform board-game templates into that club, repoints existing game history, and moves shelves to the club.
+
 If you do not need a dry run, run the initializer once with `-CommitImport` and omit `-SkipBaseSchema`.
 
 ## Existing Azure SQL Database
