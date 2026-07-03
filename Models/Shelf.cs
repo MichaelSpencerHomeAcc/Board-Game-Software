@@ -25,5 +25,9 @@ public partial class Shelf
 
     public byte TotalRows { get; set; }
 
+    public long? FkBgdClub { get; set; }
+
+    public virtual Club? FkBgdClubNavigation { get; set; }
+
     public virtual ICollection<ShelfSection> ShelfSections { get; set; } = new List<ShelfSection>();
 }

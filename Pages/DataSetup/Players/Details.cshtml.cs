@@ -1,5 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -17,15 +18,18 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _imagesCollection;
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly ICurrentClubService _currentClubService;
 
         public DetailsModel(
             BoardGameDbContext context,
             IMongoClient mongoClient,
             IConfiguration configuration,
-            UserManager<IdentityUser> userManager)
+            UserManager<IdentityUser> userManager,
+            ICurrentClubService currentClubService)
         {
             _context = context;
             _userManager = userManager;
+            _currentClubService = currentClubService;
 
             var dbName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(dbName);
@@ -92,7 +96,22 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
             // SECURITY CHECK: Admin or owner
             var currentUserId = _userManager.GetUserId(User);
-            CanEdit = User.IsInRole("Admin") || (Player.FkdboAspNetUsers == currentUserId);
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            var playerClubIds = await _context.PlayerClubs
+                .AsNoTracking()
+                .Where(pc => pc.FkBgdPlayer == id && !pc.Inactive)
+                .Select(pc => pc.FkBgdClub)
+                .ToListAsync();
+            var belongsToAvailableClub = currentClub.AvailableClubs.Any(c => playerClubIds.Contains(c.ClubId));
+            var belongsToManageableClub = currentClub.AvailableClubs.Any(c => playerClubIds.Contains(c.ClubId) && c.Role is "Owner" or "Admin");
+            var isAccountOwner = Player.FkdboAspNetUsers == currentUserId;
+
+            if (!User.IsInRole("Admin") && !isAccountOwner && !belongsToAvailableClub)
+            {
+                return Forbid();
+            }
+
+            CanEdit = User.IsInRole("Admin") || isAccountOwner || belongsToManageableClub;
 
             // Top 10 list
             TopTenGames = Player.PlayerBoardGames
@@ -126,8 +145,10 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                 .Select(r => new
                 {
                     MatchId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch,
-                    GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
-                    GameType = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.FkBgdBoardGameTypeNavigation!.TypeDesc,
+                    GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName ?? "Unknown game",
+                    GameType = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.FkBgdBoardGameTypeNavigation == null
+                        ? null
+                        : r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.FkBgdBoardGameTypeNavigation.TypeDesc,
                     FinishedDate = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FinishedDate,
                     r.Win,
                     r.RatingChangeMu,
@@ -142,7 +163,7 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                 {
                     mp.FkBgdBoardGameMatch,
                     mp.FkBgdPlayer,
-                    Name = (mp.FkBgdPlayerNavigation.FirstName + " " + mp.FkBgdPlayerNavigation.LastName).Trim(),
+                    Name = ((mp.FkBgdPlayerNavigation.FirstName ?? string.Empty) + " " + (mp.FkBgdPlayerNavigation.LastName ?? string.Empty)).Trim(),
                     Result = mp.BoardGameMatchPlayerResults.Where(r => !r.Inactive).Select(r => new { r.Win, r.FinalTeam }).FirstOrDefault()
                 })
                 .ToListAsync();
@@ -180,7 +201,7 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                 Nemesis = lossesByOpponent.OrderByDescending(x => x.Value.Count).Select(x => x.Value.Name).FirstOrDefault() ?? "None yet",
                 BestTeammate = teammateWins.OrderByDescending(x => x.Value.Count).Select(x => x.Value.Name).FirstOrDefault() ?? "None yet",
                 StrongestType = rows.Where(r => r.Win && !string.IsNullOrWhiteSpace(r.GameType)).GroupBy(r => r.GameType).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault() ?? "Unknown",
-                BestRatingGain = rows.Max(r => r.RatingChangeMu ?? 0)
+                BestRatingGain = rows.Select(r => r.RatingChangeMu ?? 0).DefaultIfEmpty(0).Max()
             };
 
             RecentForm = rows.OrderByDescending(r => r.FinishedDate).Take(6).Select(r => new RecentFormRow
@@ -249,7 +270,14 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
             // SECURITY RE-CHECK
             var currentUserId = _userManager.GetUserId(User);
-            if (!User.IsInRole("Admin") && player.FkdboAspNetUsers != currentUserId)
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            var playerClubIds = await _context.PlayerClubs
+                .AsNoTracking()
+                .Where(pc => pc.FkBgdPlayer == id && !pc.Inactive)
+                .Select(pc => pc.FkBgdClub)
+                .ToListAsync();
+            var canManageClubPlayer = currentClub.AvailableClubs.Any(c => playerClubIds.Contains(c.ClubId) && c.Role is "Owner" or "Admin");
+            if (!User.IsInRole("Admin") && player.FkdboAspNetUsers != currentUserId && !canManageClubPlayer)
                 return Forbid();
 
             var filter = Builders<BoardGameImages>.Filter.And(

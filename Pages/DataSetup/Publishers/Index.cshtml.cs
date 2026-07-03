@@ -1,4 +1,5 @@
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -12,10 +13,12 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
     public class IndexModel : PageModel
     {
         private readonly BoardGameDbContext _context;
+        private readonly ICurrentClubService _currentClubService;
 
-        public IndexModel(BoardGameDbContext context)
+        public IndexModel(BoardGameDbContext context, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
         }
 
         public sealed class PublisherRow
@@ -24,6 +27,8 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
             public Guid Gid { get; init; }
             public string PublisherName { get; init; } = string.Empty;
             public string? Description { get; init; }
+            public string ScopeName { get; init; } = "Global";
+            public bool IsGlobal { get; init; }
 
             public string LogoUrl => $"/media/publisher/{Gid}";
         }
@@ -43,10 +48,17 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
         {
             SearchTerm = search;
             PageNumber = Math.Max(1, pageNumber);
+            var club = await _currentClubService.GetCurrentClubAsync();
 
-            var query = _context.VwPublishers
+            var query = _context.Publishers
                 .AsNoTracking()
                 .Where(p => !p.Inactive);
+
+            if (!club.IsPlatformAdminMode)
+            {
+                var clubId = club.CurrentClubId;
+                query = query.Where(p => p.FkBgdClub == null || p.FkBgdClub == clubId);
+            }
 
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
@@ -66,14 +78,20 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
                     Id = p.Id,
                     Gid = p.Gid,
                     PublisherName = p.PublisherName ?? string.Empty,
-                    Description = p.Description
+                    Description = p.Description,
+                    ScopeName = p.FkBgdClubNavigation != null ? p.FkBgdClubNavigation.ClubName : "Global",
+                    IsGlobal = p.FkBgdClub == null
                 })
                 .ToListAsync();
         }
 
         public async Task<IActionResult> OnPostDeleteAsync(long id)
         {
-            var publisher = await _context.Publishers.FindAsync(id);
+            var club = await _currentClubService.GetCurrentClubAsync();
+            var publisher = await _context.Publishers
+                .FirstOrDefaultAsync(p => p.Id == id
+                    && ((club.IsPlatformAdminMode && p.FkBgdClub == null)
+                        || (!club.IsPlatformAdminMode && p.FkBgdClub == club.CurrentClubId)));
             if (publisher == null) return NotFound();
 
             _context.Publishers.Remove(publisher);

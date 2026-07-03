@@ -11,11 +11,16 @@ namespace Board_Game_Software.Pages.GameNight
     {
         private readonly BoardGameDbContext _db;
         private readonly BoardGamePlayabilityService _playabilityService;
+        private readonly ICurrentClubService _currentClubService;
 
-        public VotingQueueModel(BoardGameDbContext db, BoardGamePlayabilityService playabilityService)
+        public VotingQueueModel(
+            BoardGameDbContext db,
+            BoardGamePlayabilityService playabilityService,
+            ICurrentClubService currentClubService)
         {
             _db = db;
             _playabilityService = playabilityService;
+            _currentClubService = currentClubService;
         }
 
         public BoardGameNight Night { get; private set; } = null!;
@@ -58,6 +63,7 @@ namespace Board_Game_Software.Pages.GameNight
         public async Task<IActionResult> OnPostVoteAsync(long id, long boardGameId)
         {
             if (!await LoadCurrentPlayerAsync(id)) return Forbid();
+            if (!await CanUseGameForNightAsync(id, boardGameId)) return Forbid();
             var currentPlayerId = CurrentPlayerId!.Value;
 
             var existing = await _db.BoardGameVotes
@@ -100,6 +106,7 @@ namespace Board_Game_Software.Pages.GameNight
         public async Task<IActionResult> OnPostUnvoteAsync(long id, long boardGameId)
         {
             if (!await LoadCurrentPlayerAsync(id)) return Forbid();
+            if (!await CanUseGameForNightAsync(id, boardGameId)) return Forbid();
             var currentPlayerId = CurrentPlayerId!.Value;
 
             var existing = await _db.BoardGameVotes
@@ -156,6 +163,7 @@ namespace Board_Game_Software.Pages.GameNight
         {
             Night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id) ?? null!;
             if (Night == null) return false;
+            if (!await CanAccessNightAsync(Night)) return false;
 
             await LoadCurrentPlayerAsync(id);
 
@@ -186,7 +194,7 @@ namespace Board_Game_Software.Pages.GameNight
                         Names = string.Join(", ", g.Select(v => v.PlayerName).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().Take(5))
                     });
 
-            var playableGames = await _playabilityService.GetPlayableBaseGamesAsync();
+            var playableGames = await _playabilityService.GetPlayableBaseGamesAsync(Night.FkBgdClub);
             var playableIds = playableGames.Select(g => g.Id).ToList();
             var shelfLocations = await _db.BoardGames.AsNoTracking()
                 .Where(bg => playableIds.Contains(bg.Id))
@@ -247,6 +255,27 @@ namespace Board_Game_Software.Pages.GameNight
                 .AnyAsync(np => np.FkBgdBoardGameNight == nightId
                     && np.FkBgdPlayer == CurrentPlayerId.Value
                     && !np.Inactive);
+        }
+
+        private async Task<bool> CanAccessNightAsync(BoardGameNight night)
+        {
+            if (User.IsInRole("Admin")) return true;
+
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            return night.FkBgdClub.HasValue && night.FkBgdClub == currentClub.CurrentClubId;
+        }
+
+        private async Task<bool> CanUseGameForNightAsync(long nightId, long boardGameId)
+        {
+            var nightClubId = await _db.BoardGameNights.AsNoTracking()
+                .Where(n => n.Id == nightId)
+                .Select(n => n.FkBgdClub)
+                .FirstOrDefaultAsync();
+
+            return await _db.BoardGames.AsNoTracking()
+                .AnyAsync(g => g.Id == boardGameId
+                    && !g.Inactive
+                    && (!nightClubId.HasValue || g.FkBgdClub == nightClubId.Value));
         }
     }
 }

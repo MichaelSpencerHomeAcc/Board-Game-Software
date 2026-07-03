@@ -142,7 +142,7 @@
                 li.innerHTML = `
                     <div class="overflow-hidden text-body text-truncate pe-2">
                         <div class="fw-bold text-truncate">${g.boardGameName}</div>
-                        <div class="small text-muted">${g.releaseYear}</div>
+                        <div class="small text-muted">${g.releaseYear} · ${g.clubName}</div>
                     </div>
                     <form method="post" action="?handler=AddGame&id=@Model.Player.Id">
                         <input type="hidden" name="boardGameId" value="${g.id}" />

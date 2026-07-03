@@ -2,6 +2,7 @@ html {
     font-size: 14px;
     position: relative;
     min-height: 100%;
+    scroll-padding-top: calc(var(--app-header-height, 64px) + 1rem);
 }
 
 @media (min-width: 768px) {
@@ -11,31 +12,339 @@ html {
 }
 
 body {
-    padding-top: 56px; /* Offset for the fixed navbar */
-    margin-bottom: 60px;
+    min-height: 100vh;
+    margin: 0;
     background-color: var(--bs-body-bg);
     color: var(--bs-body-color);
 }
 
-/* --- THE STICKY BARS FIX --- */
-
-/* Header is now FIXED to the viewport so nothing can slide over it */
-.main-header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 2000 !important; /* Extremely high to stay on top */
-    background-color: var(--bs-body-bg);
+:root {
+    --app-header-height: 64px;
+    --app-sidebar-width: 280px;
+    --app-content-max: 1560px;
+    --app-shell-gutter: clamp(1rem, 2vw, 2rem);
 }
 
-/* Sidebar follows you down the page */
-.sidebar-nav {
+.main-header {
     position: sticky;
-    top: 56px; /* Matches navbar height */
-    height: calc(100vh - 56px);
-    overflow-y: auto;
-    z-index: 1000;
+    top: 0;
+    z-index: 1040;
+    min-height: var(--app-header-height);
+    background: color-mix(in srgb, var(--bs-body-bg) 92%, transparent);
+    border-bottom: 1px solid var(--bs-border-color);
+    box-shadow: 0 8px 24px rgba(0,0,0,.06);
+    backdrop-filter: blur(16px);
+}
+
+.main-header .navbar {
+    min-height: var(--app-header-height);
+    padding-block: .55rem;
+}
+
+.app-shell {
+    display: grid;
+    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
+    min-height: calc(100vh - var(--app-header-height));
+}
+
+.app-main {
+    min-width: 0;
+    background:
+        radial-gradient(circle at top right, rgba(var(--bs-primary-rgb), .07), transparent 34rem),
+        var(--bs-body-bg);
+}
+
+.app-content {
+    width: 100%;
+    max-width: var(--app-content-max);
+    min-height: calc(100vh - var(--app-header-height));
+    margin: 0 auto;
+    padding: var(--app-shell-gutter);
+    padding-bottom: calc(var(--app-shell-gutter) + 2rem);
+}
+
+@media (min-width: 768px) {
+    .sidebar-nav {
+        position: sticky;
+        top: var(--app-header-height);
+        height: calc(100vh - var(--app-header-height));
+        overflow-y: auto;
+        z-index: 1020;
+        background: var(--bs-body-tertiary);
+        border-right: 1px solid var(--bs-border-color);
+        scrollbar-width: thin;
+    }
+
+    .sidebar-nav .nav-link {
+        border-radius: 8px;
+        color: var(--bs-body-color);
+    }
+
+    .sidebar-nav .nav-link:not(.active):hover {
+        background: rgba(var(--bs-primary-rgb), .08);
+        color: var(--bs-primary-text-emphasis);
+    }
+}
+
+.home-lead {
+    font-size: 1.5rem;
+}
+
+.club-switcher {
+    flex: 0 1 14rem;
+    min-width: 9rem;
+    max-width: 16rem;
+}
+
+.club-switcher .form-select {
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 767.98px) {
+    :root {
+        --app-header-height: 60px;
+        --app-shell-gutter: .9rem;
+    }
+
+    .main-header .navbar {
+        min-height: var(--app-header-height);
+    }
+
+    .main-header .container-fluid {
+        gap: 0.25rem;
+        flex-wrap: nowrap;
+    }
+
+    .nav-menu-button {
+        width: 2.35rem;
+        height: 2.35rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+    }
+
+    .navbar-brand {
+        min-width: 0;
+        max-width: 42vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+        word-break: normal;
+    }
+
+    .brand-text {
+        font-size: 0.98rem;
+    }
+
+    .navbar-tools {
+        margin-left: auto;
+        min-width: 0;
+    }
+
+    .app-shell {
+        display: block;
+        min-height: calc(100vh - var(--app-header-height));
+    }
+
+    .app-content {
+        min-height: calc(100vh - var(--app-header-height));
+        padding: .85rem;
+        padding-bottom: 1.5rem;
+    }
+
+    .club-switcher {
+        flex: 1 1 auto;
+        min-width: 6.5rem;
+        max-width: 34vw;
+        margin-right: 0.4rem !important;
+    }
+
+    .theme-toggle-wrap {
+        margin-right: 0.4rem !important;
+    }
+
+    .theme-toggle-wrap > i {
+        display: none;
+    }
+
+    #themeToggle {
+        width: 2.45em !important;
+        height: 1.25em !important;
+        margin-left: 0 !important;
+    }
+
+    .navbar-nav .nav-link {
+        padding-left: 0.45rem !important;
+        padding-right: 0.45rem !important;
+    }
+
+    .login-label {
+        display: none;
+    }
+
+    main {
+        overflow-x: hidden;
+    }
+
+    h1,
+    .display-5 {
+        font-size: clamp(1.75rem, 8vw, 2.2rem);
+        line-height: 1.08;
+    }
+
+    .display-6 {
+        font-size: 2rem;
+    }
+
+    .home-lead {
+        font-size: 1.05rem;
+        line-height: 1.45;
+    }
+
+    .mobile-full-button {
+        width: 100%;
+    }
+
+    .container,
+    .container-fluid {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    .page-header,
+    .container-fluid > .d-flex.justify-content-between.align-items-center {
+        align-items: stretch !important;
+        flex-direction: column;
+        gap: 0.9rem;
+    }
+
+    .page-header .btn,
+    .container-fluid > .d-flex.justify-content-between.align-items-center > .btn,
+    .container-fluid > .d-flex.justify-content-between.align-items-center > a.btn {
+        width: 100%;
+    }
+
+    .header-actions {
+        width: 100%;
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: 0.6rem;
+    }
+
+    .header-actions .btn {
+        width: 100%;
+    }
+
+    .input-group {
+        box-shadow: none !important;
+    }
+
+    .input-group .form-control {
+        min-width: 0;
+    }
+
+    .pagination {
+        max-width: 100%;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+    }
+
+    .sidebar-nav {
+        position: fixed;
+        width: min(82vw, 320px);
+        height: 100vh;
+        top: 0;
+        bottom: 0;
+        z-index: 2050;
+        background: var(--bs-body-tertiary);
+    }
+
+    .sidebar-nav .offcanvas-body,
+    .sidebar-nav .p-3 {
+        overflow-y: auto;
+    }
+
+    .mobile-card-table {
+        min-width: 0;
+    }
+
+    .mobile-card-table thead {
+        display: none;
+    }
+
+    .mobile-card-table,
+    .mobile-card-table tbody,
+    .mobile-card-table tr,
+    .mobile-card-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .mobile-card-table tbody tr {
+        height: auto !important;
+        margin-bottom: 0.9rem;
+        border: 1px solid var(--bs-border-color-translucent) !important;
+        border-radius: 0.5rem;
+        background-color: var(--bs-body-bg);
+        box-shadow: var(--bs-box-shadow-sm);
+        overflow: hidden;
+    }
+
+    .mobile-card-table td {
+        height: auto !important;
+        padding: 0.75rem 1rem !important;
+        border: 0 !important;
+        overflow: visible;
+        text-align: left !important;
+    }
+
+    .mobile-card-table td:not(:first-child) {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        border-top: 1px solid var(--bs-border-color-translucent) !important;
+    }
+
+    .mobile-card-table td:not(:first-child)::before {
+        content: attr(data-label);
+        color: var(--bs-secondary-color);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        flex: 0 0 auto;
+    }
+
+    .mobile-card-table td[data-label="Actions"] {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.55rem;
+    }
+
+    .mobile-card-table .btn-group {
+        width: 100%;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 1fr;
+    }
+
+    .mobile-card-table .btn-group .btn,
+    .mobile-card-table .btn-group form,
+    .mobile-card-table .btn-group button {
+        width: 100%;
+    }
+
+    .mobile-card-table .btn-group .btn {
+        border-radius: 0.375rem !important;
+    }
+
+    .mobile-card-table .btn-group {
+        gap: 0.35rem;
+        box-shadow: none !important;
+    }
 }
 
 /* Table headers stay visible but slide under the main header */
@@ -85,3 +394,270 @@ body {
         max-width: 300px;
         max-height: 300px;
     }
+/* Club admin */
+.club-admin-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.club-form-panel,
+.club-card {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  background: var(--bs-body-tertiary);
+  padding: 1rem;
+}
+
+.club-card {
+  margin-bottom: 1rem;
+}
+
+.club-card-header,
+.member-row,
+.add-member-form {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.club-card-header {
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.club-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  justify-content: flex-end;
+  font-size: .875rem;
+  color: var(--bs-secondary-color);
+}
+
+.club-metrics span {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  padding: .25rem .6rem;
+  background: var(--bs-body-bg);
+  white-space: nowrap;
+}
+
+.club-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.club-account-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .6rem;
+}
+
+.club-account-metric {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  background: var(--bs-body-bg);
+  padding: .75rem;
+  min-width: 0;
+}
+
+.club-account-metric .metric-icon {
+  display: block;
+  font-size: 1.25rem;
+  margin-bottom: .35rem;
+}
+
+.club-account-metric strong {
+  display: block;
+  font-size: 1.45rem;
+  line-height: 1;
+  color: var(--bs-body-color);
+}
+
+.club-account-metric span:last-child {
+  display: block;
+  margin-top: .25rem;
+  color: var(--bs-secondary-color);
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.club-health,
+.club-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.club-health-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  background: var(--bs-body-bg);
+  padding: .25rem .6rem;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--bs-secondary-color);
+}
+
+.club-health-chip.is-good {
+  color: var(--bs-success);
+  border-color: rgba(var(--bs-success-rgb), .35);
+}
+
+.club-health-chip.is-warning {
+  color: var(--bs-warning);
+  border-color: rgba(var(--bs-warning-rgb), .35);
+}
+
+.club-health-chip.is-muted {
+  color: var(--bs-secondary-color);
+}
+
+.club-edit summary {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.club-edit summary::-webkit-details-marker {
+  display: none;
+}
+
+.club-edit-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.club-edit-form textarea,
+.club-edit-form .row,
+.club-edit-form button {
+  grid-column: 1 / -1;
+}
+
+.member-list {
+  display: grid;
+  gap: .5rem;
+}
+
+.member-row {
+  justify-content: space-between;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  background: var(--bs-body-bg);
+  padding: .6rem .75rem;
+}
+
+.add-member-form .form-select:first-of-type {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.add-member-form .form-select:last-of-type {
+  flex: 0 0 7rem;
+}
+
+@media (max-width: 991.98px) {
+  .club-admin-layout,
+  .club-detail-grid,
+  .club-account-metrics,
+  .club-edit-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .club-card-header,
+  .add-member-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .club-metrics {
+    justify-content: flex-start;
+  }
+
+  .add-member-form .form-select,
+  .add-member-form .btn {
+    width: 100%;
+  }
+}
+
+/* Player merge */
+.merge-panel,
+.merge-preview {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  background: var(--bs-body-tertiary);
+  padding: 1rem;
+}
+
+.merge-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: .75rem;
+  align-items: end;
+}
+
+.merge-preview {
+  display: grid;
+  gap: 1rem;
+}
+
+.merge-player-card {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  background: var(--bs-body-bg);
+  padding: 1rem;
+}
+
+.merge-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: .75rem;
+}
+
+.merge-counts div {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  background: var(--bs-body-bg);
+  padding: .75rem;
+}
+
+.merge-counts strong,
+.merge-counts span {
+  display: block;
+}
+
+.merge-counts strong {
+  font-size: 1.5rem;
+}
+
+.merge-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--bs-border-color);
+  padding-top: 1rem;
+}
+
+@media (max-width: 767.98px) {
+  .merge-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .merge-actions .btn,
+  .merge-confirm .btn {
+    width: 100%;
+  }
+}

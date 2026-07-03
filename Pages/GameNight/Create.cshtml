@@ -94,10 +94,68 @@
     .muted-divider {
         border-top: 1px dashed rgba(255,255,255,0.15);
     }
+
+    @@media (max-width: 767.98px) {
+        .game-night-create-shell {
+            padding-left: .75rem;
+            padding-right: .75rem;
+            padding-bottom: 5.5rem;
+        }
+
+        .game-night-create-header {
+            align-items: flex-start !important;
+        }
+
+        .game-night-create-header h1 {
+            font-size: 1.75rem;
+        }
+
+        .search-input-group {
+            max-width: none;
+            width: 100%;
+        }
+
+        .attendee-toolbar {
+            align-items: stretch !important;
+            width: 100%;
+        }
+
+        .attendee-toolbar > .d-flex {
+            width: 100%;
+        }
+
+        .attendee-toolbar .btn {
+            min-height: 44px;
+            flex: 1 1 0;
+        }
+
+        .player-tile {
+            min-height: 72px;
+            border-radius: 8px;
+        }
+
+        .sticky-bottom-bar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: .75rem;
+            box-shadow: 0 -8px 24px rgba(0,0,0,.25);
+        }
+
+        .sticky-bottom-bar .d-flex {
+            max-width: none;
+        }
+
+        .sticky-bottom-bar .btn {
+            min-height: 48px;
+            flex: 1 1 0;
+        }
+    }
 </style>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid game-night-create-shell">
+    <div class="d-flex justify-content-between align-items-center mb-4 game-night-create-header">
         <div>
             <h1 class="text-body m-0">Create Game Night</h1>
             <p class="text-muted mb-0">Schedule a new session and invite players.</p>
@@ -123,7 +181,7 @@
         </div>
 
         <div class="card card-custom">
-            <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-3">
+            <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-3 attendee-toolbar">
                 <h5 class="m-0 fw-bold">Select Attendees</h5>
                 <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-md-end">
                     <div class="input-group input-group-sm search-input-group shadow-sm">

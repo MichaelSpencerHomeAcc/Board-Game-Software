@@ -55,7 +55,7 @@
             <div class="text-white fw-bold small text-truncate">@s.Name</div>
             <div class="text-info d-flex align-items-center gap-2" style="font-size: 0.65rem;">
                 <i class="bi @s.CategoryIcon"></i>
-                <span>@s.Reason</span>
+                <span class="text-truncate">@s.Reason</span>
             </div>
             @if (!string.IsNullOrWhiteSpace(s.Detail))
             {
@@ -63,7 +63,7 @@
             }
         </div>
 
-        <div class="d-flex align-items-center gap-1 ms-auto">
+        <div class="intel-actions d-flex align-items-center gap-1 ms-auto">
             @if (nightId.HasValue)
             {
                 <a class="btn btn-sm btn-info rounded-circle text-dark"

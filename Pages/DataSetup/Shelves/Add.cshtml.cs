@@ -1,5 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -9,23 +10,31 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
     public class AddModel : PageModel
     {
         private readonly BoardGameDbContext _context;
+        private readonly ICurrentClubService _currentClubService;
 
-        public AddModel(BoardGameDbContext context)
+        public AddModel(BoardGameDbContext context, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
         }
 
         [BindProperty]
         public Shelf Shelf { get; set; } = default!;
 
-        public IActionResult OnGet()
+        public async Task<IActionResult> OnGetAsync()
         {
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!currentClub.CurrentClubId.HasValue) return Forbid();
+
             Shelf = new Shelf { TotalRows = 1 };
             return Page();
         }
 
         public async Task<IActionResult> OnPostAsync()
         {
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!currentClub.CurrentClubId.HasValue) return Forbid();
+
             // 1. Manually set audit fields for the Shelf
             string user = User.Identity?.Name ?? "System";
             Shelf.CreatedBy = user;
@@ -33,6 +42,7 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
             Shelf.TimeCreated = DateTime.Now;
             Shelf.TimeModified = DateTime.Now;
             Shelf.Gid = Guid.NewGuid();
+            Shelf.FkBgdClub = currentClub.CurrentClubId.Value;
 
             // 2. Clear the 'Required' complaints for these fields
             ModelState.Remove("Shelf.CreatedBy");

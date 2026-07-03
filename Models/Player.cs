@@ -35,9 +35,15 @@ public partial class Player
 
     public string? FkdboAspNetUsers { get; set; }
 
+    public long? FkBgdClub { get; set; }
+
+    public virtual Club? FkBgdClubNavigation { get; set; }
+
     public virtual ICollection<BoardGameMatchPlayer> BoardGameMatchPlayers { get; set; } = new List<BoardGameMatchPlayer>();
 
     public virtual ICollection<BoardGameNightPlayer> BoardGameNightPlayers { get; set; } = new List<BoardGameNightPlayer>();
+
+    public virtual ICollection<PlayerClub> PlayerClubs { get; set; } = new List<PlayerClub>();
 
     public virtual ICollection<PlayerBoardGameRating> PlayerBoardGameRatings { get; set; } = new List<PlayerBoardGameRating>();
 
@@ -48,6 +54,4 @@ public partial class Player
     public virtual ICollection<BoardGameVote> BoardGameVotes { get; set; } = new List<BoardGameVote>();
 
     public virtual ICollection<PlayerAchievement> PlayerAchievements { get; set; } = new List<PlayerAchievement>();
-
-    public virtual IdentityUser? User { get; set; }
 }
