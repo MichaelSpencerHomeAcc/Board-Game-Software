@@ -1,4 +1,5 @@
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -17,10 +18,12 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
     {
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _imagesCollection;
+        private readonly ICurrentClubService _currentClubService;
 
-        public EditModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration config)
+        public EditModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration config, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
             var dbName = config["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(dbName);
             _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -41,10 +44,13 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
+            var club = await _currentClubService.GetCurrentClubAsync();
             var markerType = await _context.BoardGameMarkerTypes
                 .Include(m => m.FkBgdMarkerAlignmentTypeNavigation)
                 .Include(m => m.FkBgdMarkerAdditionalTypeNavigation)  // Add this!
-                .FirstOrDefaultAsync(m => m.Id == id);
+                .FirstOrDefaultAsync(m => m.Id == id
+                    && ((club.IsPlatformAdminMode && m.FkBgdClub == null)
+                        || (!club.IsPlatformAdminMode && m.FkBgdClub == club.CurrentClubId)));
 
 
             if (markerType == null)
@@ -70,7 +76,11 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
                 return Page();
             }
 
-            var markerInDb = await _context.BoardGameMarkerTypes.FindAsync(MarkerType.Id);
+            var club = await _currentClubService.GetCurrentClubAsync();
+            var markerInDb = await _context.BoardGameMarkerTypes
+                .FirstOrDefaultAsync(m => m.Id == MarkerType.Id
+                    && ((club.IsPlatformAdminMode && m.FkBgdClub == null)
+                        || (!club.IsPlatformAdminMode && m.FkBgdClub == club.CurrentClubId)));
 
             if (markerInDb == null)
             {

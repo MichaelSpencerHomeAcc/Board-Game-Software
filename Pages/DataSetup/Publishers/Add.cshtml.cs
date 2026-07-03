@@ -1,5 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +15,12 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
     {
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _boardGameImages;
+        private readonly ICurrentClubService _currentClubService;
 
-        public AddModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
+        public AddModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -42,10 +45,24 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
             Publisher.TimeModified = Publisher.TimeCreated;
             Publisher.Gid = Guid.NewGuid();
             Publisher.Inactive = false;
+            Publisher.FkBgdClub = await GetCurrentDataClubIdAsync();
+            Publisher.PublisherName = Publisher.PublisherName?.Trim() ?? string.Empty;
+
+            var existingPublisher = await _context.Publishers
+                .Where(p => !p.Inactive
+                    && p.PublisherName == Publisher.PublisherName
+                    && (p.FkBgdClub == null || p.FkBgdClub == Publisher.FkBgdClub))
+                .OrderByDescending(p => p.FkBgdClub == Publisher.FkBgdClub)
+                .FirstOrDefaultAsync();
 
             if (!ModelState.IsValid)
             {
                 return Page();
+            }
+
+            if (existingPublisher != null)
+            {
+                return RedirectToPage("./Edit", new { id = existingPublisher.Id });
             }
 
             // 1. Save Publisher to SQL Server
@@ -84,6 +101,12 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
             }
 
             return RedirectToPage("./Index");
+        }
+
+        private async Task<long?> GetCurrentDataClubIdAsync()
+        {
+            var club = await _currentClubService.GetCurrentClubAsync();
+            return club.HasClub && !club.IsPlatformAdminMode ? club.CurrentClubId : null;
         }
     }
 }

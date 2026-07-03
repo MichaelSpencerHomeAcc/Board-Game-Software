@@ -1,6 +1,7 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
 using Board_Game_Software.Pages.Browsing.BoardGames;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -15,10 +16,12 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
     {
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _boardGameImages;
+        private readonly ICurrentClubService _currentClubService;
 
-        public AddModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
+        public AddModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -62,6 +65,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             BoardGame.TimeCreated = DateTime.Now;
             BoardGame.TimeModified = DateTime.Now;
             BoardGame.Gid = Guid.NewGuid();
+            BoardGame.FkBgdClub = await GetCurrentCatalogClubIdAsync();
 
             // 2. Bypass Validation for background-set fields
             ModelState.Remove("BoardGame.CreatedBy");
@@ -109,16 +113,25 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 // 5. Handle Bulk Marker Addition
                 if (BoardGame.HasMarkers && MarkerTypeIds != null && MarkerTypeIds.Any())
                 {
-                    var markersToAdd = MarkerTypeIds.Distinct().Select(typeId => new BoardGameMarker
-                    {
-                        Gid = Guid.NewGuid(),
-                        FkBgdBoardGame = BoardGame.Id,
-                        FkBgdBoardGameMarkerType = typeId,
-                        CreatedBy = user,
-                        ModifiedBy = user,
-                        TimeCreated = DateTime.Now,
-                        TimeModified = DateTime.Now
-                    });
+                    var catalogClubId = BoardGame.FkBgdClub;
+                    var allowedMarkerTypeIds = await _context.BoardGameMarkerTypes
+                        .Where(t => !t.Inactive && (t.FkBgdClub == null || t.FkBgdClub == catalogClubId))
+                        .Select(t => t.Id)
+                        .ToListAsync();
+
+                    var markersToAdd = MarkerTypeIds
+                        .Distinct()
+                        .Where(typeId => allowedMarkerTypeIds.Contains(typeId))
+                        .Select(typeId => new BoardGameMarker
+                        {
+                            Gid = Guid.NewGuid(),
+                            FkBgdBoardGame = BoardGame.Id,
+                            FkBgdBoardGameMarkerType = typeId,
+                            CreatedBy = user,
+                            ModifiedBy = user,
+                            TimeCreated = DateTime.Now,
+                            TimeModified = DateTime.Now
+                        });
 
                     _context.BoardGameMarkers.AddRange(markersToAdd);
                     await _context.SaveChangesAsync();
@@ -200,8 +213,10 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 return BadRequest(new { message = "Publisher name must be 80 characters or fewer." });
             }
 
+            var catalogClubId = await GetCurrentCatalogClubIdAsync();
             var existing = await _context.Publishers
-                .Where(p => !p.Inactive && p.PublisherName == name)
+                .Where(p => !p.Inactive && p.PublisherName == name && (p.FkBgdClub == null || p.FkBgdClub == catalogClubId))
+                .OrderByDescending(p => p.FkBgdClub == catalogClubId)
                 .FirstOrDefaultAsync();
 
             if (existing != null)
@@ -215,6 +230,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             {
                 Gid = Guid.NewGuid(),
                 PublisherName = name,
+                FkBgdClub = catalogClubId,
                 CreatedBy = actor,
                 ModifiedBy = actor,
                 TimeCreated = now,
@@ -269,18 +285,20 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
         private async Task LoadSelectLists()
         {
+            var catalogClubId = await GetCurrentCatalogClubIdAsync();
             var linkedExpansionIds = _context.BoardGameExpansions
                 .Where(link => !link.Inactive)
                 .Select(link => link.FkBgdExpansionBoardGame);
 
             BoardGameTypes = new SelectList(await _context.BoardGameTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
             VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
-            Publishers = new SelectList(await _context.Publishers.Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
+            Publishers = new SelectList(await _context.Publishers.Where(p => !p.Inactive && (p.FkBgdClub == null || p.FkBgdClub == catalogClubId)).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
             EloMethods = new SelectList(await _context.EloMethods.Where(e => !e.Inactive).OrderBy(e => e.MethodName).ToListAsync(), "Id", "MethodName");
             BaseGames = new SelectList(
                 await _context.BoardGames
                     .Where(bg => !bg.Inactive
                         && !bg.IsExpansion
+                        && bg.FkBgdClub == catalogClubId
                         && !linkedExpansionIds.Contains(bg.Id))
                     .OrderBy(bg => bg.BoardGameName)
                     .ToListAsync(),
@@ -290,8 +308,9 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
         private async Task LoadAvailableMarkerTypes()
         {
+            var catalogClubId = await GetCurrentCatalogClubIdAsync();
             var types = await _context.BoardGameMarkerTypes
-                .Where(t => !t.Inactive)
+                .Where(t => !t.Inactive && (t.FkBgdClub == null || t.FkBgdClub == catalogClubId))
                 .OrderBy(t => t.TypeDesc)
                 .ToListAsync();
 
@@ -314,6 +333,12 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     ImageBase64 = img?.ImageBytes != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
                 });
             }
+        }
+
+        private async Task<long?> GetCurrentCatalogClubIdAsync()
+        {
+            var club = await _currentClubService.GetCurrentClubAsync();
+            return club.HasClub && !club.IsPlatformAdminMode ? club.CurrentClubId : null;
         }
     }
 }

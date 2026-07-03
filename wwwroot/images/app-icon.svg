@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Board Game Manager</title>
+  <rect width="512" height="512" rx="96" fill="#0d6efd"/>
+  <rect x="96" y="96" width="320" height="320" rx="58" fill="#ffffff"/>
+  <circle cx="176" cy="176" r="28" fill="#0d6efd"/>
+  <circle cx="256" cy="256" r="28" fill="#0d6efd"/>
+  <circle cx="336" cy="336" r="28" fill="#0d6efd"/>
+  <path d="M166 346h180" stroke="#0d6efd" stroke-width="28" stroke-linecap="round"/>
+</svg>

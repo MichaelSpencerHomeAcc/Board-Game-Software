@@ -96,16 +96,32 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="text-body m-0">Board Games</h1>
-            <p class="text-muted mb-0">Browse and manage your collection.</p>
+            <h1 class="text-body m-0">@(Model.Templates ? "Import Templates" : "Board Games")</h1>
+            <p class="text-muted mb-0">
+                @(Model.Templates ? "Add platform templates into this club's playable collection." : Model.CurrentClub.IsPlatformAdminMode ? "Manage the platform template catalogue." : "Browse and manage this club's playable collection.")
+            </p>
         </div>
-        @if (User.IsInRole("Admin"))
-        {
-            <a asp-page="./Add" class="btn btn-primary shadow-sm">
-                <i class="bi bi-plus-circle me-1"></i> Add Game
-            </a>
-        }
+        <div class="d-flex flex-wrap justify-content-end gap-2">
+            @if (Model.CanImportTemplates)
+            {
+                <a asp-page="./Index" asp-route-templates="@(!Model.Templates)" asp-route-search="@Model.SearchTerm" class="btn btn-outline-info shadow-sm">
+                    <i class="bi @(Model.Templates ? "bi-collection" : "bi-cloud-download") me-1"></i>
+                    @(Model.Templates ? "Club Library" : "Import Templates")
+                </a>
+            }
+            @if (User.IsInRole("Admin") || Model.CurrentClub.CanManageCurrentClub)
+            {
+                <a asp-page="./Add" class="btn btn-primary shadow-sm">
+                    <i class="bi bi-plus-circle me-1"></i> Add Game
+                </a>
+            }
+        </div>
     </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success rounded-3">@Model.StatusMessage</div>
+    }
 
     <div class="mb-4">
         <form method="get" autocomplete="off">
@@ -129,7 +145,7 @@
 
     <div class="card shadow-sm border-0 bg-transparent">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 fixed-table">
+            <table class="table table-hover align-middle mb-0 fixed-table mobile-card-table">
                 <thead class="border-bottom border-secondary-subtle">
                     <tr>
                         <th class="ps-4" style="width: 40%;">Name</th>
@@ -145,10 +161,10 @@
                         var hasImage = !string.IsNullOrWhiteSpace(item.ImageUrl);
 
                         <tr class="clickable-row border-bottom border-secondary-subtle"
-                            data-href="@Url.Page("./BoardGameDetails", new { id = item.BoardGame.Id })"
+                            data-href="@(Model.Templates ? "" : Url.Page("./BoardGameDetails", new { id = item.BoardGame.Id }))"
                             style="cursor: pointer;">
 
-                            <td class="ps-4 border-0">
+                            <td class="ps-4 border-0" data-label="Name">
                                 <div class="d-flex align-items-center">
                                     <div class="img-lockdown game-image-hover me-3 shadow-sm"
                                          data-hover-img="@(hasImage? item.ImageUrl: "")">
@@ -173,6 +189,18 @@
                                             {
                                                 <span class="badge bg-info-subtle text-info border ms-1">Expansion</span>
                                             }
+                                            @if (item.BoardGame.FkBgdClub == null)
+                                            {
+                                                <span class="badge bg-primary-subtle text-primary border ms-1">Template</span>
+                                            }
+                                            else if (item.BoardGame.FkBgdTemplateBoardGame.HasValue)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border ms-1">Club copy</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary-subtle text-secondary border ms-1">Club game</span>
+                                            }
                                         </span>
                                         <small class="text-muted">@(item.BoardGame.FkBgdPublisherNavigation?.PublisherName ?? "Unknown Publisher")</small>
                                         @if (item.ExpansionNames.Any())
@@ -193,20 +221,20 @@
                                 </div>
                             </td>
 
-                            <td class="border-0">
+                            <td class="border-0" data-label="Type">
                                 <span class="text-body-secondary text-truncate-custom">
                                     @(item.BoardGame.FkBgdBoardGameTypeNavigation?.TypeDesc ?? "-")
                                 </span>
                             </td>
 
-                            <td class="border-0">
+                            <td class="border-0" data-label="Players">
                                 <span class="text-body-secondary text-truncate-custom">
                                     <i class="bi bi-people me-1 small opacity-50"></i>
                                     @item.BoardGame.PlayerCountMin@(item.BoardGame.PlayerCountMax != item.BoardGame.PlayerCountMin ? "–" + item.BoardGame.PlayerCountMax : "")
                                 </span>
                             </td>
 
-                            <td class="border-0">
+                            <td class="border-0" data-label="Play Time">
                                 <span class="text-body-secondary text-truncate-custom">
                                     @if (item.BoardGame.PlayingTimeMinInMinutes.HasValue && item.BoardGame.PlayingTimeMinInMinutes.Value > 0)
                                     {
@@ -222,24 +250,30 @@
                                 </span>
                             </td>
 
-                            <td class="text-end pe-4 border-0">
+                            <td class="text-end pe-4 border-0" data-label="Actions">
                                 <div class="btn-group shadow-sm">
-                                    <a asp-page="./BoardGameDetails" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
+                                    @if (!Model.Templates)
+                                    {
+                                        <a asp-page="./BoardGameDetails" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    }
 
-                                    @if (User.IsInRole("Admin"))
+                                    @if (!Model.Templates && User.IsInRole("Admin"))
                                     {
                                         <a asp-page="./Edit" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                     }
 
-                                    <a asp-page="./EloRankings" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-warning">
-                                        <i class="bi bi-trophy"></i>
-                                    </a>
+                                    @if (!Model.Templates)
+                                    {
+                                        <a asp-page="./EloRankings" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-warning">
+                                            <i class="bi bi-trophy"></i>
+                                        </a>
+                                    }
 
-                                    @if (User.IsInRole("Admin"))
+                                    @if (!Model.Templates && User.IsInRole("Admin"))
                                     {
                                         <form method="post"
                                               asp-page-handler="Delete"
@@ -252,6 +286,22 @@
                                                     class="btn btn-sm btn-outline-danger"
                                                     style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
                                                 <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                    @if (Model.Templates && Model.CanImportTemplates)
+                                    {
+                                        <form method="post"
+                                              asp-page-handler="ImportTemplate"
+                                              asp-route-id="@item.BoardGame.Id"
+                                              asp-route-search="@Model.SearchTerm"
+                                              asp-route-pageNumber="@Model.PageNumber"
+                                              class="d-inline">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-success"
+                                                    style="border-top-left-radius: 0; border-bottom-left-radius: 0;"
+                                                    title="Add to my club">
+                                                <i class="bi bi-plus-lg"></i>
                                             </button>
                                         </form>
                                     }
@@ -271,7 +321,11 @@
                 <i class="bi bi-box-seam text-secondary opacity-25" style="font-size: 4rem;"></i>
             </div>
             <h4 class="text-secondary fw-normal">No games found</h4>
-            <p class="text-muted">Adjust your search or add a new game.</p>
+            <p class="text-muted">
+                @(Model.Templates
+                    ? "No available templates to import. This club already has the matching template games, or your search has filtered them out."
+                    : "Adjust your search or add a new game.")
+            </p>
         </div>
     }
     else if (Model.TotalPages > 1)
@@ -308,7 +362,8 @@
             document.querySelectorAll('.clickable-row').forEach(row => {
                 row.addEventListener('click', (e) => {
                     if (e.target.closest('.btn-group') || e.target.closest('button') || e.target.closest('a')) return;
-                    window.location.href = row.getAttribute('data-href');
+                    const href = row.getAttribute('data-href');
+                    if (href) window.location.href = href;
                 });
             });
 

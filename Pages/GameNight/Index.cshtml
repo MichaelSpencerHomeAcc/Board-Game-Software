@@ -91,7 +91,21 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-5">
         <div class="mb-3 mb-md-0">
             <h1 class="display-5 fw-bold mb-1">Game Nights</h1>
-            <p class="text-secondary mb-0">Track sessions, players, and match outcomes.</p>
+            <p class="text-secondary mb-0">
+                Track sessions, players, and match outcomes
+                @if (Model.CurrentClub.IsPlatformAdminMode)
+                {
+                    <span>across all clubs.</span>
+                }
+                else if (!string.IsNullOrWhiteSpace(Model.CurrentClub.CurrentClubName))
+                {
+                    <span>for @Model.CurrentClub.CurrentClubName.</span>
+                }
+                else
+                {
+                    <span>.</span>
+                }
+            </p>
         </div>
         <div class="header-actions">
             <a class="btn btn-outline-secondary rounded-pill px-4" asp-page="Archive">
@@ -146,6 +160,11 @@
                             <div>
                                 <h5 class="mb-0 fw-bold text-body">Game Night</h5>
                                 <div class="text-muted small">@n.GameNightDate.ToString("dddd, yyyy")</div>
+                                <div class="mt-2">
+                                    <span class="badge rounded-pill @(n.FkBgdClub.HasValue ? "text-bg-info" : "text-bg-primary")">
+                                        @(n.ClubName ?? "Platform")
+                                    </span>
+                                </div>
                             </div>
                         </div>
 

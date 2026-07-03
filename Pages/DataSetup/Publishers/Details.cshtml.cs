@@ -1,5 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -16,16 +17,18 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
     {
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _boardGameImages;
+        private readonly ICurrentClubService _currentClubService;
 
-        public DetailsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
+        public DetailsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
-        public VwPublisher Publisher { get; set; } = default!;
+        public Publisher Publisher { get; set; } = default!;
 
         // Hero Image
         public string? PublisherLogoBase64 { get; set; }
@@ -36,9 +39,11 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
-            // 1. Fetch Publisher (Using View or Entity, here keeping your View usage if strictly read-only, 
-            // but usually we want the Entity for relationships. Let's use the View for display properties)
-            var publisher = await _context.VwPublishers.FirstOrDefaultAsync(p => p.Id == id);
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            var publisher = await _context.Publishers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == id
+                    && (currentClub.IsPlatformAdminMode || p.FkBgdClub == null || p.FkBgdClub == currentClub.CurrentClubId));
 
             if (publisher == null) return NotFound();
 
@@ -61,8 +66,25 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
 
             // 3. Fetch Related Games
             // We need to query the BoardGames table using the Publisher ID
-            RelatedGames = await _context.BoardGames
-                .Where(bg => bg.FkBgdPublisher == id)
+            var relatedGameQuery = _context.BoardGames
+                .AsNoTracking()
+                .Where(bg => !bg.Inactive && bg.FkBgdPublisher == id);
+
+            if (currentClub.IsPlatformAdminMode)
+            {
+                relatedGameQuery = relatedGameQuery.Where(bg => bg.FkBgdClub == null);
+            }
+            else if (currentClub.CurrentClubId.HasValue)
+            {
+                var currentClubId = currentClub.CurrentClubId.Value;
+                relatedGameQuery = relatedGameQuery.Where(bg => bg.FkBgdClub == currentClubId);
+            }
+            else
+            {
+                relatedGameQuery = relatedGameQuery.Where(bg => false);
+            }
+
+            RelatedGames = await relatedGameQuery
                 .OrderBy(bg => bg.BoardGameName)
                 .ToListAsync();
 

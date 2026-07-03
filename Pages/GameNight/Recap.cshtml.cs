@@ -10,11 +10,13 @@ namespace Board_Game_Software.Pages.GameNight
     {
         private readonly BoardGameDbContext _db;
         private readonly GameNightService _nightService;
+        private readonly ICurrentClubService _currentClubService;
 
-        public RecapModel(BoardGameDbContext db, GameNightService nightService)
+        public RecapModel(BoardGameDbContext db, GameNightService nightService, ICurrentClubService currentClubService)
         {
             _db = db;
             _nightService = nightService;
+            _currentClubService = currentClubService;
         }
 
         public BoardGameNight Night { get; private set; } = null!;
@@ -76,6 +78,9 @@ namespace Board_Game_Software.Pages.GameNight
         {
             var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id);
             if (night == null) return NotFound();
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!CanAccessNight(night, currentClub)) return Forbid();
+
             Night = night;
 
             var scores = await _nightService.GetCurrentScores(id);
@@ -201,6 +206,16 @@ namespace Board_Game_Software.Pages.GameNight
                 .ToList();
 
             return Page();
+        }
+
+        private bool CanAccessNight(BoardGameNight night, CurrentClubContext currentClub)
+        {
+            if (User.IsInRole("Admin") && currentClub.IsPlatformAdminMode)
+            {
+                return true;
+            }
+
+            return night.FkBgdClub.HasValue && night.FkBgdClub == currentClub.CurrentClubId;
         }
     }
 }

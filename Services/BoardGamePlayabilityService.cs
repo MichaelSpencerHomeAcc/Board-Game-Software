@@ -26,7 +26,7 @@ namespace Board_Game_Software.Services
                 && MaxPlayers.Value > BaseMaxPlayers.Value;
         }
 
-        public async Task<List<PlayableGame>> GetPlayableBaseGamesAsync()
+        public async Task<List<PlayableGame>> GetPlayableBaseGamesAsync(long? clubId = null)
         {
             var expansionGameIds = await _db.BoardGameExpansions.AsNoTracking()
                 .Where(e => !e.Inactive)
@@ -34,8 +34,15 @@ namespace Board_Game_Software.Services
                 .Distinct()
                 .ToListAsync();
 
-            var games = await _db.BoardGames.AsNoTracking()
-                .Where(g => !g.Inactive && !g.IsExpansion && !expansionGameIds.Contains(g.Id))
+            var gamesQuery = _db.BoardGames.AsNoTracking()
+                .Where(g => !g.Inactive && !g.IsExpansion && !expansionGameIds.Contains(g.Id));
+
+            if (clubId.HasValue)
+            {
+                gamesQuery = gamesQuery.Where(g => g.FkBgdClub == clubId.Value);
+            }
+
+            var games = await gamesQuery
                 .Select(g => new
                 {
                     g.Id,
@@ -47,8 +54,13 @@ namespace Board_Game_Software.Services
                 })
                 .ToListAsync();
 
+            var gameIds = games.Select(g => g.Id).ToList();
+
             var expansionCounts = await _db.BoardGameExpansions.AsNoTracking()
-                .Where(e => !e.Inactive && !e.FkBgdExpansionBoardGameNavigation.Inactive)
+                .Where(e => !e.Inactive
+                    && gameIds.Contains(e.FkBgdBoardGame)
+                    && !e.FkBgdExpansionBoardGameNavigation.Inactive
+                    && (!clubId.HasValue || e.FkBgdExpansionBoardGameNavigation.FkBgdClub == clubId.Value))
                 .Select(e => new
                 {
                     e.FkBgdBoardGame,

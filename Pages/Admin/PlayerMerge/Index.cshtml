@@ -1,0 +1,85 @@
+@page
+@model Board_Game_Software.Pages.Admin.PlayerMerge.IndexModel
+@{
+    ViewData["Title"] = "Merge Players";
+}
+
+<div class="container py-4 admin-shell">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3 mb-4">
+        <div>
+            <h1 class="fw-bold mb-1">Merge Players</h1>
+            <div class="text-secondary">Move an old roster/player record into the player record claimed by a user account.</div>
+        </div>
+        <a asp-page="/DataSetup/Players/Index" class="btn btn-outline-secondary rounded-pill">
+            <i class="bi bi-people me-1"></i> Players
+        </a>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success rounded-4">@Model.StatusMessage</div>
+    }
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div asp-validation-summary="All" class="alert alert-danger rounded-4"></div>
+    }
+
+    <form method="post" class="merge-panel mb-4">
+        <div>
+            <label asp-for="SourcePlayerId" class="form-label fw-bold">Old/source player</label>
+            <select asp-for="SourcePlayerId" asp-items="Model.SourcePlayerOptions" class="form-select">
+                <option value="">Choose source...</option>
+            </select>
+        </div>
+        <div>
+            <label asp-for="DestinationPlayerId" class="form-label fw-bold">New/destination player</label>
+            <select asp-for="DestinationPlayerId" asp-items="Model.DestinationPlayerOptions" class="form-select">
+                <option value="">Choose claimed destination...</option>
+            </select>
+        </div>
+        <div class="merge-actions">
+            <button type="submit" asp-page-handler="Preview" class="btn btn-outline-primary rounded-pill">
+                <i class="bi bi-search me-1"></i> Preview
+            </button>
+        </div>
+    </form>
+
+    @if (Model.Preview != null)
+    {
+        <section class="merge-preview">
+            <div class="merge-player-card">
+                <div class="small text-secondary text-uppercase fw-bold">Source removed after merge</div>
+                <h2 class="h5 fw-bold mb-1">@Model.Preview.Source.Name</h2>
+                <div class="text-secondary">#@Model.Preview.Source.Id · @(Model.Preview.Source.ClubName ?? "No club") · @(Model.Preview.Source.HasAccount ? "claimed" : "unclaimed")</div>
+            </div>
+            <div class="merge-player-card">
+                <div class="small text-secondary text-uppercase fw-bold">Destination kept</div>
+                <h2 class="h5 fw-bold mb-1">@Model.Preview.Destination.Name</h2>
+                <div class="text-secondary">#@Model.Preview.Destination.Id · @(Model.Preview.Destination.ClubName ?? "No club") · @(Model.Preview.Destination.HasAccount ? "claimed" : "unclaimed")</div>
+            </div>
+
+            <div class="merge-counts">
+                <div><strong>@Model.Preview.MatchPlayers</strong><span>match rows</span></div>
+                <div><strong>@Model.Preview.GameNightLinks</strong><span>game nights</span></div>
+                <div><strong>@Model.Preview.Ratings</strong><span>ELO ratings</span></div>
+                <div><strong>@Model.Preview.TopTenEntries</strong><span>top 10 rows</span></div>
+                <div><strong>@Model.Preview.StarRatings</strong><span>star ratings</span></div>
+                <div><strong>@Model.Preview.Votes</strong><span>votes</span></div>
+                <div><strong>@Model.Preview.Achievements</strong><span>achievements</span></div>
+            </div>
+
+            <form method="post" asp-page-handler="Merge" class="merge-confirm">
+                <input type="hidden" asp-for="SourcePlayerId" />
+                <input type="hidden" asp-for="DestinationPlayerId" />
+                <label class="form-check">
+                    <input asp-for="ConfirmMerge" class="form-check-input" />
+                    <span class="form-check-label">I understand this moves source history to the destination player and removes the source player.</span>
+                </label>
+                <button type="submit" class="btn btn-danger rounded-pill">
+                    <i class="bi bi-intersect me-1"></i> Merge players
+                </button>
+            </form>
+        </section>
+    }
+</div>

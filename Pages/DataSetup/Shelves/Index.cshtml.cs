@@ -1,5 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -9,10 +10,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
     public class IndexModel : PageModel
     {
         private readonly BoardGameDbContext _context;
+        private readonly ICurrentClubService _currentClubService;
 
-        public IndexModel(BoardGameDbContext context)
+        public IndexModel(BoardGameDbContext context, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
         }
 
         public IList<Shelf> Shelves { get; set; } = default!;
@@ -22,18 +25,29 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
         public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
         public bool HasPreviousPage => PageNumber > 1;
         public bool HasNextPage => PageNumber < TotalPages;
+        public CurrentClubContext CurrentClub { get; private set; } = CurrentClubContext.Empty;
 
         [BindProperty(SupportsGet = true)]
         public string SearchTerm { get; set; } = string.Empty;
 
         public async Task OnGetAsync(string? search, int pageNumber = 1)
         {
+            CurrentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!CurrentClub.CurrentClubId.HasValue)
+            {
+                Shelves = new List<Shelf>();
+                TotalCount = 0;
+                return;
+            }
+
             SearchTerm = search ?? string.Empty;
             PageNumber = Math.Max(1, pageNumber);
+            var currentClubId = CurrentClub.CurrentClubId.Value;
 
             var query = _context.Shelves
                 .Include(s => s.ShelfSections)
                 .Where(s => !s.Inactive) // Only show active shelves
+                .Where(s => s.FkBgdClub == currentClubId)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(SearchTerm))
@@ -53,9 +67,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
 
         public async Task<IActionResult> OnPostDeleteAsync(long id)
         {
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!currentClub.CurrentClubId.HasValue) return Forbid();
+
             var shelf = await _context.Shelves
                 .Include(s => s.ShelfSections)
-                .FirstOrDefaultAsync(s => s.Id == id);
+                .FirstOrDefaultAsync(s => s.Id == id && s.FkBgdClub == currentClub.CurrentClubId.Value);
 
             if (shelf == null) return NotFound();
 

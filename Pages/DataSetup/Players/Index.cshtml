@@ -5,6 +5,7 @@
 @{
     ViewData["Title"] = "Players";
     var isAdmin = User.IsInRole("Admin");
+    var canManagePlayers = Model.CanManagePlayers;
     var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 }
 
@@ -82,7 +83,7 @@
             <h1 class="text-body m-0">Players</h1>
             <p class="text-muted mb-0">Registered personnel profiles.</p>
         </div>
-        @if (isAdmin)
+        @if (canManagePlayers)
         {
             <a asp-page="Add" class="btn btn-primary shadow-sm">
                 <i class="bi bi-plus-circle me-1"></i> Add New Player
@@ -105,11 +106,12 @@
 
     <div class="card shadow-sm border-0 bg-transparent">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 fixed-table">
+            <table class="table table-hover align-middle mb-0 fixed-table mobile-card-table">
                 <thead class="border-bottom border-secondary-subtle">
                     <tr>
-                        <th class="ps-4" style="width: 50%;">Player Name</th>
-                        <th style="width: 35%;">Date of Birth</th>
+                        <th class="ps-4" style="width: 42%;">Player Name</th>
+                        <th style="width: 28%;">Club</th>
+                        <th style="width: 15%;">Date of Birth</th>
                         <th class="text-end pe-4" style="width: 15%;">Actions</th>
                     </tr>
                 </thead>
@@ -124,7 +126,7 @@
                             data-href="@Url.Page("./Details", new { id = item.Id })"
                             style="cursor: pointer;">
 
-                            <td class="ps-4 border-0">
+                            <td class="ps-4 border-0" data-label="Player">
                                 <div class="d-flex align-items-center">
                                     <div class="img-lockdown me-3 shadow-sm">
                                         <img src="@item.AvatarUrl"
@@ -139,13 +141,24 @@
                                 </div>
                             </td>
 
-                            <td class="border-0">
+                            <td class="border-0" data-label="Club">
+                                @if (!string.IsNullOrWhiteSpace(item.ClubName))
+                                {
+                                    <span class="badge rounded-pill text-bg-info">@item.ClubName</span>
+                                }
+                                else
+                                {
+                                    <span class="text-body-secondary">Unassigned</span>
+                                }
+                            </td>
+
+                            <td class="border-0" data-label="Date of Birth">
                                 <span class="text-body-secondary">
                                     @(item.DateOfBirth.HasValue? item.DateOfBirth.Value.ToString("d") : "-")
                                 </span>
                             </td>
 
-                            <td class="text-end pe-4 border-0">
+                            <td class="text-end pe-4 border-0" data-label="Actions">
                                 <div class="btn-group shadow-sm">
                                     <a asp-page="./Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">
                                         <i class="bi bi-eye"></i>

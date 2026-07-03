@@ -166,9 +166,16 @@
                                 var game = bgss.FkBgdBoardGameNavigation;
                                 <tr class="clickable-row" onclick="handleRowClick(event, '/Browsing/BoardGames/BoardGameDetails/@bgss.FkBgdBoardGame')">
                                     <td>
-                                        @if (game != null && Model.GameImages.TryGetValue(game.Id, out var base64Image))
+                                        @if (game != null && game.Gid != Guid.Empty)
                                         {
-                                            <img src="@base64Image" class="game-thumb" alt="Cover" />
+                                            <div class="game-thumb bg-secondary-subtle d-flex align-items-center justify-content-center">
+                                                <img src="/media/boardgame/front/@game.Gid"
+                                                     class="w-100 h-100"
+                                                     style="object-fit: cover;"
+                                                     alt="@game.BoardGameName cover"
+                                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                                                <i class="bi bi-image text-secondary h5 mb-0" style="display:none;"></i>
+                                            </div>
                                         }
                                         else
                                         {

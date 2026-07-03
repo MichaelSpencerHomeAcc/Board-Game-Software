@@ -104,8 +104,9 @@
             <table class="table table-hover align-middle mb-0 fixed-table">
                 <thead class="border-bottom border-secondary-subtle">
                     <tr>
-                        <th class="ps-4" style="width: 40%;">Publisher Name</th>
-                        <th style="width: 45%;">Description</th>
+                        <th class="ps-4" style="width: 34%;">Publisher Name</th>
+                        <th style="width: 18%;">Scope</th>
+                        <th style="width: 33%;">Description</th>
                         <th class="text-end pe-4" style="width: 15%;">Actions</th>
                     </tr>
                 </thead>
@@ -129,6 +130,12 @@
 
                                     <span class="fw-bold text-body-emphasis text-truncate-custom">@item.PublisherName</span>
                                 </div>
+                            </td>
+
+                            <td class="border-0">
+                                <span class="badge rounded-pill @(item.IsGlobal ? "text-bg-primary" : "text-bg-info")">
+                                    @item.ScopeName
+                                </span>
                             </td>
 
                             <td class="border-0">

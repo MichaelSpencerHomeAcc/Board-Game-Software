@@ -1,5 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -17,15 +18,18 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _imagesCollection;
         private readonly Microsoft.AspNetCore.Identity.UserManager<IdentityUser> _userManager;
+        private readonly ICurrentClubService _currentClubService;
 
         public BoardGameDetailsModel(
             BoardGameDbContext context,
             IMongoClient mongoClient,
             IConfiguration configuration,
-            Microsoft.AspNetCore.Identity.UserManager<IdentityUser> userManager)
+            Microsoft.AspNetCore.Identity.UserManager<IdentityUser> userManager,
+            ICurrentClubService currentClubService)
         {
             _context = context;
             _userManager = userManager;
+            _currentClubService = currentClubService;
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
             _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -66,6 +70,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .FirstOrDefaultAsync(bg => bg.Id == id);
 
             if (boardGame == null) return NotFound();
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!CanViewGame(boardGame, currentClub)) return NotFound();
 
             BoardGame = boardGame;
 
@@ -135,8 +141,25 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Forbid();
 
+            var boardGame = await _context.BoardGames.AsNoTracking().FirstOrDefaultAsync(bg => bg.Id == id);
+            if (boardGame == null) return NotFound();
+
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!CanViewGame(boardGame, currentClub)) return NotFound();
+
             var player = await _context.Players.FirstOrDefaultAsync(p => p.FkdboAspNetUsers == user.Id);
             if (player == null) return RedirectToPage(new { id });
+
+            if (boardGame.FkBgdClub.HasValue)
+            {
+                var canRateForClub = await _context.PlayerClubs
+                    .AsNoTracking()
+                    .AnyAsync(pc => !pc.Inactive
+                        && pc.FkBgdPlayer == player.Id
+                        && pc.FkBgdClub == boardGame.FkBgdClub.Value);
+
+                if (!canRateForClub && !User.IsInRole("Admin")) return Forbid();
+            }
 
             var existing = await _context.PlayerBoardGameStarRatings
                 .FirstOrDefaultAsync(r => r.FkBgdBoardGame == id && r.FkBgdPlayer == player.Id);
@@ -172,18 +195,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
         private async Task LoadImages()
         {
-            var frontImageType = await _context.BoardGameImageTypes
-                .FirstOrDefaultAsync(bgit => bgit.TypeDesc == "Board Game Front");
-
-            if (frontImageType != null && BoardGame.Gid != Guid.Empty)
-            {
-                var image = await _imagesCollection.Find(img =>
-                    img.GID == BoardGame.Gid && img.ImageTypeGID == frontImageType.Gid)
-                    .FirstOrDefaultAsync();
-
-                if (image?.ImageBytes != null)
-                    BoardGameFrontImageUrl = $"data:{image.ContentType};base64,{Convert.ToBase64String(image.ImageBytes)}";
-            }
+            if (BoardGame.Gid != Guid.Empty)
+                BoardGameFrontImageUrl = $"/media/boardgame/front/{BoardGame.Gid:D}";
 
             var markersForImages = BoardGame.BoardGameMarkers
                 .Where(marker => !marker.Inactive)
@@ -228,6 +241,21 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             int hash = name.GetHashCode();
             var colors = new[] { "#d32f2f", "#7b1fa2", "#303f9f", "#1976d2", "#00796b", "#388e3c", "#ffa000", "#e64a19" };
             return colors[Math.Abs(hash) % colors.Length];
+        }
+
+        private bool CanViewGame(BoardGame boardGame, CurrentClubContext currentClub)
+        {
+            if (User.IsInRole("Admin") && currentClub.IsPlatformAdminMode)
+            {
+                return boardGame.FkBgdClub == null;
+            }
+
+            if (currentClub.CurrentClubId.HasValue)
+            {
+                return boardGame.FkBgdClub == currentClub.CurrentClubId.Value;
+            }
+
+            return User.IsInRole("Admin");
         }
     }
 

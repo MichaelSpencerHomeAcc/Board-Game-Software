@@ -201,6 +201,7 @@
         transition: all 0.2s;
         text-decoration: none;
         display: block;
+        min-width: 0;
     }
 
         .intel-item:hover {
@@ -460,10 +461,72 @@
         .dashboard-grid {
             grid-template-columns: 1fr;
         }
+
+        .game-night-details {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+        }
+
+        .game-night-details .card-body,
+        .game-night-details .action-panel,
+        .game-night-details .roster-card,
+        .game-night-details .stat-card {
+            padding: 1rem !important;
+        }
+
+        .game-night-details .host-hero > div {
+            padding: 1rem !important;
+        }
+
+        .game-night-details .intel-item {
+            gap: 0.55rem !important;
+            overflow: hidden;
+        }
+
+        .game-night-details .intel-item img {
+            width: 40px !important;
+            height: 40px !important;
+            flex: 0 0 auto;
+        }
+
+        .game-night-details .intel-actions {
+            gap: 0.25rem !important;
+            flex: 0 0 auto;
+        }
+
+        .game-night-details .intel-actions .btn {
+            --bs-btn-padding-x: 0;
+            --bs-btn-padding-y: 0;
+            width: 1.85rem;
+            height: 1.85rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+
+        .game-night-details .gn-card:hover {
+            transform: none;
+        }
+
+        .game-night-details .gn-card .row {
+            flex-direction: column;
+        }
+
+        .game-night-details .gn-card .col,
+        .game-night-details .gn-card .col-auto {
+            width: 100%;
+            padding: 0 !important;
+        }
+
+        .game-night-details .gn-card img {
+            width: 100% !important;
+            height: 150px !important;
+        }
     }
 </style>
 
-<div class="container-fluid px-4 py-4">
+<div class="container-fluid px-4 py-4 game-night-details">
     @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
     {
         <div class="alert alert-danger border-danger bg-danger bg-opacity-10 text-danger mb-4">

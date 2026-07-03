@@ -1,4 +1,5 @@
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -11,10 +12,16 @@ namespace Board_Game_Software.Pages.GameNight
     {
         private readonly BoardGameDbContext _db;
         private readonly IMongoCollection<BoardGameImages> _imagesCollection;
+        private readonly ICurrentClubService _currentClubService;
 
-        public CreateModel(BoardGameDbContext db, IMongoClient mongoClient, IConfiguration configuration)
+        public CreateModel(
+            BoardGameDbContext db,
+            IMongoClient mongoClient,
+            IConfiguration configuration,
+            ICurrentClubService currentClubService)
         {
             _db = db;
+            _currentClubService = currentClubService;
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
             _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -25,15 +32,29 @@ namespace Board_Game_Software.Pages.GameNight
         [BindProperty]
         public CreateInput Input { get; set; } = new();
 
-        public async Task OnGetAsync()
+        public async Task<IActionResult> OnGetAsync()
         {
+            if (!User.IsInRole("Admin") && !(await _currentClubService.GetCurrentClubAsync()).CurrentClubId.HasValue)
+            {
+                return Forbid();
+            }
+
             Input.GameNightDate = DateOnly.FromDateTime(DateTime.Today);
             await LoadPlayersAndAvatarsAsync();
+            return Page();
         }
 
         public async Task<IActionResult> OnPostAsync()
         {
             Input.SelectedPlayerIds ??= new List<long>();
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!User.IsInRole("Admin") && !currentClub.CurrentClubId.HasValue)
+            {
+                return Forbid();
+            }
+
+            var currentClubId = currentClub.CurrentClubId;
+            Input.SelectedPlayerIds = await KeepCurrentClubPlayerIdsAsync(Input.SelectedPlayerIds, currentClubId);
 
             if (!ModelState.IsValid)
             {
@@ -50,6 +71,7 @@ namespace Board_Game_Software.Pages.GameNight
                 Inactive = false,
                 GameNightDate = Input.GameNightDate,
                 Finished = false,
+                FkBgdClub = currentClubId,
                 TimeCreated = now,
                 TimeModified = now,
                 CreatedBy = userName,
@@ -84,10 +106,28 @@ namespace Board_Game_Software.Pages.GameNight
 
         private async Task LoadPlayersAndAvatarsAsync()
         {
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            var currentClubId = currentClub.CurrentClubId;
+
             // 1) SQL (no tracking, lightweight projection)
-            var players = await _db.Set<Player>()
+            var query = _db.Set<Player>()
                 .AsNoTracking()
-                .Where(p => !p.Inactive)
+                .Where(p => !p.Inactive);
+
+            if (!User.IsInRole("Admin") || currentClubId.HasValue)
+            {
+                if (!currentClubId.HasValue)
+                {
+                    AllPlayers = new List<PlayerRow>();
+                    return;
+                }
+
+                query = query.Where(p => p.PlayerClubs.Any(pc =>
+                    !pc.Inactive &&
+                    pc.FkBgdClub == currentClubId.Value));
+            }
+
+            var players = await query
                 .OrderBy(p => p.FirstName)
                 .ThenBy(p => p.LastName)
                 .Select(p => new
@@ -172,6 +212,35 @@ namespace Board_Game_Software.Pages.GameNight
             public bool HasImage { get; set; }
 
             public bool Preselected { get; set; }
+        }
+
+        private async Task<List<long>> KeepCurrentClubPlayerIdsAsync(IEnumerable<long> playerIds, long? currentClubId)
+        {
+            var selected = playerIds.Distinct().ToList();
+            if (selected.Count == 0)
+            {
+                return selected;
+            }
+
+            if (User.IsInRole("Admin") && !currentClubId.HasValue)
+            {
+                return selected;
+            }
+
+            if (!currentClubId.HasValue)
+            {
+                return new List<long>();
+            }
+
+            return await _db.PlayerClubs
+                .AsNoTracking()
+                .Where(pc =>
+                    !pc.Inactive &&
+                    pc.FkBgdClub == currentClubId.Value &&
+                    selected.Contains(pc.FkBgdPlayer))
+                .Select(pc => pc.FkBgdPlayer)
+                .Distinct()
+                .ToListAsync();
         }
     }
 }
