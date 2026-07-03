@@ -1,5 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -9,10 +10,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
     public class EditModel : PageModel
     {
         private readonly BoardGameDbContext _context;
+        private readonly ICurrentClubService _currentClubService;
 
-        public EditModel(BoardGameDbContext context)
+        public EditModel(BoardGameDbContext context, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
         }
 
         [BindProperty]
@@ -21,8 +24,10 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
         public async Task<IActionResult> OnGetAsync(long? id)
         {
             if (id == null) return NotFound();
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!currentClub.CurrentClubId.HasValue) return Forbid();
 
-            var shelf = await _context.Shelves.FirstOrDefaultAsync(m => m.Id == id);
+            var shelf = await _context.Shelves.FirstOrDefaultAsync(m => m.Id == id && m.FkBgdClub == currentClub.CurrentClubId.Value);
 
             if (shelf == null) return NotFound();
 
@@ -33,7 +38,10 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
 
         public async Task<IActionResult> OnPostAsync(long id)
         {
-            var shelfToUpdate = await _context.Shelves.FindAsync(id);
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!currentClub.CurrentClubId.HasValue) return Forbid();
+
+            var shelfToUpdate = await _context.Shelves.FirstOrDefaultAsync(s => s.Id == id && s.FkBgdClub == currentClub.CurrentClubId.Value);
 
             if (shelfToUpdate == null) return NotFound();
 

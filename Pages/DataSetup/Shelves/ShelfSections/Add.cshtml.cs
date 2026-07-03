@@ -1,5 +1,6 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -9,10 +10,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
     public class AddModel : PageModel
     {
         private readonly BoardGameDbContext _context;
+        private readonly ICurrentClubService _currentClubService;
 
-        public AddModel(BoardGameDbContext context)
+        public AddModel(BoardGameDbContext context, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
         }
 
         [BindProperty]
@@ -24,9 +27,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
         public async Task<IActionResult> OnGetAsync(long shelfId, int? row, int? col)
         {
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!currentClub.CurrentClubId.HasValue) return Forbid();
+
             var shelf = await _context.Shelves
                 .Include(s => s.ShelfSections)
-                .FirstOrDefaultAsync(m => m.Id == shelfId);
+                .FirstOrDefaultAsync(m => m.Id == shelfId && m.FkBgdClub == currentClub.CurrentClubId.Value);
 
             if (shelf == null) return NotFound();
 
@@ -56,6 +62,13 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
         public async Task<IActionResult> OnPostAsync()
         {
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!currentClub.CurrentClubId.HasValue) return Forbid();
+
+            var shelfBelongsToClub = await _context.Shelves
+                .AnyAsync(s => s.Id == ShelfSection.FkBgdShelf && s.FkBgdClub == currentClub.CurrentClubId.Value);
+            if (!shelfBelongsToClub) return Forbid();
+
             // 1. Audit Info
             string currentUserName = User.Identity?.Name ?? "System";
             ShelfSection.CreatedBy = currentUserName;

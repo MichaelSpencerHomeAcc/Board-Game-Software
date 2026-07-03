@@ -32,6 +32,10 @@ public partial class BoardGame
 
     public long? FkBgdPublisher { get; set; }
 
+    public long? FkBgdClub { get; set; }
+
+    public long? FkBgdTemplateBoardGame { get; set; }
+
     public byte? PlayerCountMin { get; set; }
 
     public byte? PlayerCountMax { get; set; }
@@ -75,6 +79,12 @@ public partial class BoardGame
     public virtual BoardGameVictoryConditionType? FkBgdBoardGameVictoryConditionTypeNavigation { get; set; }
 
     public virtual Publisher? FkBgdPublisherNavigation { get; set; }
+
+    public virtual Club? FkBgdClubNavigation { get; set; }
+
+    public virtual BoardGame? FkBgdTemplateBoardGameNavigation { get; set; }
+
+    public virtual ICollection<BoardGame> ClubBoardGameCopies { get; set; } = new List<BoardGame>();
 
     public virtual ICollection<PlayerBoardGameRating> PlayerBoardGameRatings { get; set; } = new List<PlayerBoardGameRating>();
 

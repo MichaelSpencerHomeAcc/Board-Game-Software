@@ -18,5 +18,7 @@ namespace Board_Game_Software.Models
         // New columns from the updated SQL view
         public int PlayerCount { get; set; }
         public int MatchCount { get; set; }
+        public long? FkBgdClub { get; set; }
+        public string? ClubName { get; set; }
     }
 }

@@ -1,4 +1,5 @@
-﻿using Board_Game_Software.Models;
+using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -10,10 +11,16 @@ public class EloRankingsModel : PageModel
 {
     private readonly BoardGameDbContext _context;
     private readonly IMongoCollection<BoardGameImages> _imagesCollection;
+    private readonly ICurrentClubService _currentClubService;
 
-    public EloRankingsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
+    public EloRankingsModel(
+        BoardGameDbContext context,
+        IMongoClient mongoClient,
+        IConfiguration configuration,
+        ICurrentClubService currentClubService)
     {
         _context = context;
+        _currentClubService = currentClubService;
         var databaseName = configuration["MongoDbSettings:Database"];
         var database = mongoClient.GetDatabase(databaseName);
         _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -28,32 +35,22 @@ public class EloRankingsModel : PageModel
     {
         if (id == null) return NotFound();
 
+        var currentClub = await _currentClubService.GetCurrentClubAsync();
         var boardGame = await _context.BoardGames.FirstOrDefaultAsync(m => m.Id == id);
         if (boardGame == null) return NotFound();
+        if (!CanViewGame(boardGame, currentClub)) return Forbid();
 
         BoardGame = boardGame;
 
-        // Data is now pre-ranked and pre-sorted by the SQL View logic
         PlayerRankings = await _context.VwEloRankings
             .Where(r => r.FkBgdBoardGame == id && !r.Inactive)
             .OrderBy(r => r.CalculatedRank)
             .ToListAsync();
 
-        // Load Game Banner
-        var frontType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-        if (frontType != null && BoardGame.Gid != Guid.Empty)
-        {
-            var bannerFilter = Builders<BoardGameImages>.Filter.And(
-                Builders<BoardGameImages>.Filter.Eq(img => img.GID, (Guid?)BoardGame.Gid),
-                Builders<BoardGameImages>.Filter.Eq(img => img.ImageTypeGID, (Guid?)frontType.Gid)
-            );
+        BoardGameFrontImageUrl = BoardGame.Gid == Guid.Empty
+            ? string.Empty
+            : $"/media/boardgame/front/{BoardGame.Gid:D}";
 
-            var gameImg = await _imagesCollection.Find(bannerFilter).FirstOrDefaultAsync();
-            if (gameImg?.ImageBytes != null)
-                BoardGameFrontImageUrl = $"data:{gameImg.ContentType};base64,{Convert.ToBase64String(gameImg.ImageBytes)}";
-        }
-
-        // Load Player Avatars
         if (PlayerRankings.Any())
         {
             var playerIds = PlayerRankings.Select(r => r.FkBgdPlayer).ToList();
@@ -81,6 +78,16 @@ public class EloRankingsModel : PageModel
         }
 
         return Page();
+    }
+
+    private bool CanViewGame(BoardGame boardGame, CurrentClubContext currentClub)
+    {
+        if (User.IsInRole("Admin") && currentClub.IsPlatformAdminMode)
+        {
+            return boardGame.FkBgdClub == null;
+        }
+
+        return currentClub.CurrentClubId.HasValue && boardGame.FkBgdClub == currentClub.CurrentClubId.Value;
     }
 
     public string GetInitials(string? name)

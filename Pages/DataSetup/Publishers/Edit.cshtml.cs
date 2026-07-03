@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 
 namespace Board_Game_Software.Pages.DataSetup.Publishers
 {
@@ -11,10 +12,12 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
     {
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _boardGameImages;
+        private readonly ICurrentClubService _currentClubService;
 
-        public EditModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
+        public EditModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
         {
             _context = context;
+            _currentClubService = currentClubService;
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -36,8 +39,11 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
         {
             // Capture returnUrl from query string if present
             ReturnUrl = returnUrl;
+            var club = await _currentClubService.GetCurrentClubAsync();
 
-            var publisher = await _context.Publishers.FirstOrDefaultAsync(m => m.Id == id);
+            var publisher = await _context.Publishers.FirstOrDefaultAsync(m => m.Id == id
+                && ((club.IsPlatformAdminMode && m.FkBgdClub == null)
+                    || (!club.IsPlatformAdminMode && m.FkBgdClub == club.CurrentClubId)));
 
             if (publisher == null)
             {
@@ -73,7 +79,10 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
                 return Page();
             }
 
-            var publisherToUpdate = await _context.Publishers.FirstOrDefaultAsync(p => p.Id == Publisher.Id);
+            var club = await _currentClubService.GetCurrentClubAsync();
+            var publisherToUpdate = await _context.Publishers.FirstOrDefaultAsync(p => p.Id == Publisher.Id
+                && ((club.IsPlatformAdminMode && p.FkBgdClub == null)
+                    || (!club.IsPlatformAdminMode && p.FkBgdClub == club.CurrentClubId)));
 
             if (publisherToUpdate == null)
             {

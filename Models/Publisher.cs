@@ -26,7 +26,11 @@ public partial class Publisher
 
     public string PublisherName { get; set; } = null!;
 
+    public long? FkBgdClub { get; set; }
+
     public string? Description { get; set; }
 
     public virtual ICollection<BoardGame> BoardGames { get; set; } = new List<BoardGame>();
+
+    public virtual Club? FkBgdClubNavigation { get; set; }
 }

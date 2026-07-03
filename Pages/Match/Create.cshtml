@@ -151,9 +151,28 @@
 
     @@media (max-width: 767.98px) {
         .container.py-4 { padding-left: .75rem; padding-right: .75rem; }
-        .game-card { border-radius: 8px; min-height: 210px; }
+        #step1 {
+            padding-bottom: 1rem;
+        }
+        #step1 h1 {
+            font-size: 1.75rem;
+            text-align: left;
+        }
+        #gameSearchInput {
+            max-width: none !important;
+            margin-bottom: 1.25rem !important;
+            min-height: 48px;
+            border-radius: 8px !important;
+        }
+        .game-card { border-radius: 8px; min-height: 178px; }
         .game-card:hover { transform: none; }
-        .game-card img { height: 150px; }
+        .game-card img { height: 126px; }
+        .game-card .card-body {
+            min-height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
         .player-tile {
             min-height: 88px;
             border-radius: 8px;
@@ -186,16 +205,25 @@
             text-align: left !important;
         }
         .step-nav {
-            position: sticky;
+            position: fixed;
+            left: .75rem;
+            right: .75rem;
             bottom: .75rem;
             z-index: 25;
             background: rgba(22,25,28,.94);
             border: 1px solid var(--bs-border-color);
             border-radius: 8px;
             padding: .75rem;
+            box-shadow: 0 -8px 24px rgba(0,0,0,.25);
         }
         .step-nav .btn {
             min-height: 48px;
+            flex: 1 1 0;
+            padding-left: .75rem !important;
+            padding-right: .75rem !important;
+        }
+        #step2 {
+            padding-bottom: 6rem;
         }
     }
 </style>
