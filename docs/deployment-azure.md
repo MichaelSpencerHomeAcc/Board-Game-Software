@@ -107,6 +107,19 @@ deploy/sql/AddStoredImages.sql
 
 Run it against the Azure SQL production database using Azure Data Studio, SQL Server Management Studio, `sqlcmd`, or the Azure Portal query editor.
 
+You can also use the repository helper script:
+
+```powershell
+.\deploy\scripts\Update-AzureDbAndImportData.ps1 `
+  -TargetConnectionString "<Azure SQL connection string>"
+```
+
+To copy structured data from the old SQL database after applying the migration, see:
+
+```text
+deploy/scripts/README.md
+```
+
 ## Manual Deploy
 
 To create a local Release publish:
