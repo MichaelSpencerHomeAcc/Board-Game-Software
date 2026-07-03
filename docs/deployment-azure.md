@@ -93,7 +93,30 @@ Identity__BootstrapAdminEmail=<admin email>
 
 ## Run Migrations
 
-For early production, generate and manually run the idempotent SQL script against Azure SQL:
+For a brand-new Azure SQL production database, use the full initializer script from the repository root:
+
+```powershell
+$source = "<old SQL database connection string>"
+$target = "<Azure SQL connection string>"
+
+.\deploy\scripts\Initialize-NewAzureDbAndImportData.ps1 `
+  -SourceConnectionString $source `
+  -TargetConnectionString $target
+```
+
+That first run creates the base schema and performs a rolled-back dry-run import so you can review row counts.
+
+To commit the import and finish the remaining migrations:
+
+```powershell
+.\deploy\scripts\Initialize-NewAzureDbAndImportData.ps1 `
+  -SourceConnectionString $source `
+  -TargetConnectionString $target `
+  -SkipBaseSchema `
+  -CommitImport
+```
+
+For an existing Azure SQL database that already has the application schema, generate and manually run the idempotent SQL script:
 
 ```powershell
 dotnet ef migrations script --context BoardGameDbContext --idempotent -o deploy/sql/AddStoredImages.sql

@@ -1,10 +1,46 @@
 # Azure SQL Update And Data Import
 
-Use `Update-AzureDbAndImportData.ps1` from the repository root to update the Azure SQL schema and optionally copy data from the old SQL database.
+Use these scripts from the repository root. They do not contain secrets. Pass connection strings at runtime or load them from a local secret store.
 
-The script does not contain secrets. Pass connection strings at runtime or load them from a local secret store.
+## Brand New Azure SQL Database
 
-## Update Azure SQL Schema Only
+Use `Initialize-NewAzureDbAndImportData.ps1` when the Azure SQL database is empty and needs the full schema plus old SQL data.
+
+```powershell
+$source = "<old SQL database connection string>"
+$target = "<Azure SQL connection string>"
+
+.\deploy\scripts\Initialize-NewAzureDbAndImportData.ps1 `
+  -SourceConnectionString $source `
+  -TargetConnectionString $target
+```
+
+This creates the base schema, runs a dry-run data import, rolls back the copied data, and stops before post-import migrations. Review the printed row counts.
+
+To copy data for real and finish the remaining migrations on the same database:
+
+```powershell
+$source = "<old SQL database connection string>"
+$target = "<Azure SQL connection string>"
+
+.\deploy\scripts\Initialize-NewAzureDbAndImportData.ps1 `
+  -SourceConnectionString $source `
+  -TargetConnectionString $target `
+  -SkipBaseSchema `
+  -CommitImport
+```
+
+The committed run:
+
+1. Copies legacy SQL data.
+2. Runs the club tenancy/player club/board game template migrations.
+3. Runs `deploy/sql/AddStoredImages.sql`, which adds later migrations including `StoredImage`.
+
+If you do not need a dry run, run the initializer once with `-CommitImport` and omit `-SkipBaseSchema`.
+
+## Existing Azure SQL Database
+
+Use `Update-AzureDbAndImportData.ps1` when the Azure SQL database already has the application schema and only needs the latest migration plus optional data copy.
 
 ```powershell
 $target = "<Azure SQL connection string>"
@@ -21,7 +57,7 @@ deploy/sql/AddStoredImages.sql
 
 against the Azure SQL database.
 
-## Update Azure SQL And Dry-Run Data Import
+## Existing Database: Update And Dry-Run Data Import
 
 ```powershell
 $source = "<old SQL database connection string>"
@@ -35,7 +71,7 @@ $target = "<Azure SQL connection string>"
 
 Without `-CommitImport`, the existing data-copy script runs as a dry run.
 
-## Update Azure SQL And Commit Data Import
+## Existing Database: Update And Commit Data Import
 
 ```powershell
 $source = "<old SQL database connection string>"
