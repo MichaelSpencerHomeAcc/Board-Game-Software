@@ -94,6 +94,7 @@ function Escape-SqlLiteral([string] $value) {
 $efRebuild = Resolve-RequiredPath $EfRebuildPath "EF rebuild script folder"
 $boardGameBackfill = Resolve-RequiredPath (Join-Path $efRebuild "007_create_mikes_clubhouse_boardgames_and_repoint_history.sql") "Board-game club backfill script"
 $shelfBackfill = Resolve-RequiredPath (Join-Path $efRebuild "008_shelves_to_mikes_clubhouse.sql") "Shelf club backfill script"
+$dedupeBackfill = Resolve-RequiredPath ".\deploy\sql\DeduplicateClubBoardGames.sql" "Board-game dedupe script"
 
 $clubNameSql = Escape-SqlLiteral $ClubName
 $clubSlugSql = Escape-SqlLiteral $ClubSlug
@@ -360,6 +361,12 @@ Write-Host "Copying board-game templates into '$ClubName' and repointing play hi
 $boardGameScriptText = Get-Content -Path $boardGameBackfill -Raw
 $boardGameScriptText = $boardGameScriptText.Replace("SET @ClubName = N'Mike''s Clubhouse';", "SET @ClubName = N'$clubNameSql';")
 Invoke-SqlText -connectionString $TargetConnectionString -scriptText $boardGameScriptText -description "board-game club backfill"
+
+Write-Host "Deduplicating board-game copies in '$ClubName'."
+$dedupeScriptText = Get-Content -Path $dedupeBackfill -Raw
+$dedupeScriptText = $dedupeScriptText.Replace("DECLARE @ClubName nvarchar(120) = N'Mike''s Clubhouse';", "DECLARE @ClubName nvarchar(120) = N'$clubNameSql';")
+$dedupeScriptText = $dedupeScriptText.Replace("DECLARE @Commit bit = 0;", "DECLARE @Commit bit = 1;")
+Invoke-SqlText -connectionString $TargetConnectionString -scriptText $dedupeScriptText -description "board-game dedupe"
 
 Write-Host "Moving shelves into '$ClubName' and repointing shelf links."
 $shelfScriptText = Get-Content -Path $shelfBackfill -Raw

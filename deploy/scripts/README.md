@@ -48,6 +48,8 @@ powershell.exe -ExecutionPolicy Bypass -File .\deploy\scripts\Backfill-AzureClub
 
 The club backfill creates or finds `Mike's Clubhouse`, links ASP.NET users and active players to it, copies platform board-game templates into that club, repoints existing game history, and moves shelves to the club.
 
+If duplicate club board-game copies already exist, run `deploy/sql/DeduplicateClubBoardGames.sql` against Azure SQL. Leave `@Commit = 0` for the first run, review the selected keeper rows and row counts, then set `@Commit = 1` and run it again. The script repoints dependent data before deleting duplicate `bgd.BoardGame` rows.
+
 If you do not need a dry run, run the initializer once with `-CommitImport` and omit `-SkipBaseSchema`.
 
 ## Existing Azure SQL Database

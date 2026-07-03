@@ -333,19 +333,39 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
                 return query.Where(bg =>
                     bg.FkBgdClub == null &&
+                    !_context.BoardGames.Any(other =>
+                        !other.Inactive &&
+                        other.FkBgdClub == null &&
+                        other.BoardGameName == bg.BoardGameName &&
+                        other.IsExpansion == bg.IsExpansion &&
+                        other.Id < bg.Id) &&
                     !importedTemplateIds.Contains(bg.Id) &&
                     !importedNames.Contains(bg.BoardGameName));
             }
 
             if (User.IsInRole("Admin") && currentClub.IsPlatformAdminMode)
             {
-                return query.Where(bg => bg.FkBgdClub == null);
+                return query.Where(bg =>
+                    bg.FkBgdClub == null &&
+                    !_context.BoardGames.Any(other =>
+                        !other.Inactive &&
+                        other.FkBgdClub == null &&
+                        other.BoardGameName == bg.BoardGameName &&
+                        other.IsExpansion == bg.IsExpansion &&
+                        other.Id < bg.Id));
             }
 
             if (currentClub.CurrentClubId.HasValue)
             {
                 var currentClubId = currentClub.CurrentClubId.Value;
-                return query.Where(bg => bg.FkBgdClub == currentClubId);
+                return query.Where(bg =>
+                    bg.FkBgdClub == currentClubId &&
+                    !_context.BoardGames.Any(other =>
+                        !other.Inactive &&
+                        other.FkBgdClub == currentClubId &&
+                        other.BoardGameName == bg.BoardGameName &&
+                        other.IsExpansion == bg.IsExpansion &&
+                        other.Id < bg.Id));
             }
 
             if (User.IsInRole("Admin"))
