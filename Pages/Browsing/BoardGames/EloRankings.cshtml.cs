@@ -3,27 +3,20 @@ using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 
 namespace Board_Game_Software.Pages.Browsing.BoardGames;
 
 public class EloRankingsModel : PageModel
 {
     private readonly BoardGameDbContext _context;
-    private readonly IMongoCollection<BoardGameImages> _imagesCollection;
     private readonly ICurrentClubService _currentClubService;
 
     public EloRankingsModel(
         BoardGameDbContext context,
-        IMongoClient mongoClient,
-        IConfiguration configuration,
         ICurrentClubService currentClubService)
     {
         _context = context;
         _currentClubService = currentClubService;
-        var databaseName = configuration["MongoDbSettings:Database"];
-        var database = mongoClient.GetDatabase(databaseName);
-        _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
     }
 
     public BoardGame BoardGame { get; set; } = default!;
@@ -56,25 +49,15 @@ public class EloRankingsModel : PageModel
             var playerIds = PlayerRankings.Select(r => r.FkBgdPlayer).ToList();
             var playerInfo = await _context.Players
                 .Where(p => playerIds.Contains(p.Id))
-                .Select(p => new { p.Id, p.Gid })
+                .Select(p => new { p.Id })
                 .ToListAsync();
-
-            var actualGids = playerInfo.Select(p => (Guid?)p.Gid).ToList();
-
-            var playerImageFilter = Builders<BoardGameImages>.Filter.And(
-                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player"),
-                Builders<BoardGameImages>.Filter.In(x => x.GID, actualGids)
-            );
-
-            var images = await _imagesCollection.Find(playerImageFilter).ToListAsync();
-            foreach (var p in playerInfo)
-            {
-                var img = images.FirstOrDefault(x => x.GID == p.Gid);
-                if (img?.ImageBytes != null)
-                {
-                    PlayerImages[p.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
-                }
-            }
+            var ids = playerInfo.Select(p => checked((int)p.Id)).ToList();
+            PlayerImages = await _context.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.UserAvatarOwnerType && ids.Contains(image.OwnerId))
+                .GroupBy(image => image.OwnerId)
+                .Select(group => group.OrderByDescending(image => image.CreatedAtUtc).First())
+                .ToDictionaryAsync(image => (long)image.OwnerId, image => image.PublicUrl);
         }
 
         return Page();

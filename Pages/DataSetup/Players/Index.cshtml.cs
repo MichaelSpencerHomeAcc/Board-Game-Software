@@ -3,7 +3,6 @@ using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,20 +13,14 @@ namespace Board_Game_Software.Pages.DataSetup.Players
     public class IndexModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
         private readonly ICurrentClubService _currentClubService;
 
         public IndexModel(
             BoardGameDbContext context,
-            IMongoClient mongoClient,
-            IConfiguration configuration,
             ICurrentClubService currentClubService)
         {
             _context = context;
             _currentClubService = currentClubService;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(databaseName);
-            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public sealed class PlayerRow
@@ -119,31 +112,18 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                 return;
             }
 
-            // 2) Mongo: ONE query for all player images
-            var gids = players.Select(p => (Guid?)p.Gid).ToArray();
-
-            var imgDocs = await _boardGameImages
-                .Find(Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player") &
-                      Builders<BoardGameImages>.Filter.In(x => x.GID, gids))
-                .Project(x => new { x.GID, x.AvatarFocusX, x.AvatarFocusY, x.ImageBytes })
+            var playerIds = players.Select(p => checked((int)p.Id)).ToList();
+            var playerIdsWithImages = await _context.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.UserAvatarOwnerType && playerIds.Contains(image.OwnerId))
+                .Select(image => image.OwnerId)
+                .Distinct()
                 .ToListAsync();
-
-            // map: gid -> focus + hasImage
-            var imgMap = imgDocs
-                .Where(d => d.GID.HasValue)
-                .ToDictionary(
-                    d => d.GID!.Value,
-                    d => new
-                    {
-                        Focus = $"{d.AvatarFocusX}% {d.AvatarFocusY}%",
-                        HasImage = d.ImageBytes != null && d.ImageBytes.Length > 0
-                    });
+            var imageSet = playerIdsWithImages.ToHashSet();
 
             // 3) combine
             Players = players.Select(p =>
             {
-                var found = imgMap.TryGetValue(p.Gid, out var meta);
-
                 return new PlayerRow
                 {
                     Id = p.Id,
@@ -152,8 +132,8 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                     DateOfBirth = p.DateOfBirth,
                     FKdboAspNetUsers = p.FkdboAspNetUsers,
                     ClubName = BuildClubName(p),
-                    FocusStyle = found ? meta!.Focus : "50% 50%",
-                    HasImage = found && meta!.HasImage
+                    FocusStyle = "50% 50%",
+                    HasImage = imageSet.Contains(checked((int)p.Id))
                 };
             }).ToList();
         }
@@ -182,7 +162,6 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             var player = await _context.Players.FirstOrDefaultAsync(p => p.Id == id);
             if (player == null) return NotFound();
 
-            await _boardGameImages.DeleteManyAsync(img => img.GID == player.Gid && img.SQLTable == "bgd.Player");
             _context.Players.Remove(player);
             await _context.SaveChangesAsync();
 

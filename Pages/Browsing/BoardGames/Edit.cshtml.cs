@@ -1,3 +1,4 @@
+using BoardGameClubSoftware.Storage;
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
 using Board_Game_Software.Services;
@@ -6,7 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,16 +19,20 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
     public class EditModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
         private readonly ICurrentClubService _currentClubService;
+        private readonly IImageUploadValidator _imageUploadValidator;
+        private readonly ImageService _imageService;
 
-        public EditModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
+        public EditModel(
+            BoardGameDbContext context,
+            ICurrentClubService currentClubService,
+            IImageUploadValidator imageUploadValidator,
+            ImageService imageService)
         {
             _context = context;
             _currentClubService = currentClubService;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(databaseName);
-            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
+            _imageUploadValidator = imageUploadValidator;
+            _imageService = imageService;
         }
 
         [BindProperty]
@@ -102,6 +106,16 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 b => b.FkBgdPublisher);
 
             RemoveNavigationModelStateErrors();
+
+            ImageUploadValidationResult? imageValidation = null;
+            if (ImageUpload != null && ImageUpload.Length > 0)
+            {
+                imageValidation = _imageUploadValidator.Validate(ImageUpload);
+                if (!imageValidation.IsValid)
+                {
+                    ModelState.AddModelError(nameof(ImageUpload), imageValidation.ErrorMessage!);
+                }
+            }
 
             if (ModelState.IsValid)
             {
@@ -214,7 +228,11 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
                 if (ImageUpload != null && ImageUpload.Length > 0)
                 {
-                    await UpsertBoardGameFrontImageAsync(gameToUpdate, ImageUpload);
+                    await _imageService.UploadGameCoverAsync(
+                        checked((int)gameToUpdate.Id),
+                        ImageUpload,
+                        actor,
+                        HttpContext.RequestAborted);
                 }
 
                 await _context.SaveChangesAsync();
@@ -259,7 +277,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             await LoadSelectLists();
             await LoadExpansionBaseGames(id);
             await LoadMarkerTypes();
-            if (BoardGame != null) await LoadCurrentImageUrl(BoardGame.Gid);
+            if (BoardGame != null) await LoadCurrentImageUrl(BoardGame.Id);
         }
 
         private void SyncExpansionLinks(BoardGame gameToUpdate, string actor, DateTime now)
@@ -309,54 +327,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             }
         }
 
-        private async Task UpsertBoardGameFrontImageAsync(BoardGame game, IFormFile upload)
-        {
-            // Choose ONE canonical value and use it everywhere (controller + docs).
-            // Recommended to match your other endpoints:
-            const string sqlTableCanonical = "bgd.BoardGame";
-
-            // Look up the "Board Game Front" type in SQL
-            var frontType = await _context.BoardGameImageTypes
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-
-            if (frontType == null)
-                throw new InvalidOperationException("Board Game Front image type not found in BoardGameImageTypes.");
-
-            byte[] bytes;
-            using (var ms = new MemoryStream())
-            {
-                await upload.CopyToAsync(ms);
-                bytes = ms.ToArray();
-            }
-
-            // Prefer the browser-provided content type, else fall back
-            var contentType = !string.IsNullOrWhiteSpace(upload.ContentType)
-                ? upload.ContentType
-                : "application/octet-stream";
-
-            // Description defaults to "<BoardGameName> Box"
-            var description = $"{game.BoardGameName} Box";
-
-            // Filter to find existing front image doc for this board game
-            // We allow BOTH SQLTable values so older docs still update cleanly.
-            var filter = Builders<BoardGameImages>.Filter.And(
-                Builders<BoardGameImages>.Filter.Eq(x => x.GID, game.Gid),
-                Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, frontType.Gid),
-                Builders<BoardGameImages>.Filter.In(x => x.SQLTable, new[] { sqlTableCanonical, "BoardGames" })
-            );
-
-            var update = Builders<BoardGameImages>.Update
-                .Set(x => x.SQLTable, sqlTableCanonical)     // normalize going forward
-                .Set(x => x.GID, game.Gid)
-                .Set(x => x.ImageTypeGID, frontType.Gid)
-                .Set(x => x.Description, description)
-                .Set(x => x.ImageBytes, bytes)
-                .Set(x => x.ContentType, contentType);
-
-            await _boardGameImages.UpdateOneAsync(filter, update, new UpdateOptions { IsUpsert = true });
-        }
-
         private async Task LoadSelectLists()
         {
             var catalogClubId = BoardGame?.FkBgdClub ?? await GetCurrentCatalogClubIdAsync();
@@ -394,7 +364,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 ExistingExpansionBaseGameIds);
         }
 
-        // PERFORMANCE FIX: Batch Mongo image lookups (no N+1)
+        // PERFORMANCE FIX: Batch stored image lookups (no N+1)
         private async Task LoadMarkerTypes()
         {
             AvailableMarkerTypes.Clear();
@@ -407,44 +377,35 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .OrderBy(t => t.TypeDesc)
                 .ToListAsync();
 
-            var gids = types.Select(t => (Guid?)t.Gid).ToList();
-
-            var imgFilter = Builders<BoardGameImages>.Filter.And(
-                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
-                Builders<BoardGameImages>.Filter.In(x => x.GID, gids)
-            );
-
-            var imgs = await _boardGameImages.Find(imgFilter).ToListAsync();
-            var imgByGid = imgs.Where(i => i.GID.HasValue).GroupBy(i => i.GID!.Value).ToDictionary(g => g.Key, g => g.First());
+            var typeIds = types.Select(t => checked((int)t.Id)).ToList();
+            var imgById = await _context.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.MarkerTypeImageOwnerType && typeIds.Contains(image.OwnerId))
+                .GroupBy(image => image.OwnerId)
+                .Select(group => group.OrderByDescending(image => image.CreatedAtUtc).First())
+                .ToDictionaryAsync(image => image.OwnerId);
 
             foreach (var type in types)
             {
-                imgByGid.TryGetValue(type.Gid, out var img);
+                imgById.TryGetValue(checked((int)type.Id), out var img);
 
                 AvailableMarkerTypes.Add(new MarkerTypeViewModel
                 {
                     Id = type.Id,
                     TypeDesc = type.TypeDesc,
-                    ImageBase64 = img?.ImageBytes != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
+                    ImageUrl = img?.PublicUrl
                 });
             }
         }
 
-        private async Task LoadCurrentImageUrl(Guid gid)
+        private async Task LoadCurrentImageUrl(long id)
         {
-            var frontType = await _context.BoardGameImageTypes.AsNoTracking().FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-            if (frontType != null)
-            {
-                var filter = Builders<BoardGameImages>.Filter.And(
-                    Builders<BoardGameImages>.Filter.Eq(i => i.GID, gid),
-                    Builders<BoardGameImages>.Filter.Eq(i => i.ImageTypeGID, frontType.Gid),
-                    Builders<BoardGameImages>.Filter.In(i => i.SQLTable, new[] { "bgd.BoardGame", "BoardGames" })
-                );
-
-                var img = await _boardGameImages.Find(filter).FirstOrDefaultAsync();
-
-                if (img?.ImageBytes != null) CurrentImageUrl = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
-            }
+            CurrentImageUrl = await _context.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.GameCoverOwnerType && image.OwnerId == checked((int)id))
+                .OrderByDescending(image => image.CreatedAtUtc)
+                .Select(image => image.PublicUrl)
+                .FirstOrDefaultAsync();
         }
 
         private async Task<long?> GetCurrentCatalogClubIdAsync()
@@ -469,6 +430,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
     {
         public long Id { get; set; }
         public string TypeDesc { get; set; } = string.Empty;
-        public string? ImageBase64 { get; set; }
+        public string? ImageUrl { get; set; }
     }
 }

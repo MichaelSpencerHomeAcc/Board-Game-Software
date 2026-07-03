@@ -1,4 +1,4 @@
-﻿@page "{id:long}"
+@page "{id:long}"
 @model Board_Game_Software.Pages.DataSetup.Publishers.EditModel
 @{
     ViewData["Title"] = "Edit Publisher";
@@ -33,12 +33,12 @@
 
                         <div class="mb-3">
                             <label class="form-label fw-bold">Publisher Logo</label>
-                            <input asp-for="ImageUpload" type="file" id="imageInput" class="form-control" accept="image/*" />
+                            <input asp-for="ImageUpload" type="file" id="imageInput" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
 
-                            <div id="previewContainer" class="mt-3 @(string.IsNullOrEmpty(Model.ExistingImageBase64) ? "d-none" : "")">
+                            <div id="previewContainer" class="mt-3 @(string.IsNullOrEmpty(Model.ExistingImageUrl) ? "d-none" : "")">
                                 <label class="d-block small text-muted mb-2">Current/Preview Logo:</label>
                                 <img id="imagePreview"
-                                     src="@(Model.ExistingImageBase64 != null ? $"data:{Model.ExistingImageContentType};base64,{Model.ExistingImageBase64}" : "#")"
+                                     src="@(Model.ExistingImageUrl ?? "#")"
                                      alt="Logo Preview" class="img-thumbnail" style="max-height: 200px;" />
                             </div>
                         </div>

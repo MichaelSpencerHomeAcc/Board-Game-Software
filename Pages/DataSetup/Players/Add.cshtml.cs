@@ -1,14 +1,11 @@
+using BoardGameClubSoftware.Storage;
 using Board_Game_Software.Models;
 using Board_Game_Software.Services;
-using Board_Game_Software.Settings; // Make sure this is here to find MongoDbSettings
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options; // Required for IOptions
-using MongoDB.Driver;
 using System;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -17,24 +14,21 @@ namespace Board_Game_Software.Pages.DataSetup.Players
     public class AddModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
         private readonly ICurrentClubService _currentClubService;
+        private readonly IImageUploadValidator _imageUploadValidator;
+        private readonly ImageService _imageService;
 
         // UPDATED CONSTRUCTOR: Uses IOptions to safely pull from your Program.cs setup
         public AddModel(
             BoardGameDbContext context,
-            IMongoClient mongoClient,
-            IOptions<MongoDbSettings> mongoSettings,
-            ICurrentClubService currentClubService)
+            ICurrentClubService currentClubService,
+            IImageUploadValidator imageUploadValidator,
+            ImageService imageService)
         {
             _context = context;
             _currentClubService = currentClubService;
-
-            // Access the database name safely from the settings object
-            var databaseName = mongoSettings.Value.Database;
-            var database = mongoClient.GetDatabase(databaseName);
-
-            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
+            _imageUploadValidator = imageUploadValidator;
+            _imageService = imageService;
         }
 
         [BindProperty]
@@ -85,6 +79,16 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             Player.Inactive = false;
             Player.FkBgdClub = SelectedClubIds.FirstOrDefault() == 0 ? null : SelectedClubIds.First();
 
+            ImageUploadValidationResult? uploadValidation = null;
+            if (Upload != null && Upload.Length > 0)
+            {
+                uploadValidation = _imageUploadValidator.Validate(Upload);
+                if (!uploadValidation.IsValid)
+                {
+                    ModelState.AddModelError(nameof(Upload), uploadValidation.ErrorMessage!);
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 var errors = ModelState.Values
@@ -108,23 +112,14 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
             await SyncPlayerClubsAsync(Player.Id, SelectedClubIds, Player.CreatedBy, Player.TimeCreated);
 
-            // 2. Handle Image Upload to MongoDB
+            // 2. Handle Image Upload
             if (Upload != null && Upload.Length > 0)
             {
-                using var ms = new MemoryStream();
-                await Upload.CopyToAsync(ms);
-                var imageBytes = ms.ToArray();
-
-                var newImage = new BoardGameImages
-                {
-                    GID = Player.Gid,
-                    SQLTable = "bgd.Player", // Matches the Player table schema
-                    ImageBytes = imageBytes,
-                    ContentType = Upload.ContentType,
-                    Description = "Profile Picture"
-                };
-
-                await _boardGameImages.InsertOneAsync(newImage);
+                await _imageService.UploadUserAvatarAsync(
+                    checked((int)Player.Id),
+                    Upload,
+                    User.Identity?.Name,
+                    HttpContext.RequestAborted);
             }
 
             return RedirectToPage("./Index");

@@ -96,8 +96,8 @@
                                 }
                                 <div class="rank-number fw-bold me-3 fs-3 text-primary" style="width: 55px; white-space: nowrap;">#@ranked.Rank</div>
                                 <div class="flex-grow-1 overflow-hidden pe-2">
-                                    <div class="fw-bold text-body text-truncate">@ranked.BoardGame.BoardGameName</div>
-                                    <div class="small text-secondary">@ranked.BoardGame.ReleaseDate?.Year</div>
+                                    <div class="fw-bold text-body text-truncate">@(ranked.BoardGame?.BoardGameName ?? "Unknown game")</div>
+                                    <div class="small text-secondary">@ranked.BoardGame?.ReleaseDate?.Year</div>
                                 </div>
                                 <form method="post" asp-page-handler="Remove">
                                     <input type="hidden" name="entryId" value="@ranked.Id" />

@@ -377,7 +377,7 @@
                 @foreach (var marker in Model.BoardGame.BoardGameMarkers.Where(marker => !marker.Inactive).OrderBy(m => m.FkBgdBoardGameMarkerTypeNavigation?.TypeDesc))
                 {
                     var mType = marker.FkBgdBoardGameMarkerTypeNavigation;
-                    var mImg = (mType != null && Model.MarkerImagesBase64.ContainsKey(mType.Id)) ? Model.MarkerImagesBase64[mType.Id] : null;
+                    var mImg = (mType != null && Model.MarkerImageUrls.ContainsKey(mType.Id)) ? Model.MarkerImageUrls[mType.Id] : null;
                     <a asp-page="/DataSetup/Markers/Details" asp-route-id="@mType?.Id" class="card component-card shadow-sm rounded-3 overflow-hidden">
                         <div class="component-card-img">
                             @if (!string.IsNullOrEmpty(mImg))
@@ -404,7 +404,7 @@
                     {
                         var marker = expansionMarker.Marker;
                         var mType = marker.FkBgdBoardGameMarkerTypeNavigation;
-                        var mImg = (mType != null && Model.MarkerImagesBase64.ContainsKey(mType.Id)) ? Model.MarkerImagesBase64[mType.Id] : null;
+                        var mImg = (mType != null && Model.MarkerImageUrls.ContainsKey(mType.Id)) ? Model.MarkerImageUrls[mType.Id] : null;
                         <a asp-page="/DataSetup/Markers/Details" asp-route-id="@mType?.Id" class="card component-card shadow-sm rounded-3 overflow-hidden">
                             <div class="component-card-img">
                                 @if (!string.IsNullOrEmpty(mImg))

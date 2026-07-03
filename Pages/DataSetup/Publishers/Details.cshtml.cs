@@ -4,8 +4,6 @@ using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
-using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,22 +14,18 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
     public class DetailsModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
         private readonly ICurrentClubService _currentClubService;
 
-        public DetailsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
+        public DetailsModel(BoardGameDbContext context, ICurrentClubService currentClubService)
         {
             _context = context;
             _currentClubService = currentClubService;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(databaseName);
-            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public Publisher Publisher { get; set; } = default!;
 
         // Hero Image
-        public string? PublisherLogoBase64 { get; set; }
+        public string? PublisherLogoUrl { get; set; }
 
         // List of games + Dictionary for their images
         public IList<BoardGame> RelatedGames { get; set; } = new List<BoardGame>();
@@ -49,20 +43,7 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
 
             Publisher = publisher;
 
-            // 2. Fetch Publisher Logo
-            // Note: In your Edit page, you used "Image" as the TypeDesc for Publisher logos.
-            var logoType = await _context.BoardGameImageTypes.FirstOrDefaultAsync(t => t.TypeDesc == "Image");
-            if (logoType != null)
-            {
-                var logoDoc = await _boardGameImages
-                    .Find(x => x.GID == Publisher.Gid && x.ImageTypeGID == logoType.Gid)
-                    .FirstOrDefaultAsync();
-
-                if (logoDoc?.ImageBytes != null)
-                {
-                    PublisherLogoBase64 = $"data:{logoDoc.ContentType};base64,{Convert.ToBase64String(logoDoc.ImageBytes)}";
-                }
-            }
+            PublisherLogoUrl = $"/media/publisher/{Publisher.Gid:D}";
 
             // 3. Fetch Related Games
             // We need to query the BoardGames table using the Publisher ID
@@ -88,32 +69,9 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
                 .OrderBy(bg => bg.BoardGameName)
                 .ToListAsync();
 
-            // 4. Fetch Images for Related Games
-            if (RelatedGames.Any())
+            foreach (var game in RelatedGames)
             {
-                var frontImageType = await _context.BoardGameImageTypes
-                    .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-
-                if (frontImageType != null)
-                {
-                    var gameGids = RelatedGames.Select(g => (Guid?)g.Gid).ToList();
-
-                    var filter = Builders<BoardGameImages>.Filter.And(
-                        Builders<BoardGameImages>.Filter.Eq(x => x.ImageTypeGID, frontImageType.Gid),
-                        Builders<BoardGameImages>.Filter.In(x => x.GID, gameGids)
-                    );
-
-                    var images = await _boardGameImages.Find(filter).ToListAsync();
-
-                    foreach (var game in RelatedGames)
-                    {
-                        var img = images.FirstOrDefault(x => x.GID == game.Gid);
-                        if (img != null && img.ImageBytes != null)
-                        {
-                            RelatedGameImages[game.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
-                        }
-                    }
-                }
+                RelatedGameImages[game.Id] = $"/media/boardgame/front/{game.Gid:D}";
             }
 
             return Page();

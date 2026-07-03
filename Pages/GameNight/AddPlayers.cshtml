@@ -1,4 +1,4 @@
-﻿@page
+@page
 @model Board_Game_Software.Pages.GameNight.AddPlayersModel
 @{
     ViewData["Title"] = "Add Players";
@@ -135,10 +135,10 @@
                                name="Input.SelectedPlayerIds" value="@p.PlayerId" @(p.Preselected ? "checked" : null) />
 
                         <label for="player_@p.PlayerId" class="player-tile w-100 h-100 shadow-sm">
-                            <div class="avatar-circle" style="background-color: @(string.IsNullOrEmpty(p.AvatarBase64) ? GetAvatarColor(p.Name) : "transparent");">
-                                @if (!string.IsNullOrEmpty(p.AvatarBase64))
+                            <div class="avatar-circle" style="background-color: @(string.IsNullOrEmpty(p.AvatarUrl) ? GetAvatarColor(p.Name) : "transparent");">
+                                @if (!string.IsNullOrEmpty(p.AvatarUrl))
                                 {
-                                    <img src="@p.AvatarBase64"
+                                    <img src="@p.AvatarUrl"
                                          alt="@p.Name"
                                          onerror="this.style.display='none'; this.nextElementSibling.style.display='inline'; this.parentElement.style.backgroundColor='@GetAvatarColor(p.Name)';" />
                                     <span style="display: none;">@GetInitials(p.Name)</span>

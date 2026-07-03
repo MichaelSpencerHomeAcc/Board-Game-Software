@@ -3,7 +3,6 @@ using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 using System.ComponentModel.DataAnnotations;
 
 namespace Board_Game_Software.Pages.GameNight
@@ -11,20 +10,14 @@ namespace Board_Game_Software.Pages.GameNight
     public class CreateModel : PageModel
     {
         private readonly BoardGameDbContext _db;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
         private readonly ICurrentClubService _currentClubService;
 
         public CreateModel(
             BoardGameDbContext db,
-            IMongoClient mongoClient,
-            IConfiguration configuration,
             ICurrentClubService currentClubService)
         {
             _db = db;
             _currentClubService = currentClubService;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(databaseName);
-            _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public List<PlayerRow> AllPlayers { get; private set; } = new();
@@ -145,30 +138,14 @@ namespace Board_Game_Software.Pages.GameNight
                 return;
             }
 
-            // 2) Mongo (ONE query): grab focus + whether bytes exist
-            var gids = players.Select(p => (Guid?)p.Gid).ToArray();
-
-            var imgDocs = await _imagesCollection
-                .Find(Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player") &
-                      Builders<BoardGameImages>.Filter.In(x => x.GID, gids))
-                .Project(x => new
-                {
-                    x.GID,
-                    x.AvatarFocusX,
-                    x.AvatarFocusY,
-                    x.ImageBytes
-                })
+            var playerIds = players.Select(p => checked((int)p.Id)).ToList();
+            var playerIdsWithImages = await _db.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.UserAvatarOwnerType && playerIds.Contains(image.OwnerId))
+                .Select(image => image.OwnerId)
+                .Distinct()
                 .ToListAsync();
-
-            var imgMap = imgDocs
-                .Where(d => d.GID.HasValue)
-                .ToDictionary(
-                    d => d.GID!.Value,
-                    d => new
-                    {
-                        Focus = $"{(d.AvatarFocusX == 0 ? 50 : d.AvatarFocusX)}% {(d.AvatarFocusY == 0 ? 50 : d.AvatarFocusY)}%",
-                        HasImage = d.ImageBytes != null && d.ImageBytes.Length > 0
-                    });
+            var playerImageSet = playerIdsWithImages.ToHashSet();
 
             // 3) Combine
             var selected = Input.SelectedPlayerIds ?? new List<long>();
@@ -178,16 +155,14 @@ namespace Board_Game_Software.Pages.GameNight
                 var name = $"{p.FirstName ?? ""} {p.LastName ?? ""}".Trim();
                 if (string.IsNullOrWhiteSpace(name)) name = "Unnamed";
 
-                var found = imgMap.TryGetValue(p.Gid, out var meta);
-
                 return new PlayerRow
                 {
                     PlayerId = p.Id,
                     Gid = p.Gid,
                     Name = name,
                     AvatarUrl = $"/media/player/{p.Gid}",
-                    FocusStyle = found ? meta!.Focus : "50% 50%",
-                    HasImage = found && meta!.HasImage,
+                    FocusStyle = "50% 50%",
+                    HasImage = playerImageSet.Contains(checked((int)p.Id)),
                     Preselected = selected.Contains(p.Id)
                 };
             }).ToList();

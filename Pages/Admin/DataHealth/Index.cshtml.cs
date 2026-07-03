@@ -1,20 +1,17 @@
 using Board_Game_Software.Models;
+using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 
 namespace Board_Game_Software.Pages.Admin.DataHealth
 {
     public class IndexModel : PageModel
     {
         private readonly BoardGameDbContext _db;
-        private readonly IMongoCollection<BoardGameImages> _images;
 
-        public IndexModel(BoardGameDbContext db, IMongoClient mongoClient, IConfiguration configuration)
+        public IndexModel(BoardGameDbContext db)
         {
             _db = db;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            _images = mongoClient.GetDatabase(databaseName).GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public List<IssueRow> MissingCovers { get; private set; } = new();
@@ -53,24 +50,21 @@ namespace Board_Game_Software.Pages.Admin.DataHealth
                 })
                 .ToListAsync();
 
-            var frontType = await _db.BoardGameImageTypes.AsNoTracking().FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-            if (frontType != null)
-            {
-                var gids = games.Select(g => (Guid?)g.Gid).ToList();
-                var coverDocs = await _images.Find(Builders<BoardGameImages>.Filter.And(
-                        Builders<BoardGameImages>.Filter.In(i => i.GID, gids),
-                        Builders<BoardGameImages>.Filter.Eq(i => i.ImageTypeGID, frontType.Gid)))
-                    .Project(i => i.GID)
-                    .ToListAsync();
-                var covered = coverDocs.Where(g => g.HasValue).Select(g => g!.Value).ToHashSet();
+            var gameIds = games.Select(g => checked((int)g.Id)).ToList();
+            var covered = await _db.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.GameCoverOwnerType && gameIds.Contains(image.OwnerId))
+                .Select(image => image.OwnerId)
+                .Distinct()
+                .ToListAsync();
+            var coveredIds = covered.ToHashSet();
 
-                MissingCovers = games
-                    .Where(g => !g.IsExpansion && !covered.Contains(g.Gid))
-                    .OrderBy(g => g.BoardGameName)
-                    .Take(25)
-                    .Select(g => GameIssue(g.Id, g.BoardGameName, "No front cover image found."))
-                    .ToList();
-            }
+            MissingCovers = games
+                .Where(g => !g.IsExpansion && !coveredIds.Contains(checked((int)g.Id)))
+                .OrderBy(g => g.BoardGameName)
+                .Take(25)
+                .Select(g => GameIssue(g.Id, g.BoardGameName, "No front cover image found."))
+                .ToList();
 
             GamesWithoutShelves = games
                 .Where(g => !g.IsExpansion && g.ShelfCount == 0)

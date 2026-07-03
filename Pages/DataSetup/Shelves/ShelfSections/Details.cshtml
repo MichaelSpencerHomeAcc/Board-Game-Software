@@ -100,7 +100,7 @@
                     </a>
                     @if (Model.ShelfSection?.Blocked != true)
                     {
-                        <a asp-page="./AddGame" asp-route-id="@Model.ShelfSection.Id" class="btn btn-primary">Add Game</a>
+                        <a asp-page="./AddGame" asp-route-id="@Model.ShelfSection!.Id" class="btn btn-primary">Add Game</a>
                     }
                     else
                     {

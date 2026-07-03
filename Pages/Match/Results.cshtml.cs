@@ -6,7 +6,6 @@ using Board_Game_Software.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 using Board_Game_Software.Services;
 
 namespace Board_Game_Software.Pages.Match
@@ -14,19 +13,14 @@ namespace Board_Game_Software.Pages.Match
     public class ResultsModel : PageModel
     {
         private readonly BoardGameDbContext _db;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
-        private readonly BoardGameImagesService _imagesService;
         private readonly RatingService _ratingService;
         private readonly AchievementService _achievementService;
 
-        public ResultsModel(BoardGameDbContext db, IMongoClient mongo, IConfiguration config, BoardGameImagesService imagesService, RatingService ratingService, AchievementService achievementService)
+        public ResultsModel(BoardGameDbContext db, RatingService ratingService, AchievementService achievementService)
         {
             _db = db;
-            _imagesService = imagesService;
             _ratingService = ratingService;
             _achievementService = achievementService;
-            var dbName = config["MongoDbSettings:Database"];
-            _imagesCollection = mongo.GetDatabase(dbName).GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public string MatchGameName { get; private set; } = string.Empty;
@@ -108,9 +102,7 @@ namespace Board_Game_Software.Pages.Match
 
             if (game != null)
             {
-                var bannerTypeId = await _db.BoardGameImageTypes.Where(t => t.TypeDesc == "Board Game Front").Select(t => t.Gid).FirstOrDefaultAsync();
-                var bannerMap = await _imagesService.GetFrontImagesAsync(new[] { game.Gid }, bannerTypeId);
-                GameBannerUrl = bannerMap.GetValueOrDefault(game.Gid);
+                GameBannerUrl = $"/media/boardgame/front/{game.Gid:D}";
                 GameBoxArt = GameBannerUrl;
 
                 var methods = await _db.BoardGameEloMethods.AsNoTracking()
@@ -166,7 +158,6 @@ namespace Board_Game_Software.Pages.Match
             var existingByMp = existingResults.ToDictionary(r => r.FkBgdBoardGameMatchPlayer, r => r);
 
             var rows = new List<PlayerRow>();
-            var wantGids = new HashSet<Guid>();
 
             foreach (var mp in matchPlayers.OrderBy(m => m.FkBgdPlayerNavigation!.FirstName))
             {
@@ -187,23 +178,9 @@ namespace Board_Game_Software.Pages.Match
                     PreMatchRatingMu = res?.PreMatchRatingMu,
                     RatingChangeMu = res?.RatingChangeMu
                 };
-                if (row.MarkerTypeGid.HasValue) wantGids.Add(row.MarkerTypeGid.Value);
-                if (row.PlayerGid.HasValue) wantGids.Add(row.PlayerGid.Value);
+                if (row.MarkerTypeGid.HasValue) row.MarkerImageDataUrl = $"/media/marker-type/{row.MarkerTypeGid.Value:D}";
+                if (row.PlayerGid.HasValue) row.PlayerAvatarUrl = $"/media/player/{row.PlayerGid.Value:D}";
                 rows.Add(row);
-            }
-
-            if (wantGids.Any())
-            {
-                var images = await _imagesCollection.Find(Builders<BoardGameImages>.Filter.In(x => x.GID, wantGids.Cast<Guid?>())).ToListAsync();
-                var byGid = images
-                    .Where(d => d.GID.HasValue && d.ImageBytes != null)
-                    .ToDictionary(d => d.GID!.Value, d => $"data:{d.ContentType};base64,{Convert.ToBase64String(d.ImageBytes!)}");
-
-                foreach (var r in rows)
-                {
-                    if (r.MarkerTypeGid.HasValue && byGid.TryGetValue(r.MarkerTypeGid.Value, out var mUrl)) r.MarkerImageDataUrl = mUrl;
-                    if (r.PlayerGid.HasValue && byGid.TryGetValue(r.PlayerGid.Value, out var pUrl)) r.PlayerAvatarUrl = pUrl;
-                }
             }
 
             Players = rows;

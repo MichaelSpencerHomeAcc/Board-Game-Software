@@ -1,3 +1,4 @@
+using BoardGameClubSoftware.Storage;
 using Board_Game_Software.Models;
 using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Http;
@@ -6,10 +7,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using MongoDB.Driver;
 using System;
 using System.ComponentModel.DataAnnotations;
-using System.IO;
 using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
@@ -17,16 +16,16 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
     public class EditModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
         private readonly ICurrentClubService _currentClubService;
+        private readonly IImageUploadValidator _imageUploadValidator;
+        private readonly ImageService _imageService;
 
-        public EditModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration config, ICurrentClubService currentClubService)
+        public EditModel(BoardGameDbContext context, ICurrentClubService currentClubService, IImageUploadValidator imageUploadValidator, ImageService imageService)
         {
             _context = context;
             _currentClubService = currentClubService;
-            var dbName = config["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(dbName);
-            _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
+            _imageUploadValidator = imageUploadValidator;
+            _imageService = imageService;
         }
 
         [BindProperty]
@@ -37,7 +36,7 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
         public SelectList? AlignmentTypes { get; set; }
         public SelectList? AdditionalTypes { get; set; }
-        public string? MarkerImageBase64 { get; set; }
+        public string? MarkerImageUrl { get; set; }
 
         [BindProperty]
         public string? NewAdditionalTypeDesc { get; set; }
@@ -68,6 +67,16 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
         public async Task<IActionResult> OnPostAsync()
         {
+            ImageUploadValidationResult? uploadValidation = null;
+            if (Upload != null && Upload.Length > 0)
+            {
+                uploadValidation = _imageUploadValidator.Validate(Upload);
+                if (!uploadValidation.IsValid)
+                {
+                    ModelState.AddModelError(nameof(Upload), uploadValidation.ErrorMessage!);
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 await LoadMarkerImage(MarkerType.Gid);
@@ -103,23 +112,11 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
             {
                 try
                 {
-                    using var ms = new MemoryStream();
-                    await Upload.CopyToAsync(ms);
-                    var imageBytes = ms.ToArray();
-
-                    var filter = Builders<BoardGameImages>.Filter.And(
-                        Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
-                        Builders<BoardGameImages>.Filter.Eq(x => x.GID, markerInDb.Gid)
-                    );
-
-                    var update = Builders<BoardGameImages>.Update
-                        .Set(x => x.ImageBytes, imageBytes)
-                        .Set(x => x.Description, "Marker Type Image")
-                        .Set(x => x.ContentType, Upload.ContentType);
-
-                    var options = new UpdateOptions { IsUpsert = true };
-
-                    await _imagesCollection.UpdateOneAsync(filter, update, options);
+                    await _imageService.UploadMarkerTypeImageAsync(
+                        checked((int)markerInDb.Id),
+                        Upload,
+                        User.Identity?.Name,
+                        HttpContext.RequestAborted);
                 }
                 catch (Exception ex)
                 {
@@ -136,21 +133,13 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
         private async Task LoadMarkerImage(Guid gid)
         {
-            var filter = Builders<BoardGameImages>.Filter.And(
-                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
-                Builders<BoardGameImages>.Filter.Eq(x => x.GID, gid)
-            );
-
-            var imageDoc = await _imagesCollection.Find(filter).FirstOrDefaultAsync();
-
-            if (imageDoc != null && imageDoc.ImageBytes != null)
-            {
-                MarkerImageBase64 = $"data:{imageDoc.ContentType};base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
-            }
-            else
-            {
-                MarkerImageBase64 = null;
-            }
+            MarkerImageUrl = await _context.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.MarkerTypeImageOwnerType
+                    && _context.BoardGameMarkerTypes.Any(markerType => markerType.Gid == gid && markerType.Id == image.OwnerId))
+                .OrderByDescending(image => image.CreatedAtUtc)
+                .Select(image => image.PublicUrl)
+                .FirstOrDefaultAsync();
         }
 
         private async Task PopulateAlignmentTypesSelectList(long? selectedId)

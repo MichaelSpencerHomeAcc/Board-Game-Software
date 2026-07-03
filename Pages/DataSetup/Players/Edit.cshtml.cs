@@ -1,19 +1,19 @@
+using BoardGameClubSoftware.Storage;
 using Board_Game_Software.Models;
 using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 using System;
-using System.IO;
 using System.Threading.Tasks;
 
 public class EditModel : PageModel
 {
     private readonly BoardGameDbContext _context;
-    private readonly IMongoCollection<BoardGameImages> _imagesCollection;
     private readonly ICurrentClubService _currentClubService;
+    private readonly IImageUploadValidator _imageUploadValidator;
+    private readonly ImageService _imageService;
 
     [BindProperty]
     public Player Player { get; set; } = null!;
@@ -24,20 +24,19 @@ public class EditModel : PageModel
     [BindProperty]
     public List<long> SelectedClubIds { get; set; } = new();
 
-    public string? ProfileImageBase64 { get; set; }  // For displaying image
+    public string? ProfileImageUrl { get; set; }  // For displaying image
     public SelectList ClubOptions { get; set; } = default!;
 
     public EditModel(
         BoardGameDbContext context,
-        IMongoClient mongoClient,
-        IConfiguration configuration,
-        ICurrentClubService currentClubService)
+        ICurrentClubService currentClubService,
+        IImageUploadValidator imageUploadValidator,
+        ImageService imageService)
     {
         _context = context;
         _currentClubService = currentClubService;
-        var databaseName = configuration["MongoDbSettings:Database"];
-        var database = mongoClient.GetDatabase(databaseName);
-        _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
+        _imageUploadValidator = imageUploadValidator;
+        _imageService = imageService;
     }
 
     public async Task<IActionResult> OnGetAsync(long id)
@@ -67,6 +66,16 @@ public class EditModel : PageModel
             return Forbid();
 
         SelectedClubIds = await KeepManageableClubIdsAsync(SelectedClubIds);
+
+        ImageUploadValidationResult? uploadValidation = null;
+        if (Upload != null && Upload.Length > 0)
+        {
+            uploadValidation = _imageUploadValidator.Validate(Upload);
+            if (!uploadValidation.IsValid)
+            {
+                ModelState.AddModelError(nameof(Upload), uploadValidation.ErrorMessage!);
+            }
+        }
 
         if (!ModelState.IsValid)
         {
@@ -115,22 +124,11 @@ public class EditModel : PageModel
         {
             try
             {
-                using var ms = new MemoryStream();
-                await Upload.CopyToAsync(ms);
-                var imageBytes = ms.ToArray();
-
-                var filter = Builders<BoardGameImages>.Filter.And(
-                    Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player"),
-                    Builders<BoardGameImages>.Filter.Eq(x => x.GID, playerInDb.Gid)
-                );
-
-                var update = Builders<BoardGameImages>.Update
-                    .Set(x => x.ImageBytes, imageBytes)
-                    .Set(x => x.Description, "Profile Picture");
-
-                var options = new UpdateOptions { IsUpsert = true };
-
-                await _imagesCollection.UpdateOneAsync(filter, update, options);
+                await _imageService.UploadUserAvatarAsync(
+                    checked((int)playerInDb.Id),
+                    Upload,
+                    User.Identity?.Name,
+                    HttpContext.RequestAborted);
             }
             catch (Exception ex)
             {
@@ -157,21 +155,13 @@ public class EditModel : PageModel
 
     private async Task LoadProfileImage(Guid gid)
     {
-        var filter = Builders<BoardGameImages>.Filter.And(
-            Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player"),
-            Builders<BoardGameImages>.Filter.Eq(x => x.GID, gid)
-        );
-
-        var imageDoc = await _imagesCollection.Find(filter).FirstOrDefaultAsync();
-
-        if (imageDoc != null && imageDoc.ImageBytes != null)
-        {
-            ProfileImageBase64 = $"data:image/png;base64,{Convert.ToBase64String(imageDoc.ImageBytes)}";
-        }
-        else
-        {
-            ProfileImageBase64 = null;
-        }
+        ProfileImageUrl = await _context.StoredImages
+            .AsNoTracking()
+            .Where(image => image.OwnerType == ImageService.UserAvatarOwnerType
+                && _context.Players.Any(player => player.Gid == gid && player.Id == image.OwnerId))
+            .OrderByDescending(image => image.CreatedAtUtc)
+            .Select(image => image.PublicUrl)
+            .FirstOrDefaultAsync();
     }
 
     private async Task SyncPlayerClubsAsync(long playerId, IEnumerable<long> selectedClubIds, string actor, DateTime now)

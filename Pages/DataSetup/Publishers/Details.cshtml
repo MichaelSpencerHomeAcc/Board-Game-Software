@@ -1,4 +1,4 @@
-﻿@page "{id:long}"
+@page "{id:long}"
 @model Board_Game_Software.Pages.DataSetup.Publishers.DetailsModel
 
 @{
@@ -120,9 +120,9 @@
                 @* Main Avatar *@
                 <div class="me-md-5 mb-3 mb-md-0">
                     <div class="avatar-container">
-                        @if (!string.IsNullOrEmpty(Model.PublisherLogoBase64))
+                        @if (!string.IsNullOrEmpty(Model.PublisherLogoUrl))
                         {
-                            <img src="@Model.PublisherLogoBase64" alt="@Model.Publisher.PublisherName" />
+                            <img src="@Model.PublisherLogoUrl" alt="@Model.Publisher.PublisherName" />
                         }
                         else
                         {

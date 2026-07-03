@@ -32,7 +32,7 @@
                                     <label for="Upload" class="btn btn-outline-primary btn-sm w-100 mb-2">
                                         <i class="bi bi-camera me-1"></i> Select Image
                                     </label>
-                                    <input type="file" asp-for="Upload" id="Upload" class="form-control d-none" accept="image/*" onchange="previewImage(this)" />
+                                    <input type="file" asp-for="Upload" id="Upload" class="form-control d-none" accept=".jpg,.jpeg,.png,.webp" onchange="previewImage(this)" />
                                     <small class="text-muted d-block mt-1">Optional: Set a face for the name</small>
                                 </div>
                             </div>

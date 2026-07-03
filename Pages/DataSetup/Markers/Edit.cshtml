@@ -1,4 +1,4 @@
-﻿@page
+@page
 @model Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes.EditModel
 @{
     ViewData["Title"] = "Edit Marker Type";
@@ -45,7 +45,7 @@
 
                                 <div class="mb-4">
                                     <label class="form-label fw-semibold">Change Marker Image</label>
-                                    <input type="file" asp-for="Upload" class="form-control shadow-sm" id="imageUpload" accept="image/*" />
+                                    <input type="file" asp-for="Upload" class="form-control shadow-sm" id="imageUpload" accept=".jpg,.jpeg,.png,.webp" />
                                     <div class="form-text">Supported formats: JPG, PNG, WEBP.</div>
                                 </div>
                             </div>
@@ -53,9 +53,9 @@
                             <div class="col-md-5">
                                 <label class="form-label fw-semibold d-block text-center">Current / New Preview</label>
                                 <div class="d-flex align-items-center justify-content-center border rounded bg-body p-3 shadow-inner" style="min-height: 250px;">
-                                    @if (!string.IsNullOrEmpty(Model.MarkerImageBase64))
+                                    @if (!string.IsNullOrEmpty(Model.MarkerImageUrl))
                                     {
-                                        <img id="preview" src="@Model.MarkerImageBase64" alt="Marker Type Image" class="img-fluid rounded shadow-sm" style="max-height: 220px;" />
+                                        <img id="preview" src="@Model.MarkerImageUrl" alt="Marker Type Image" class="img-fluid rounded shadow-sm" style="max-height: 220px;" />
                                     }
                                     else
                                     {

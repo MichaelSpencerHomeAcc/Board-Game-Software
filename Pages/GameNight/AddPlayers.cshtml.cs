@@ -108,7 +108,7 @@ namespace Board_Game_Software.Pages.GameNight
                 {
                     PlayerId = p.Id,
                     Name = $"{p.FirstName} {p.LastName}".Trim(),
-                    AvatarBase64 = $"/media/player/{p.Gid}"
+                    AvatarUrl = $"/media/player/{p.Gid}"
                 };
             }).ToList();
         }
@@ -145,7 +145,7 @@ namespace Board_Game_Software.Pages.GameNight
         {
             public long PlayerId { get; set; }
             public string Name { get; set; } = string.Empty;
-            public string? AvatarBase64 { get; set; }
+            public string? AvatarUrl { get; set; }
             public bool Preselected { get; set; }
         }
     }

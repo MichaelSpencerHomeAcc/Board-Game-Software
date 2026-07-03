@@ -77,6 +77,8 @@ public partial class BoardGameDbContext : DbContext
 
     public virtual DbSet<ShelfSection> ShelfSections { get; set; }
 
+    public virtual DbSet<StoredImage> StoredImages => Set<StoredImage>();
+
     public virtual DbSet<MarkerAdditionalType> MarkerAdditionalTypes { get; set; }
 
     public virtual DbSet<VwBoardGame> VwBoardGames { get; set; }
@@ -1274,6 +1276,30 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<StoredImage>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_bgd_StoredImage");
+
+            entity.ToTable("StoredImage", "bgd");
+
+            entity.HasIndex(e => new { e.OwnerType, e.OwnerId }, "IX_bgd_StoredImage_OwnerType_OwnerId");
+            entity.HasIndex(e => e.BlobKey, "IX_bgd_StoredImage_BlobKey");
+            entity.HasIndex(e => e.UploadedByUserId, "IX_bgd_StoredImage_UploadedByUserId");
+            entity.HasIndex(e => e.CreatedAtUtc, "IX_bgd_StoredImage_CreatedAtUtc");
+
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.OwnerType).HasMaxLength(80);
+            entity.Property(e => e.BlobProvider).HasMaxLength(40);
+            entity.Property(e => e.BlobKey).HasMaxLength(512);
+            entity.Property(e => e.PublicUrl).HasMaxLength(1024);
+            entity.Property(e => e.OriginalFileName).HasMaxLength(255);
+            entity.Property(e => e.ContentType).HasMaxLength(127);
+            entity.Property(e => e.AltText).HasMaxLength(255);
+            entity.Property(e => e.Caption).HasMaxLength(500);
+            entity.Property(e => e.UploadedByUserId).HasMaxLength(450);
+            entity.Property(e => e.CreatedAtUtc).HasColumnType("datetime2");
         });
 
 

@@ -1,4 +1,4 @@
-﻿@page
+@page
 @model Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes.DetailsModel
 
 @{
@@ -119,9 +119,9 @@
                 @* Main Avatar *@
                 <div class="me-md-5 mb-3 mb-md-0">
                     <div class="avatar-container">
-                        @if (!string.IsNullOrEmpty(Model.MarkerTypeImageBase64))
+                        @if (!string.IsNullOrEmpty(Model.MarkerTypeImageUrl))
                         {
-                            <img src="@Model.MarkerTypeImageBase64" alt="@Model.BoardGameMarkerType.TypeDesc" />
+                            <img src="@Model.MarkerTypeImageUrl" alt="@Model.BoardGameMarkerType.TypeDesc" />
                         }
                         else
                         {
@@ -187,7 +187,7 @@
             {
                 var gameName = marker.FkBgdBoardGameNavigation?.BoardGameName ?? "Unknown Game";
                 var gameId = marker.FkBgdBoardGameNavigation?.Id;
-                var cardImg = Model.BoardGameImagesBase64.ContainsKey(marker.Id) ? Model.BoardGameImagesBase64[marker.Id] : null;
+                var cardImg = Model.BoardGameImageUrls.ContainsKey(marker.Id) ? Model.BoardGameImageUrls[marker.Id] : null;
 
                 @* FIX: Use asp-page and asp-route-id. 
                    This correctly generates the URL (e.g., /Browsing/BoardGames/BoardGameDetails?id=123)

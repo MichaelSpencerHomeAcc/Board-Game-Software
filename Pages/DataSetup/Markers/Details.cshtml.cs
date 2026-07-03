@@ -8,34 +8,28 @@ using Microsoft.EntityFrameworkCore;
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
 using Board_Game_Software.Services;
-using MongoDB.Driver;
-using Microsoft.Extensions.Configuration;
 
 namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 {
     public class DetailsModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
         private readonly ICurrentClubService _currentClubService;
 
-        public DetailsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
+        public DetailsModel(BoardGameDbContext context, ICurrentClubService currentClubService)
         {
             _context = context;
             _currentClubService = currentClubService;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(databaseName);
-            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public BoardGameMarkerType BoardGameMarkerType { get; set; } = default!;
         public IList<BoardGameMarker> BoardGameMarkers { get; set; } = default!;
 
         // Holds the main image for the Marker Type
-        public string? MarkerTypeImageBase64 { get; set; }
+        public string? MarkerTypeImageUrl { get; set; }
 
         // Holds the COVER IMAGES for the linked Board Games
-        public Dictionary<long, string> BoardGameImagesBase64 { get; set; } = new();
+        public Dictionary<long, string> BoardGameImageUrls { get; set; } = new();
 
         public async Task<IActionResult> OnGetAsync(long? id)
         {
@@ -65,65 +59,18 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
                 .OrderBy(m => m.FkBgdBoardGameNavigation!.BoardGameName)
                 .ToListAsync();
 
-            // 3. Fetch Main Image (Marker Type)
-            var typeImage = await _boardGameImages
-                .Find(x => x.SQLTable == "bgd.BoardGameMarkerType" && x.GID == BoardGameMarkerType.Gid)
-                .FirstOrDefaultAsync();
-
-            if (typeImage != null && typeImage.ImageBytes != null)
-            {
-                MarkerTypeImageBase64 = $"data:{typeImage.ContentType};base64,{Convert.ToBase64String(typeImage.ImageBytes)}";
-            }
+            MarkerTypeImageUrl = $"/media/marker-type/{BoardGameMarkerType.Gid:D}";
 
             // 4. Fetch Images for the LINKED BOARD GAMES
             if (BoardGameMarkers.Any())
             {
-                // Get the GIDs of the *Games*, not the markers
-                var gameGids = BoardGameMarkers
-                    .Select(m => (Guid?)m.FkBgdBoardGameNavigation.Gid)
-                    .Distinct()
-                    .ToList();
-
-                // Look up images for the Board Games — include both SQLTable naming conventions
-                var filter = Builders<BoardGameImages>.Filter.And(
-                    Builders<BoardGameImages>.Filter.In(x => x.SQLTable, new[] { "bgd.BoardGame", "BoardGames" }),
-                    Builders<BoardGameImages>.Filter.In(x => x.GID, gameGids)
-                );
-
-                var images = await _boardGameImages.Find(filter).ToListAsync();
-
-                // Map images back to the Marker ID (so the view can easily find the image for the row)
                 foreach (var marker in BoardGameMarkers)
                 {
-                    var gameGid = marker.FkBgdBoardGameNavigation.Gid;
-                    // Just take the first image found for this game
-                    var img = images.FirstOrDefault(x => x.GID == gameGid);
-
-                    if (img != null && img.ImageBytes != null)
-                    {
-                        var contentType = DetectContentType(img.ImageBytes, img.ContentType);
-                        BoardGameImagesBase64[marker.Id] = $"data:{contentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
-                    }
+                    BoardGameImageUrls[marker.Id] = $"/media/boardgame/front/{marker.FkBgdBoardGameNavigation.Gid:D}";
                 }
             }
 
             return Page();
-        }
-
-        // --- Image Helper Methods ---
-        private static string DetectContentType(byte[] bytes, string? fallback)
-        {
-            if (bytes.Length >= 12 &&
-                bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F' &&
-                bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P')
-                return "image/webp";
-            if (bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)
-                return "image/jpeg";
-            if (bytes.Length >= 8 &&
-                bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 &&
-                bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A && bytes[7] == 0x0A)
-                return "image/png";
-            return fallback ?? "application/octet-stream";
         }
 
         // --- UI Helper Methods ---

@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,14 +15,11 @@ namespace Board_Game_Software.Pages.DataSetup.Players
     public class DetailsModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly ICurrentClubService _currentClubService;
 
         public DetailsModel(
             BoardGameDbContext context,
-            IMongoClient mongoClient,
-            IConfiguration configuration,
             UserManager<IdentityUser> userManager,
             ICurrentClubService currentClubService)
         {
@@ -31,14 +27,11 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             _userManager = userManager;
             _currentClubService = currentClubService;
 
-            var dbName = configuration["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(dbName);
-            _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public Player Player { get; set; } = null!;
 
-        // FAST: no base64 – just use media endpoint
+        // FAST: just use media endpoint
         public string ProfileImageUrl { get; set; } = string.Empty;
         public bool HasProfileImage { get; set; }
 
@@ -86,13 +79,14 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
-            Player = await _context.Players
+            var player = await _context.Players
                 .AsNoTracking()
                 .Include(p => p.PlayerBoardGames)
                     .ThenInclude(pbg => pbg.BoardGame)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (Player == null) return NotFound();
+            if (player == null) return NotFound();
+            Player = player;
 
             // SECURITY CHECK: Admin or owner
             var currentUserId = _userManager.GetUserId(User);
@@ -120,7 +114,6 @@ namespace Board_Game_Software.Pages.DataSetup.Players
                 .Take(10)
                 .ToList();
 
-            // 1) Mongo: load player image doc (for focus + "has image")
             await LoadPlayerImageMeta(Player.Gid);
 
             // 2) Game images: just point to your media endpoint (fast)
@@ -223,41 +216,10 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         private async Task LoadPlayerImageMeta(Guid playerGid)
         {
             ProfileImageUrl = $"/media/player/{playerGid}";
-            HasProfileImage = false;
-
-            var filter = Builders<BoardGameImages>.Filter.And(
-                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player"),
-                Builders<BoardGameImages>.Filter.Eq(x => x.GID, (Guid?)playerGid)
-            );
-
-            // Only pull the metadata we need (fast)
-            var doc = await _imagesCollection
-                .Find(filter)
-                .Project(x => new
-                {
-                    x.ImageBytes,
-                    x.AvatarFocusX,
-                    x.AvatarFocusY,
-                    x.AvatarZoom,
-                    x.PodiumFocusX,
-                    x.PodiumFocusY,
-                    x.PodiumZoom
-                })
-                .FirstOrDefaultAsync();
-
-            if (doc == null) return;
-
-            HasProfileImage = doc.ImageBytes != null && doc.ImageBytes.Length > 0;
-
-            // If your Mongo fields are non-nullable ints, these assignments are safe.
-            // If any can be 0 / unset, clamp them to sensible ranges.
-            AvatarX = ClampPct(doc.AvatarFocusX, 50);
-            AvatarY = ClampPct(doc.AvatarFocusY, 50);
-            AvatarZoom = ClampZoom(doc.AvatarZoom, 100);
-
-            PodiumX = ClampPct(doc.PodiumFocusX, 50);
-            PodiumY = ClampPct(doc.PodiumFocusY, 50);
-            PodiumZoom = ClampZoom(doc.PodiumZoom, 100);
+            HasProfileImage = await _context.StoredImages
+                .AsNoTracking()
+                .AnyAsync(image => image.OwnerType == ImageService.UserAvatarOwnerType
+                    && _context.Players.Any(player => player.Gid == playerGid && player.Id == image.OwnerId));
         }
 
         public async Task<IActionResult> OnPostUpdateFocusAsync(
@@ -280,20 +242,6 @@ namespace Board_Game_Software.Pages.DataSetup.Players
             if (!User.IsInRole("Admin") && player.FkdboAspNetUsers != currentUserId && !canManageClubPlayer)
                 return Forbid();
 
-            var filter = Builders<BoardGameImages>.Filter.And(
-                Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.Player"),
-                Builders<BoardGameImages>.Filter.Eq(x => x.GID, (Guid?)player.Gid)
-            );
-
-            var update = Builders<BoardGameImages>.Update
-                .Set(x => x.AvatarFocusX, ClampPct(AvatarX, 50))
-                .Set(x => x.AvatarFocusY, ClampPct(AvatarY, 50))
-                .Set(x => x.AvatarZoom, ClampZoom(AvatarZoom, 100))
-                .Set(x => x.PodiumFocusX, ClampPct(PodiumX, 50))
-                .Set(x => x.PodiumFocusY, ClampPct(PodiumY, 50))
-                .Set(x => x.PodiumZoom, ClampZoom(PodiumZoom, 100));
-
-            await _imagesCollection.UpdateOneAsync(filter, update);
 
             return RedirectToPage(new { id });
         }
@@ -327,3 +275,4 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         }
     }
 }
+

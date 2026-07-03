@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,28 +15,22 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
     public class BoardGameDetailsModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
         private readonly Microsoft.AspNetCore.Identity.UserManager<IdentityUser> _userManager;
         private readonly ICurrentClubService _currentClubService;
 
         public BoardGameDetailsModel(
             BoardGameDbContext context,
-            IMongoClient mongoClient,
-            IConfiguration configuration,
             Microsoft.AspNetCore.Identity.UserManager<IdentityUser> userManager,
             ICurrentClubService currentClubService)
         {
             _context = context;
             _userManager = userManager;
             _currentClubService = currentClubService;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(databaseName);
-            _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public BoardGame BoardGame { get; set; } = default!;
         public string BoardGameFrontImageUrl { get; set; } = string.Empty;
-        public Dictionary<long, string?> MarkerImagesBase64 { get; set; } = new();
+        public Dictionary<long, string?> MarkerImageUrls { get; set; } = new();
 
         public decimal AverageRating { get; set; }
         public int TotalRatings { get; set; }
@@ -132,7 +125,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 }
             }
 
-            await LoadImages();
+            LoadImages();
             return Page();
         }
 
@@ -193,7 +186,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             return RedirectToPage(new { id });
         }
 
-        private async Task LoadImages()
+        private void LoadImages()
         {
             if (BoardGame.Gid != Guid.Empty)
                 BoardGameFrontImageUrl = $"/media/boardgame/front/{BoardGame.Gid:D}";
@@ -205,24 +198,12 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
             if (markersForImages.Any())
             {
-                var markerTypeGids = markersForImages
-                   .Select(m => (Guid?)m.FkBgdBoardGameMarkerTypeNavigation?.Gid)
-                   .Where(g => g.HasValue).Distinct().ToList();
-
-                var filter = Builders<BoardGameImages>.Filter.And(
-                    Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
-                    Builders<BoardGameImages>.Filter.In(x => x.GID, markerTypeGids));
-
-                var images = await _imagesCollection.Find(filter).ToListAsync();
-
                 foreach (var marker in markersForImages)
                 {
                     var type = marker.FkBgdBoardGameMarkerTypeNavigation;
-                    if (type != null && !MarkerImagesBase64.ContainsKey(type.Id))
+                    if (type != null && !MarkerImageUrls.ContainsKey(type.Id))
                     {
-                        var img = images.FirstOrDefault(x => x.GID == type.Gid);
-                        if (img?.ImageBytes != null)
-                            MarkerImagesBase64[type.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                        MarkerImageUrls[type.Id] = $"/media/marker-type/{type.Gid:D}";
                     }
                 }
             }

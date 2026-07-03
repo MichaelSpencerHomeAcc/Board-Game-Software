@@ -1,3 +1,4 @@
+using BoardGameClubSoftware.Storage;
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
 using Board_Game_Software.Services;
@@ -5,9 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 using System;
-using System.IO;
 using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
@@ -15,8 +14,9 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
     public class AddModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _images;
         private readonly ICurrentClubService _currentClubService;
+        private readonly IImageUploadValidator _imageUploadValidator;
+        private readonly ImageService _imageService;
 
         [BindProperty]
         public BoardGameMarkerType MarkerType { get; set; } = new();
@@ -27,13 +27,16 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
         public SelectList AlignmentTypes { get; set; } = null!;
 
-        public AddModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
+        public AddModel(
+            BoardGameDbContext context,
+            ICurrentClubService currentClubService,
+            IImageUploadValidator imageUploadValidator,
+            ImageService imageService)
         {
             _context = context;
             _currentClubService = currentClubService;
-
-            var dbName = configuration["MongoDbSettings:Database"];
-            _images = mongoClient.GetDatabase(dbName).GetCollection<BoardGameImages>("BoardGameImages");
+            _imageUploadValidator = imageUploadValidator;
+            _imageService = imageService;
         }
 
         public async Task OnGetAsync()
@@ -48,6 +51,16 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
             if (string.IsNullOrWhiteSpace(MarkerType.TypeDesc))
             {
                 ModelState.AddModelError("MarkerType.TypeDesc", "Marker name is required.");
+            }
+
+            ImageUploadValidationResult? imageValidation = null;
+            if (ImageUpload != null && ImageUpload.Length > 0)
+            {
+                imageValidation = _imageUploadValidator.Validate(ImageUpload);
+                if (!imageValidation.IsValid)
+                {
+                    ModelState.AddModelError(nameof(ImageUpload), imageValidation.ErrorMessage!);
+                }
             }
 
             if (!ModelState.IsValid)
@@ -90,36 +103,14 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
                 await _context.SaveChangesAsync();
             }
 
-            // NEW: save uploaded image to Mongo (if provided)
+            // Save uploaded image to Azure Blob (if provided)
             if (ImageUpload != null && ImageUpload.Length > 0)
             {
-                byte[] bytes;
-                using (var ms = new MemoryStream())
-                {
-                    await ImageUpload.CopyToAsync(ms);
-                    bytes = ms.ToArray();
-                }
-
-                // Replace existing image doc if one already exists for this marker type
-                var filter = Builders<BoardGameImages>.Filter.And(
-                    Builders<BoardGameImages>.Filter.Eq(x => x.SQLTable, "bgd.BoardGameMarkerType"),
-                    Builders<BoardGameImages>.Filter.Eq(x => x.GID, MarkerType.Gid)
-                );
-
-                var update = Builders<BoardGameImages>.Update
-                    .Set(x => x.SQLTable, "bgd.BoardGameMarkerType")
-                    .Set(x => x.GID, MarkerType.Gid)
-                    .Set(x => x.Description, "Marker Type Image")
-                    .Set(x => x.ImageBytes, bytes)
-                    .Set(x => x.ContentType, string.IsNullOrWhiteSpace(ImageUpload.ContentType) ? "application/octet-stream" : ImageUpload.ContentType)
-                    .Set(x => x.AvatarFocusX, 50)
-                    .Set(x => x.AvatarFocusY, 50)
-                    .Set(x => x.AvatarZoom, 100)
-                    .Set(x => x.PodiumFocusX, 50)
-                    .Set(x => x.PodiumFocusY, 50)
-                    .Set(x => x.PodiumZoom, 100);
-
-                await _images.UpdateOneAsync(filter, update, new UpdateOptions { IsUpsert = true });
+                await _imageService.UploadMarkerTypeImageAsync(
+                    checked((int)MarkerType.Id),
+                    ImageUpload,
+                    User.Identity?.Name,
+                    HttpContext.RequestAborted);
             }
 
             return RedirectToPage("Index");

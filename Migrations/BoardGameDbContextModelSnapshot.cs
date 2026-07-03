@@ -2470,6 +2470,10 @@ namespace Board_Game_Software.Migrations
                         .HasColumnName("GID")
                         .HasDefaultValueSql("(newid())");
 
+                    b.Property<long?>("FkBgdClub")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FK_bgd_Club");
+
                     b.Property<bool>("Inactive")
                         .HasColumnType("bit");
 
@@ -2601,6 +2605,80 @@ namespace Board_Game_Software.Migrations
                         });
 
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("Board_Game_Software.Models.StoredImage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("ID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AltText")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("BlobKey")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("BlobProvider")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Caption")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(127)
+                        .HasColumnType("nvarchar(127)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OwnerType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("PublicUrl")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UploadedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_bgd_StoredImage");
+
+                    b.HasIndex(new[] { "BlobKey" }, "IX_bgd_StoredImage_BlobKey");
+
+                    b.HasIndex(new[] { "CreatedAtUtc" }, "IX_bgd_StoredImage_CreatedAtUtc");
+
+                    b.HasIndex(new[] { "UploadedByUserId" }, "IX_bgd_StoredImage_UploadedByUserId");
+
+                    b.HasIndex(new[] { "OwnerType", "OwnerId" }, "IX_bgd_StoredImage_OwnerType_OwnerId");
+
+                    b.ToTable("StoredImage", "bgd");
                 });
 
             modelBuilder.Entity("Board_Game_Software.Models.VwBoardGame", b =>

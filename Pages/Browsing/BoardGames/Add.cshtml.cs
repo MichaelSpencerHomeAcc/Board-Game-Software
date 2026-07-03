@@ -1,3 +1,4 @@
+using BoardGameClubSoftware.Storage;
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
 using Board_Game_Software.Pages.Browsing.BoardGames;
@@ -7,7 +8,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 
 namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
@@ -15,16 +15,20 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
     public class AddModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
         private readonly ICurrentClubService _currentClubService;
+        private readonly IImageUploadValidator _imageUploadValidator;
+        private readonly ImageService _imageService;
 
-        public AddModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
+        public AddModel(
+            BoardGameDbContext context,
+            ICurrentClubService currentClubService,
+            IImageUploadValidator imageUploadValidator,
+            ImageService imageService)
         {
             _context = context;
             _currentClubService = currentClubService;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(databaseName);
-            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
+            _imageUploadValidator = imageUploadValidator;
+            _imageService = imageService;
         }
 
         [BindProperty]
@@ -77,6 +81,16 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 ModelState.AddModelError(nameof(ExpansionBaseGameIds), "Select at least one base game for this expansion.");
             }
 
+            ImageUploadValidationResult? imageValidation = null;
+            if (ImageUpload != null && ImageUpload.Length > 0)
+            {
+                imageValidation = _imageUploadValidator.Validate(ImageUpload);
+                if (!imageValidation.IsValid)
+                {
+                    ModelState.AddModelError(nameof(ImageUpload), imageValidation.ErrorMessage!);
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 await LoadSelectLists();
@@ -84,7 +98,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 return Page();
             }
 
-            // Using a transaction to ensure SQL and MongoDB stay in sync
+            // Using a transaction to keep SQL changes together.
             using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
@@ -158,29 +172,14 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     await _context.SaveChangesAsync();
                 }
 
-                // 7. Handle Box Art Upload (MongoDB)
+                // 7. Handle Box Art Upload
                 if (ImageUpload != null && ImageUpload.Length > 0)
                 {
-                    using var ms = new MemoryStream();
-                    await ImageUpload.CopyToAsync(ms);
-
-                    var frontImageType = await _context.BoardGameImageTypes
-                        .FirstOrDefaultAsync(t => t.TypeDesc == "Board Game Front");
-
-                    if (frontImageType != null)
-                    {
-                        var newImage = new BoardGameImages
-                        {
-                            GID = BoardGame.Gid,
-                            ImageTypeGID = frontImageType.Gid,
-                            SQLTable = "BoardGames",
-                            ImageBytes = ms.ToArray(),
-                            ContentType = ImageUpload.ContentType,
-                            Description = $"Front image for {BoardGame.BoardGameName}"
-                        };
-
-                        await _boardGameImages.InsertOneAsync(newImage);
-                    }
+                    await _imageService.UploadGameCoverAsync(
+                        checked((int)BoardGame.Id),
+                        ImageUpload,
+                        User.Identity?.Name,
+                        HttpContext.RequestAborted);
                 }
 
                 await transaction.CommitAsync();
@@ -314,23 +313,22 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .OrderBy(t => t.TypeDesc)
                 .ToListAsync();
 
-            var guids = types.Select(t => (Guid?)t.Gid).ToList();
-            var images = await _boardGameImages
-                .Find(x => x.SQLTable == "bgd.BoardGameMarkerType" && guids.Contains(x.GID))
-                .ToListAsync();
-            var imageMap = images
-                .Where(x => x.GID.HasValue)
-                .GroupBy(x => x.GID!.Value)
-                .ToDictionary(x => x.Key, x => x.First());
+            var typeIds = types.Select(t => checked((int)t.Id)).ToList();
+            var imageMap = await _context.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.MarkerTypeImageOwnerType && typeIds.Contains(image.OwnerId))
+                .GroupBy(image => image.OwnerId)
+                .Select(group => group.OrderByDescending(image => image.CreatedAtUtc).First())
+                .ToDictionaryAsync(image => image.OwnerId);
 
             foreach (var t in types)
             {
-                imageMap.TryGetValue(t.Gid, out var img);
+                imageMap.TryGetValue(checked((int)t.Id), out var img);
                 AvailableMarkerTypes.Add(new MarkerTypeViewModel
                 {
                     Id = t.Id,
                     TypeDesc = t.TypeDesc,
-                    ImageBase64 = img?.ImageBytes != null ? $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}" : null
+                    ImageUrl = img?.PublicUrl
                 });
             }
         }

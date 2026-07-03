@@ -1,7 +1,7 @@
+using BoardGameClubSoftware.Storage;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
 using Board_Game_Software.Services;
@@ -11,16 +11,20 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
     public class EditModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
         private readonly ICurrentClubService _currentClubService;
+        private readonly IImageUploadValidator _imageUploadValidator;
+        private readonly ImageService _imageService;
 
-        public EditModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
+        public EditModel(
+            BoardGameDbContext context,
+            ICurrentClubService currentClubService,
+            IImageUploadValidator imageUploadValidator,
+            ImageService imageService)
         {
             _context = context;
             _currentClubService = currentClubService;
-            var databaseName = configuration["MongoDbSettings:Database"];
-            var database = mongoClient.GetDatabase(databaseName);
-            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
+            _imageUploadValidator = imageUploadValidator;
+            _imageService = imageService;
         }
 
         [BindProperty]
@@ -29,7 +33,7 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
         [BindProperty]
         public IFormFile? ImageUpload { get; set; }
 
-        public string? ExistingImageBase64 { get; set; }
+        public string? ExistingImageUrl { get; set; }
         public string? ExistingImageContentType { get; set; }
 
         [BindProperty(SupportsGet = true)]
@@ -52,28 +56,28 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
 
             Publisher = publisher;
 
-            // Fetch current image from MongoDB
-            var imageType = await _context.BoardGameImageTypes
-                .FirstOrDefaultAsync(t => t.TypeDesc == "Image");
-
-            if (imageType != null)
-            {
-                var imageDoc = await _boardGameImages
-                    .Find(img => img.GID == Publisher.Gid && img.ImageTypeGID == imageType.Gid)
-                    .FirstOrDefaultAsync();
-
-                if (imageDoc?.ImageBytes != null)
-                {
-                    ExistingImageBase64 = Convert.ToBase64String(imageDoc.ImageBytes);
-                    ExistingImageContentType = imageDoc.ContentType;
-                }
-            }
+            ExistingImageUrl = await _context.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.PublisherLogoOwnerType && image.OwnerId == checked((int)Publisher.Id))
+                .OrderByDescending(image => image.CreatedAtUtc)
+                .Select(image => image.PublicUrl)
+                .FirstOrDefaultAsync();
 
             return Page();
         }
 
         public async Task<IActionResult> OnPostAsync()
         {
+            ImageUploadValidationResult? imageValidation = null;
+            if (ImageUpload != null && ImageUpload.Length > 0)
+            {
+                imageValidation = _imageUploadValidator.Validate(ImageUpload);
+                if (!imageValidation.IsValid)
+                {
+                    ModelState.AddModelError(nameof(ImageUpload), imageValidation.ErrorMessage!);
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 return Page();
@@ -100,30 +104,11 @@ namespace Board_Game_Software.Pages.DataSetup.Publishers
 
                 if (ImageUpload != null && ImageUpload.Length > 0)
                 {
-                    using var ms = new MemoryStream();
-                    await ImageUpload.CopyToAsync(ms);
-                    var imageBytes = ms.ToArray();
-
-                    var imageType = await _context.BoardGameImageTypes
-                        .FirstOrDefaultAsync(t => t.TypeDesc == "Image");
-
-                    if (imageType != null)
-                    {
-                        await _boardGameImages.DeleteManyAsync(img =>
-                            img.GID == publisherToUpdate.Gid && img.ImageTypeGID == imageType.Gid);
-
-                        var newImage = new BoardGameImages
-                        {
-                            GID = publisherToUpdate.Gid,
-                            SQLTable = "bgd.Publisher",
-                            ImageTypeGID = imageType.Gid,
-                            ImageBytes = imageBytes,
-                            ContentType = ImageUpload.ContentType,
-                            Description = $"{publisherToUpdate.PublisherName} Logo"
-                        };
-
-                        await _boardGameImages.InsertOneAsync(newImage);
-                    }
+                    await _imageService.UploadPublisherLogoAsync(
+                        checked((int)publisherToUpdate.Id),
+                        ImageUpload,
+                        User.Identity?.Name,
+                        HttpContext.RequestAborted);
                 }
             }
             catch (DbUpdateConcurrencyException)

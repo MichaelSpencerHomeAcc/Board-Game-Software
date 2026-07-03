@@ -25,7 +25,7 @@ namespace Board_Game_Software.Pages.DataSetup.Players
         public Player Player { get; set; } = null!;
         public List<PlayerBoardGame> CurrentTopTen { get; set; } = new();
 
-        // entryId -> image url (NOT base64)
+        // entryId -> image url
         public Dictionary<long, string> GameImages { get; set; } = new();
 
         public async Task<IActionResult> OnGetAsync(long id)

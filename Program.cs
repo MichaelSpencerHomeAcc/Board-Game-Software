@@ -1,13 +1,17 @@
-﻿using System.Text.RegularExpressions;
+using BoardGameClubSoftware.Storage;
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
 using Board_Game_Software.Services;
-using Board_Game_Software.Settings;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using MongoDB.Driver;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
 
 var resolvedSql = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -53,29 +57,18 @@ builder.Services.AddRazorPages(options =>
 });
 builder.Services.AddControllers();
 
-// =========================
-// MongoDB Setup
-// =========================
-builder.Services.Configure<MongoDbSettings>(
-    builder.Configuration.GetSection("MongoDbSettings"));
+builder.Services.Configure<AzureBlobOptions>(
+    builder.Configuration.GetSection("AzureBlob"));
 
-builder.Services.AddSingleton<IMongoClient>(sp =>
-{
-    var settings = builder.Configuration
-        .GetSection("MongoDbSettings")
-        .Get<MongoDbSettings>();
+builder.Services.Configure<ImageUploadValidationOptions>(
+    builder.Configuration.GetSection("ImageUploads"));
 
-    if (settings == null)
-        throw new InvalidOperationException("MongoDbSettings section is missing or invalid.");
-
-    return new MongoClient(settings.ConnectionString);
-});
+builder.Services.AddScoped<IBlobStorageService, AzureBlobStorageService>();
+builder.Services.AddSingleton<IImageUploadValidator, ImageUploadValidator>();
 
 // =========================
 // Application Services
 // =========================
-builder.Services.AddSingleton<BoardGameImagesService>();
-
 // Added the RatingService for ELO calculations
 builder.Services.AddScoped<RatingService>();
 builder.Services.AddScoped<BoardGamePlayabilityService>();
@@ -83,7 +76,7 @@ builder.Services.AddScoped<AchievementService>();
 
 builder.Services.AddScoped<GameNightService>();
 builder.Services.AddScoped<ICurrentClubService, CurrentClubService>();
-builder.Services.AddSingleton<IBlobMediaStore, LocalBlobMediaStore>();
+builder.Services.AddScoped<ImageService>();
 
 var app = builder.Build();
 
@@ -121,7 +114,14 @@ try
 }
 catch (Exception ex)
 {
-    app.Logger.LogError(ex, "Startup seeding failed (DB/Identity). App will continue to start.");
+    try
+    {
+        app.Logger.LogError(ex, "Startup seeding failed (DB/Identity). App will continue to start.");
+    }
+    catch
+    {
+        // Logging providers should not stop the app from booting after a recoverable startup seed failure.
+    }
 }
 
 // =========================
@@ -134,7 +134,44 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    app.UseExceptionHandler("/Error");
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            var exceptionFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+            var exception = exceptionFeature?.Error;
+
+            if (exception != null)
+            {
+                var logger = context.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("UnhandledRequest");
+
+                logger.LogError(exception, "Unhandled exception while processing {Path}", exceptionFeature?.Path);
+
+                try
+                {
+                    var environment = context.RequestServices.GetRequiredService<IWebHostEnvironment>();
+                    var logDirectory = Path.Combine(environment.ContentRootPath, "logs");
+                    Directory.CreateDirectory(logDirectory);
+
+                    var logEntry = $"""
+                        [{DateTimeOffset.UtcNow:O}] {exceptionFeature?.Path}
+                        {exception}
+
+                        """;
+
+                    await File.AppendAllTextAsync(Path.Combine(logDirectory, "request-errors.log"), logEntry);
+                }
+                catch
+                {
+                    // Avoid a secondary logging failure hiding the original error page.
+                }
+            }
+
+            context.Response.Redirect("/Error");
+        });
+    });
     app.UseHsts();
 }
 
@@ -143,6 +180,61 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapGet("/health", async (
+    BoardGameDbContext db,
+    IOptions<AzureBlobOptions> azureBlobOptions,
+    IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    var sqlConfigured = !string.IsNullOrWhiteSpace(configuration.GetConnectionString("DefaultConnection"));
+    var sqlConnected = false;
+    string? sqlError = null;
+
+    if (sqlConfigured)
+    {
+        try
+        {
+            sqlConnected = await db.Database.CanConnectAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            sqlError = ex.Message;
+        }
+    }
+
+    var blobOptions = azureBlobOptions.Value;
+    var blobConfigured =
+        !string.IsNullOrWhiteSpace(blobOptions.ConnectionString) &&
+        !string.IsNullOrWhiteSpace(blobOptions.ContainerName) &&
+        !string.IsNullOrWhiteSpace(blobOptions.PublicBaseUrl);
+
+    var healthy = sqlConfigured && sqlConnected && blobConfigured;
+    var response = new
+    {
+        status = healthy ? "Healthy" : "Unhealthy",
+        checks = new
+        {
+            sql = new
+            {
+                configured = sqlConfigured,
+                connected = sqlConnected,
+                error = sqlError
+            },
+            azureBlob = new
+            {
+                configured = blobConfigured,
+                containerNameConfigured = !string.IsNullOrWhiteSpace(blobOptions.ContainerName),
+                publicBaseUrlConfigured = !string.IsNullOrWhiteSpace(blobOptions.PublicBaseUrl)
+            }
+        }
+    };
+
+    return healthy
+        ? Results.Ok(response)
+        : Results.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable);
+});
+
 app.MapRazorPages();
 app.MapControllers();
 
