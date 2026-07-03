@@ -66,6 +66,7 @@ namespace Board_Game_Software.Controllers
                 .Select(boardGame => new
                 {
                     Id = (int)boardGame.Id,
+                    boardGame.BoardGameName,
                     TemplateId = boardGame.FkBgdTemplateBoardGame.HasValue
                         ? (int?)boardGame.FkBgdTemplateBoardGame.Value
                         : null
@@ -84,6 +85,7 @@ namespace Board_Game_Software.Controllers
             }
 
             image ??= await FindBoardGameFrontImageByLegacyBlobKeyAsync(gid);
+            image ??= await FindBoardGameFrontImageByMatchingNameAsync(game.BoardGameName, game.Id);
 
             return image != null ? RedirectToStoredImage(image) : NotFound();
         }
@@ -111,6 +113,30 @@ namespace Board_Game_Software.Controllers
                 .AsNoTracking()
                 .Where(image => image.OwnerType == ImageService.GameCoverOwnerType
                     && image.BlobKey.StartsWith(legacyPrefix))
+                .OrderByDescending(image => image.CreatedAtUtc)
+                .FirstOrDefaultAsync();
+        }
+
+        private async Task<StoredImage?> FindBoardGameFrontImageByMatchingNameAsync(string boardGameName, int currentGameId)
+        {
+            var matchingGameIds = await _db.BoardGames
+                .AsNoTracking()
+                .Where(boardGame => !boardGame.Inactive
+                    && boardGame.Id != currentGameId
+                    && boardGame.Id <= int.MaxValue
+                    && boardGame.BoardGameName == boardGameName)
+                .Select(boardGame => (int)boardGame.Id)
+                .ToListAsync();
+
+            if (matchingGameIds.Count == 0)
+            {
+                return null;
+            }
+
+            return await _db.StoredImages
+                .AsNoTracking()
+                .Where(image => image.OwnerType == ImageService.GameCoverOwnerType
+                    && matchingGameIds.Contains(image.OwnerId))
                 .OrderByDescending(image => image.CreatedAtUtc)
                 .FirstOrDefaultAsync();
         }
