@@ -143,6 +143,26 @@ To copy structured data from the old SQL database after applying the migration, 
 deploy/scripts/README.md
 ```
 
+To migrate old Mongo image bytes into Azure Blob Storage and `bgd.StoredImage`, export them first and then run the importer:
+
+```powershell
+dotnet build .\Tools\MongoImageBlobExporter\MongoImageBlobExporter.csproj
+dotnet .\Tools\MongoImageBlobExporter\bin\Debug\net8.0\MongoImageBlobExporter.dll `
+  --connection-string "<Mongo connection string>" `
+  --database "<Mongo database name>" `
+  --output .\artifacts\image-blobs
+
+dotnet build .\Tools\MongoImageBlobImporter\MongoImageBlobImporter.csproj
+dotnet .\Tools\MongoImageBlobImporter\bin\Debug\net8.0\MongoImageBlobImporter.dll `
+  --manifest .\artifacts\image-blobs\manifest.json `
+  --sql-connection-string "<Azure SQL connection string>" `
+  --azure-blob-connection-string "<Azure Storage connection string>" `
+  --public-base-url "https://stboardgameclubprod.blob.core.windows.net/images" `
+  --dry-run
+```
+
+If the dry run maps the expected rows, rerun the importer without `--dry-run`.
+
 ## Manual Deploy
 
 To create a local Release publish:
