@@ -1,22 +1,22 @@
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
 
 namespace Board_Game_Software.Pages.GameNight
 {
     public class AddPlayersModel : PageModel
     {
         private readonly BoardGameDbContext _db;
-        private readonly ICurrentClubService _currentClubService;
+        private readonly IMongoCollection<BoardGameImages> _imagesCollection;
 
-        public AddPlayersModel(
-            BoardGameDbContext db,
-            ICurrentClubService currentClubService)
+        public AddPlayersModel(BoardGameDbContext db, IMongoClient mongoClient, IConfiguration configuration)
         {
             _db = db;
-            _currentClubService = currentClubService;
+            var databaseName = configuration["MongoDbSettings:Database"];
+            var database = mongoClient.GetDatabase(databaseName);
+            _imagesCollection = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public List<PlayerRow> AllPlayers { get; set; } = new();
@@ -26,10 +26,6 @@ namespace Board_Game_Software.Pages.GameNight
 
         public async Task<IActionResult> OnGetAsync(long id, string? returnUrl)
         {
-            var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id);
-            if (night == null) return NotFound();
-            if (!await CanAccessNightAsync(night)) return Forbid();
-
             Input.NightId = id;
             Input.ReturnUrl = returnUrl;
 
@@ -47,24 +43,10 @@ namespace Board_Game_Software.Pages.GameNight
                 return Redirect(Input.ReturnUrl ?? fallbackUrl);
             }
 
-            var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == Input.NightId);
-            if (night == null) return NotFound();
-            if (!await CanAccessNightAsync(night)) return Forbid();
-
-            var validPlayerIds = await GetAvailablePlayerQuery(night)
-                .Where(p => Input.SelectedPlayerIds.Contains(p.Id))
-                .Select(p => p.Id)
-                .ToListAsync();
-
-            if (!validPlayerIds.Any())
-            {
-                return Redirect(Input.ReturnUrl ?? fallbackUrl);
-            }
-
             var now = DateTime.UtcNow;
             var userName = User?.Identity?.Name ?? "system";
 
-            var links = validPlayerIds.Distinct().Select(pid => new BoardGameNightPlayer
+            var links = Input.SelectedPlayerIds.Distinct().Select(pid => new BoardGameNightPlayer
             {
                 Gid = Guid.NewGuid(),
                 Inactive = false,
@@ -84,54 +66,40 @@ namespace Board_Game_Software.Pages.GameNight
 
         private async Task LoadPlayersAsync()
         {
-            var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == Input.NightId);
-            if (night == null)
-            {
-                AllPlayers = new List<PlayerRow>();
-                return;
-            }
-
             // Get IDs already in this night to exclude them
             var existingIds = await _db.Set<BoardGameNightPlayer>()
                 .Where(x => x.FkBgdBoardGameNight == Input.NightId && !x.Inactive)
                 .Select(x => x.FkBgdPlayer)
                 .ToListAsync();
 
-            var players = await GetAvailablePlayerQuery(night)
+            var players = await _db.Set<Player>()
                 .Where(p => !p.Inactive && !existingIds.Contains(p.Id))
                 .OrderBy(p => p.FirstName)
                 .ToListAsync();
 
+            // Pattern: Use .ToString() for MongoDB comparison
+            var gidStrings = players.Select(x => x.Gid.ToString()).ToList();
+
+            var imageDocs = await _imagesCollection.Find(img =>
+                img.SQLTable == "bgd.Player" &&
+                img.GID.HasValue &&
+                gidStrings.Contains(img.GID.Value.ToString()))
+                .ToListAsync();
+
             AllPlayers = players.Select(p =>
             {
+                var playerGidStr = p.Gid.ToString();
+                var imgDoc = imageDocs.FirstOrDefault(x => x.GID.HasValue && x.GID.Value.ToString() == playerGidStr);
+
                 return new PlayerRow
                 {
                     PlayerId = p.Id,
                     Name = $"{p.FirstName} {p.LastName}".Trim(),
-                    AvatarBase64 = $"/media/player/{p.Gid}"
+                    AvatarBase64 = imgDoc?.ImageBytes != null
+                        ? $"data:image/png;base64,{Convert.ToBase64String(imgDoc.ImageBytes)}"
+                        : null
                 };
             }).ToList();
-        }
-
-        private IQueryable<Player> GetAvailablePlayerQuery(BoardGameNight night)
-        {
-            var query = _db.Set<Player>().AsNoTracking().Where(p => !p.Inactive);
-
-            if (night.FkBgdClub.HasValue)
-            {
-                var clubId = night.FkBgdClub.Value;
-                query = query.Where(p => p.PlayerClubs.Any(pc => !pc.Inactive && pc.FkBgdClub == clubId));
-            }
-
-            return query;
-        }
-
-        private async Task<bool> CanAccessNightAsync(BoardGameNight night)
-        {
-            if (User.IsInRole("Admin")) return true;
-
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            return night.FkBgdClub.HasValue && night.FkBgdClub == currentClub.CurrentClubId;
         }
 
         public class AddInput

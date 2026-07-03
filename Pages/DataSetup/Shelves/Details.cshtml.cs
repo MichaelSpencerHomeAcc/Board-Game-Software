@@ -1,6 +1,5 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -10,12 +9,10 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
     public class DetailsModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly ICurrentClubService _currentClubService;
 
-        public DetailsModel(BoardGameDbContext context, ICurrentClubService currentClubService)
+        public DetailsModel(BoardGameDbContext context)
         {
             _context = context;
-            _currentClubService = currentClubService;
         }
 
         public Shelf Shelf { get; set; } = default!;
@@ -28,14 +25,12 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
         public async Task<IActionResult> OnGetAsync(long? id)
         {
             if (id == null) return NotFound();
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            if (!currentClub.CurrentClubId.HasValue) return Forbid();
 
             var shelf = await _context.Shelves
                 .Include(s => s.ShelfSections)
                     .ThenInclude(ss => ss.BoardGameShelfSections)
                         .ThenInclude(bgss => bgss.FkBgdBoardGameNavigation)
-                .FirstOrDefaultAsync(m => m.Id == id && m.FkBgdClub == currentClub.CurrentClubId.Value);
+                .FirstOrDefaultAsync(m => m.Id == id);
 
             if (shelf == null) return NotFound();
 
@@ -74,13 +69,9 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves
 
         public async Task<IActionResult> OnPostDeleteSectionAsync(long sectionId)
         {
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            if (!currentClub.CurrentClubId.HasValue) return Forbid();
-
             var section = await _context.ShelfSections
-                .Include(ss => ss.FkBgdShelfNavigation)
                 .Include(ss => ss.BoardGameShelfSections)
-                .FirstOrDefaultAsync(ss => ss.Id == sectionId && ss.FkBgdShelfNavigation.FkBgdClub == currentClub.CurrentClubId.Value);
+                .FirstOrDefaultAsync(ss => ss.Id == sectionId);
 
             if (section == null) return NotFound();
 

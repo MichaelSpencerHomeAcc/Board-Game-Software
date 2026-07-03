@@ -138,10 +138,7 @@
                             <div class="avatar-circle" style="background-color: @(string.IsNullOrEmpty(p.AvatarBase64) ? GetAvatarColor(p.Name) : "transparent");">
                                 @if (!string.IsNullOrEmpty(p.AvatarBase64))
                                 {
-                                    <img src="@p.AvatarBase64"
-                                         alt="@p.Name"
-                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline'; this.parentElement.style.backgroundColor='@GetAvatarColor(p.Name)';" />
-                                    <span style="display: none;">@GetInitials(p.Name)</span>
+                                    <img src="@p.AvatarBase64" alt="@p.Name" />
                                 }
                                 else
                                 {

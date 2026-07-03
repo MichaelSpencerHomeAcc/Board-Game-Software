@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
 using MongoDB.Driver;
 using Microsoft.Extensions.Configuration;
 
@@ -17,12 +16,10 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
     {
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _boardGameImages;
-        private readonly ICurrentClubService _currentClubService;
 
-        public DetailsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
+        public DetailsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
         {
             _context = context;
-            _currentClubService = currentClubService;
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -40,14 +37,12 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
         public async Task<IActionResult> OnGetAsync(long? id)
         {
             if (id == null) return NotFound();
-            var club = await _currentClubService.GetCurrentClubAsync();
 
             // 1. Fetch Main Marker Type
             var boardgamemarkertype = await _context.BoardGameMarkerTypes
                 .Include(b => b.FkBgdMarkerAdditionalTypeNavigation)
                 .Include(b => b.FkBgdMarkerAlignmentTypeNavigation)
-                .FirstOrDefaultAsync(m => m.Id == id
-                    && (club.IsPlatformAdminMode || m.FkBgdClub == null || m.FkBgdClub == club.CurrentClubId));
+                .FirstOrDefaultAsync(m => m.Id == id);
 
             if (boardgamemarkertype == null) return NotFound();
             BoardGameMarkerType = boardgamemarkertype;
@@ -55,14 +50,7 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
             // 2. Fetch Associated Markers AND the Linked Board Game
             BoardGameMarkers = await _context.BoardGameMarkers
                 .Include(m => m.FkBgdBoardGameNavigation) // <--- Crucial: Load the Game info
-                .Where(m => !m.Inactive
-                    && m.FkBgdBoardGameMarkerType == id
-                    && m.FkBgdBoardGameNavigation != null
-                    && !m.FkBgdBoardGameNavigation.Inactive
-                    && (club.IsPlatformAdminMode
-                        ? m.FkBgdBoardGameNavigation.FkBgdClub == null
-                        : m.FkBgdBoardGameNavigation.FkBgdClub == club.CurrentClubId))
-                .OrderBy(m => m.FkBgdBoardGameNavigation!.BoardGameName)
+                .Where(m => m.FkBgdBoardGameMarkerType == id)
                 .ToListAsync();
 
             // 3. Fetch Main Image (Marker Type)

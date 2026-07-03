@@ -24,7 +24,6 @@ builder.Services.AddDbContext<BoardGameDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddDefaultIdentity<IdentityUser>(options =>
     options.SignIn.RequireConfirmedAccount = true)
@@ -82,8 +81,6 @@ builder.Services.AddScoped<BoardGamePlayabilityService>();
 builder.Services.AddScoped<AchievementService>();
 
 builder.Services.AddScoped<GameNightService>();
-builder.Services.AddScoped<ICurrentClubService, CurrentClubService>();
-builder.Services.AddSingleton<IBlobMediaStore, LocalBlobMediaStore>();
 
 var app = builder.Build();
 

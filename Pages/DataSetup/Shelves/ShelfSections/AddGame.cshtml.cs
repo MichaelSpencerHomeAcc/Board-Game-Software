@@ -1,6 +1,5 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -11,12 +10,10 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
     public class AddGameModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly ICurrentClubService _currentClubService;
 
-        public AddGameModel(BoardGameDbContext context, ICurrentClubService currentClubService)
+        public AddGameModel(BoardGameDbContext context)
         {
             _context = context;
-            _currentClubService = currentClubService;
         }
 
         public ShelfSection ShelfSection { get; set; } = default!;
@@ -30,15 +27,11 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 
         public async Task<IActionResult> OnGetAsync(long id)
         {
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            if (!currentClub.CurrentClubId.HasValue) return Forbid();
-            var currentClubId = currentClub.CurrentClubId.Value;
-
             var shelfSection = await _context.ShelfSections
                 .Include(s => s.FkBgdShelfNavigation)
                 .Include(s => s.BoardGameShelfSections)
                     .ThenInclude(bgss => bgss.FkBgdBoardGameNavigation)
-                .FirstOrDefaultAsync(m => m.Id == id && m.FkBgdShelfNavigation.FkBgdClub == currentClubId);
+                .FirstOrDefaultAsync(m => m.Id == id);
 
             if (shelfSection == null) return NotFound();
 
@@ -53,7 +46,6 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
             var assignedLinks = await _context.BoardGameShelfSections
                 .Include(bgss => bgss.FkBgdShelfSectionNavigation)
                     .ThenInclude(ss => ss.FkBgdShelfNavigation)
-                .Where(bgss => bgss.FkBgdShelfSectionNavigation.FkBgdShelfNavigation.FkBgdClub == currentClubId)
                 .ToListAsync();
 
             OccupiedGames = assignedLinks
@@ -67,10 +59,7 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
                 );
 
             // 3. Load games and widths
-            var allGames = await _context.BoardGames
-                .Where(bg => !bg.Inactive && bg.FkBgdClub == currentClubId)
-                .OrderBy(bg => bg.BoardGameName)
-                .ToListAsync();
+            var allGames = await _context.BoardGames.OrderBy(bg => bg.BoardGameName).ToListAsync();
             AvailableGames = allGames.Select(bg => new SelectListItem
             {
                 Value = bg.Id.ToString(),
@@ -91,17 +80,13 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
         public async Task<IActionResult> OnPostAsync(long id)
         {
             if (SelectedGameId == 0) return await OnGetAsync(id);
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            if (!currentClub.CurrentClubId.HasValue) return Forbid();
-            var currentClubId = currentClub.CurrentClubId.Value;
 
             var section = await _context.ShelfSections
-                .Include(s => s.FkBgdShelfNavigation)
                 .Include(s => s.BoardGameShelfSections)
                     .ThenInclude(bgss => bgss.FkBgdBoardGameNavigation)
-                .FirstOrDefaultAsync(s => s.Id == id && s.FkBgdShelfNavigation.FkBgdClub == currentClubId);
+                .FirstOrDefaultAsync(s => s.Id == id);
 
-            var gameToMove = await _context.BoardGames.FirstOrDefaultAsync(bg => bg.Id == SelectedGameId && bg.FkBgdClub == currentClubId);
+            var gameToMove = await _context.BoardGames.FirstOrDefaultAsync(bg => bg.Id == SelectedGameId);
 
             if (section == null || gameToMove == null) return NotFound();
 
@@ -127,11 +112,7 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
             }
 
             // Remove existing link if moving from another shelf
-            var existingLink = await _context.BoardGameShelfSections
-                .Include(x => x.FkBgdShelfSectionNavigation)
-                    .ThenInclude(ss => ss.FkBgdShelfNavigation)
-                .FirstOrDefaultAsync(x => x.FkBgdBoardGame == SelectedGameId
-                    && x.FkBgdShelfSectionNavigation.FkBgdShelfNavigation.FkBgdClub == currentClubId);
+            var existingLink = await _context.BoardGameShelfSections.FirstOrDefaultAsync(x => x.FkBgdBoardGame == SelectedGameId);
             if (existingLink != null) _context.BoardGameShelfSections.Remove(existingLink);
 
             try

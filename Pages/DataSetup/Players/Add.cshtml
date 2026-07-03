@@ -69,16 +69,6 @@
                                         </div>
                                         <span asp-validation-for="Player.DateOfBirth" class="text-danger small"></span>
                                     </div>
-                                    <div class="col-md-12 mb-4">
-                                        <label asp-for="SelectedClubIds" class="form-label small fw-bold text-muted text-uppercase">Clubs</label>
-                                        <div class="input-group shadow-sm">
-                                            <span class="input-group-text bg-body-tertiary border-0"><i class="bi bi-buildings"></i></span>
-                                            <select asp-for="SelectedClubIds" asp-items="Model.ClubOptions" class="form-select bg-body-tertiary border-0" multiple size="4">
-                                            </select>
-                                        </div>
-                                        <small class="text-muted">Hold Ctrl to choose more than one club.</small>
-                                        <span asp-validation-for="SelectedClubIds" class="text-danger small"></span>
-                                    </div>
                                 </div>
 
                                 <div class="d-flex gap-2 justify-content-end mt-2">

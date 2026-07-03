@@ -1,5 +1,4 @@
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -11,12 +10,10 @@ namespace Board_Game_Software.Pages.Match
     public class CreateMatchModel : PageModel
     {
         private readonly BoardGameDbContext _db;
-        private readonly ICurrentClubService _currentClubService;
 
-        public CreateMatchModel(BoardGameDbContext db, ICurrentClubService currentClubService)
+        public CreateMatchModel(BoardGameDbContext db)
         {
             _db = db;
-            _currentClubService = currentClubService;
         }
 
         public DateOnly? NightDate { get; private set; }
@@ -65,7 +62,6 @@ namespace Board_Game_Software.Pages.Match
         {
             var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == nightId);
             if (night == null) return NotFound();
-            if (!await CanAccessNightAsync(night)) return Forbid();
 
             NightDate = night.GameNightDate;
             Input.NightId = nightId;
@@ -76,20 +72,12 @@ namespace Board_Game_Software.Pages.Match
                 .Where(link => !link.Inactive)
                 .Select(link => link.FkBgdExpansionBoardGame);
 
-            var gamesQuery = _db.BoardGames.AsNoTracking()
+            var games = await _db.BoardGames.AsNoTracking()
                 .Include(g => g.BoardGameExpansionBaseGames)
                     .ThenInclude(link => link.FkBgdExpansionBoardGameNavigation)
                 .Where(g => !g.Inactive
                     && !g.IsExpansion
-                    && !linkedExpansionIds.Contains(g.Id));
-
-            if (night.FkBgdClub.HasValue)
-            {
-                var nightClubId = night.FkBgdClub.Value;
-                gamesQuery = gamesQuery.Where(g => g.FkBgdClub == nightClubId);
-            }
-
-            var games = await gamesQuery
+                    && !linkedExpansionIds.Contains(g.Id))
                 .OrderBy(g => g.BoardGameName)
                 .ToListAsync();
 
@@ -171,10 +159,6 @@ namespace Board_Game_Software.Pages.Match
                 ? new List<PlayerMarkerInput>()
                 : (JsonSerializer.Deserialize<List<PlayerMarkerInput>>(Input.PlayerMarkersJson) ?? new List<PlayerMarkerInput>());
 
-            var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == Input.NightId);
-            if (night == null) return NotFound();
-            if (!await CanAccessNightAsync(night)) return Forbid();
-
             var now = DateTime.UtcNow;
             var who = User.Identity?.Name ?? "system";
 
@@ -182,30 +166,6 @@ namespace Board_Game_Software.Pages.Match
             var game = await _db.BoardGames
                 .Include(g => g.FkBgdBoardGameVictoryConditionTypeNavigation)
                 .FirstOrDefaultAsync(g => g.Id == Input.BoardGameId);
-
-            if (game == null || game.Inactive || (night.FkBgdClub.HasValue && game.FkBgdClub != night.FkBgdClub.Value))
-            {
-                ModelState.AddModelError(nameof(Input.BoardGameId), "Choose a game from this club's library.");
-                await OnGetAsync(Input.NightId, Input.ReturnUrl);
-                return Page();
-            }
-
-            var validNightPlayerIds = await _db.BoardGameNightPlayers.AsNoTracking()
-                .Where(np => np.FkBgdBoardGameNight == Input.NightId && !np.Inactive)
-                .Select(np => np.FkBgdPlayer)
-                .ToListAsync();
-
-            Input.SelectedPlayerIds = Input.SelectedPlayerIds
-                .Distinct()
-                .Where(validNightPlayerIds.Contains)
-                .ToList();
-
-            if (!Input.SelectedPlayerIds.Any())
-            {
-                ModelState.AddModelError(nameof(Input.SelectedPlayerIds), "Select at least one player from this game night.");
-                await OnGetAsync(Input.NightId, Input.ReturnUrl);
-                return Page();
-            }
 
             long defaultResultId = 2; // Solo Loss
             if (game?.FkBgdBoardGameVictoryConditionTypeNavigation?.TypeDesc == "Team Victory")
@@ -353,14 +313,6 @@ namespace Board_Game_Software.Pages.Match
 
             expansionIds.Insert(0, gameId);
             return expansionIds;
-        }
-
-        private async Task<bool> CanAccessNightAsync(BoardGameNight night)
-        {
-            if (User.IsInRole("Admin")) return true;
-
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            return night.FkBgdClub.HasValue && night.FkBgdClub == currentClub.CurrentClubId;
         }
     }
 }

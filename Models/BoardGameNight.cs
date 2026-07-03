@@ -28,10 +28,6 @@ public partial class BoardGameNight
 
     public bool Finished { get; set; }
 
-    public long? FkBgdClub { get; set; }
-
-    public virtual Club? FkBgdClubNavigation { get; set; }
-
     public virtual ICollection<BoardGameNightBoardGameMatch> BoardGameNightBoardGameMatches { get; set; } = new List<BoardGameNightBoardGameMatch>();
 
     public virtual ICollection<BoardGameNightPlayer> BoardGameNightPlayers { get; set; } = new List<BoardGameNightPlayer>();

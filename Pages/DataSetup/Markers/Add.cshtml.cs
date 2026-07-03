@@ -1,6 +1,5 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -16,7 +15,6 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
     {
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _images;
-        private readonly ICurrentClubService _currentClubService;
 
         [BindProperty]
         public BoardGameMarkerType MarkerType { get; set; } = new();
@@ -27,10 +25,9 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
         public SelectList AlignmentTypes { get; set; } = null!;
 
-        public AddModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
+        public AddModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
         {
             _context = context;
-            _currentClubService = currentClubService;
 
             var dbName = configuration["MongoDbSettings:Database"];
             _images = mongoClient.GetDatabase(dbName).GetCollection<BoardGameImages>("BoardGameImages");
@@ -58,12 +55,9 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
 
             var actor = User.Identity?.Name ?? "system";
             var now = DateTime.UtcNow;
-            var clubId = await GetCurrentDataClubIdAsync();
 
             var existingMarkerType = await _context.BoardGameMarkerTypes
-                .Where(t => t.TypeDesc == MarkerType.TypeDesc && (t.FkBgdClub == null || t.FkBgdClub == clubId))
-                .OrderByDescending(t => t.FkBgdClub == clubId)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(t => t.TypeDesc == MarkerType.TypeDesc);
 
             if (existingMarkerType == null)
             {
@@ -73,7 +67,6 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
                 MarkerType.TimeModified = now;
                 MarkerType.Gid = Guid.NewGuid();
                 MarkerType.Inactive = false;
-                MarkerType.FkBgdClub = clubId;
 
                 _context.BoardGameMarkerTypes.Add(MarkerType);
                 await _context.SaveChangesAsync(); // ensure MarkerType has its final Gid/Id
@@ -133,12 +126,6 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
                 .ToListAsync();
 
             AlignmentTypes = new SelectList(alignmentTypes, "Id", "TypeDesc", selectedId);
-        }
-
-        private async Task<long?> GetCurrentDataClubIdAsync()
-        {
-            var club = await _currentClubService.GetCurrentClubAsync();
-            return club.HasClub && !club.IsPlatformAdminMode ? club.CurrentClubId : null;
         }
     }
 }

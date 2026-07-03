@@ -1,40 +1,42 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
+using Microsoft.Extensions.Configuration;
 
 namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
 {
     public class DetailsModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly ICurrentClubService _currentClubService;
+        private readonly IMongoCollection<BoardGameImages> _boardGameImages;
 
-        public DetailsModel(
-            BoardGameDbContext context,
-            ICurrentClubService currentClubService)
+        public DetailsModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
         {
             _context = context;
-            _currentClubService = currentClubService;
+            var databaseName = configuration["MongoDbSettings:Database"];
+            var database = mongoClient.GetDatabase(databaseName);
+            _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
         }
 
         public ShelfSection ShelfSection { get; set; } = default!;
         public decimal RemainingWidth { get; set; }
         public double PercentFull { get; set; }
 
+        // Dictionary to store the Front Images for the games in this section
+        public Dictionary<long, string> GameImages { get; set; } = new();
+
         public async Task<IActionResult> OnGetAsync(long? id)
         {
             if (id == null) return NotFound();
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            if (!currentClub.CurrentClubId.HasValue) return Forbid();
 
             var shelfSection = await _context.ShelfSections
                 .Include(s => s.FkBgdShelfNavigation)
                 .Include(s => s.BoardGameShelfSections)
                     .ThenInclude(bgss => bgss.FkBgdBoardGameNavigation)
-                .FirstOrDefaultAsync(m => m.Id == id && m.FkBgdShelfNavigation.FkBgdClub == currentClub.CurrentClubId.Value);
+                .FirstOrDefaultAsync(m => m.Id == id);
 
             if (shelfSection == null) return NotFound();
 
@@ -48,19 +50,44 @@ namespace Board_Game_Software.Pages.DataSetup.Shelves.ShelfSections
             RemainingWidth = ShelfSection.WidthCm - usedWidth;
             PercentFull = ShelfSection.WidthCm > 0 ? (double)((usedWidth / ShelfSection.WidthCm) * 100) : 0;
 
+            // 2. Fetch Images from MongoDB
+            var frontImageType = await _context.BoardGameImageTypes
+                .FirstOrDefaultAsync(bgit => bgit.TypeDesc == "Board Game Front");
+
+            if (frontImageType != null && ShelfSection.BoardGameShelfSections.Any())
+            {
+                var gameGids = ShelfSection.BoardGameShelfSections
+                    .Select(bgss => bgss.FkBgdBoardGameNavigation?.Gid)
+                    .Where(gid => gid.HasValue && gid != Guid.Empty)
+                    .ToList();
+
+                var filter = Builders<BoardGameImages>.Filter.And(
+                    Builders<BoardGameImages>.Filter.In(img => img.GID, gameGids),
+                    Builders<BoardGameImages>.Filter.Eq(img => img.ImageTypeGID, frontImageType.Gid)
+                );
+
+                var images = await _boardGameImages.Find(filter).ToListAsync();
+
+                foreach (var bgss in ShelfSection.BoardGameShelfSections)
+                {
+                    var game = bgss.FkBgdBoardGameNavigation;
+                    if (game != null)
+                    {
+                        var img = images.FirstOrDefault(i => i.GID == game.Gid);
+                        if (img?.ImageBytes != null)
+                        {
+                            GameImages[game.Id] = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
+                        }
+                    }
+                }
+            }
+
             return Page();
         }
         public async Task<IActionResult> OnPostRemoveGameAsync(long sectionId, long gameId)
         {
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            if (!currentClub.CurrentClubId.HasValue) return Forbid();
-
             var link = await _context.BoardGameShelfSections
-                .Include(x => x.FkBgdShelfSectionNavigation)
-                    .ThenInclude(ss => ss.FkBgdShelfNavigation)
-                .FirstOrDefaultAsync(x => x.FkBgdShelfSection == sectionId
-                    && x.FkBgdBoardGame == gameId
-                    && x.FkBgdShelfSectionNavigation.FkBgdShelfNavigation.FkBgdClub == currentClub.CurrentClubId.Value);
+                .FirstOrDefaultAsync(x => x.FkBgdShelfSection == sectionId && x.FkBgdBoardGame == gameId);
 
             if (link != null)
             {

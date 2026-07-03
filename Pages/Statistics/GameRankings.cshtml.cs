@@ -1,5 +1,4 @@
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -10,12 +9,10 @@ namespace Board_Game_Software.Pages.Statistics
     public class GameRankingsModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly ICurrentClubService _currentClubService;
 
-        public GameRankingsModel(BoardGameDbContext context, ICurrentClubService currentClubService)
+        public GameRankingsModel(BoardGameDbContext context)
         {
             _context = context;
-            _currentClubService = currentClubService;
         }
 
         public List<RankEntry> Leaderboard { get; private set; } = new();
@@ -28,10 +25,7 @@ namespace Board_Game_Software.Pages.Statistics
 
         public async Task OnGetAsync(long? id)
         {
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            var scopedGamesQuery = ApplyClubScope(_context.BoardGames.AsNoTracking(), currentClub);
-
-            var games = await scopedGamesQuery
+            var games = await _context.BoardGames.AsNoTracking()
                 .Where(bg => !bg.Inactive && bg.FkBgdBoardGameVictoryConditionTypeNavigation!.Points == true)
                 .OrderBy(bg => bg.BoardGameName)
                 .Select(bg => new { bg.Id, bg.BoardGameName })
@@ -44,15 +38,9 @@ namespace Board_Game_Software.Pages.Statistics
 
             SelectedGameId = targetId;
 
-            Game = await scopedGamesQuery
+            Game = await _context.BoardGames.AsNoTracking()
                 .Include(bg => bg.FkBgdPublisherNavigation)
                 .FirstOrDefaultAsync(bg => bg.Id == targetId.Value) ?? new BoardGame();
-
-            if (Game.Id == 0)
-            {
-                SelectedGameId = null;
-                return;
-            }
 
             var resultRows = await _context.BoardGameMatchPlayerResults.AsNoTracking()
                 .Where(r =>
@@ -103,22 +91,6 @@ namespace Board_Game_Software.Pages.Statistics
                 AverageScore = resultRows.Any() ? resultRows.Average(r => r.Score) : 0,
                 LastPlayed = resultRows.OrderByDescending(r => r.MatchDate).Select(r => r.MatchDate).FirstOrDefault()
             };
-        }
-
-        private IQueryable<BoardGame> ApplyClubScope(IQueryable<BoardGame> query, CurrentClubContext currentClub)
-        {
-            if (User.IsInRole("Admin") && currentClub.IsPlatformAdminMode)
-            {
-                return query.Where(bg => bg.FkBgdClub == null);
-            }
-
-            if (currentClub.CurrentClubId.HasValue)
-            {
-                var currentClubId = currentClub.CurrentClubId.Value;
-                return query.Where(bg => bg.FkBgdClub == currentClubId);
-            }
-
-            return query.Where(bg => false);
         }
 
         public sealed class RankingSummary

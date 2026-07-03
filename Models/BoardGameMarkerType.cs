@@ -26,8 +26,6 @@ public partial class BoardGameMarkerType
 
     public string TypeDesc { get; set; } = null!;
 
-    public long? FkBgdClub { get; set; }
-
     public int? CustomSort { get; set; }
 
     public long? FkBgdMarkerAlignmentType { get; set; }
@@ -39,8 +37,6 @@ public partial class BoardGameMarkerType
     public virtual MarkerAdditionalType? FkBgdMarkerAdditionalTypeNavigation { get; set; }
 
     public virtual ICollection<BoardGameMarker> BoardGameMarkers { get; set; } = new List<BoardGameMarker>();
-
-    public virtual Club? FkBgdClubNavigation { get; set; }
 
     public virtual MarkerAlignmentType? FkBgdMarkerAlignmentTypeNavigation { get; set; }
 

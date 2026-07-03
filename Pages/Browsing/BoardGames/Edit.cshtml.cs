@@ -1,7 +1,5 @@
 using Board_Game_Software.Data;
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -15,17 +13,14 @@ using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
-    [Authorize(Roles = "Admin")]
     public class EditModel : PageModel
     {
         private readonly BoardGameDbContext _context;
         private readonly IMongoCollection<BoardGameImages> _boardGameImages;
-        private readonly ICurrentClubService _currentClubService;
 
-        public EditModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration, ICurrentClubService currentClubService)
+        public EditModel(BoardGameDbContext context, IMongoClient mongoClient, IConfiguration configuration)
         {
             _context = context;
-            _currentClubService = currentClubService;
             var databaseName = configuration["MongoDbSettings:Database"];
             var database = mongoClient.GetDatabase(databaseName);
             _boardGameImages = database.GetCollection<BoardGameImages>("BoardGameImages");
@@ -66,8 +61,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .FirstOrDefaultAsync(m => m.Id == id);
 
             if (boardGame == null) return NotFound();
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            if (!CanManageGame(boardGame, currentClub)) return NotFound();
 
             BoardGame = boardGame;
 
@@ -86,8 +79,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .FirstOrDefaultAsync(x => x.Id == id);
 
             if (gameToUpdate == null) return NotFound();
-            var currentClub = await _currentClubService.GetCurrentClubAsync();
-            if (!CanManageGame(gameToUpdate, currentClub)) return NotFound();
 
             var existingMarkers = await _context.BoardGameMarkers
                 .Where(m => m.FkBgdBoardGame == id)
@@ -154,12 +145,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 var desiredTypeIds = (MarkerTypeIds ?? new List<long>())
                     .Distinct()
                     .ToHashSet();
-                var allowedTypeIds = (await _context.BoardGameMarkerTypes
-                    .Where(t => !t.Inactive && (t.FkBgdClub == null || t.FkBgdClub == gameToUpdate.FkBgdClub))
-                    .Select(t => t.Id)
-                    .ToListAsync())
-                    .ToHashSet();
-                desiredTypeIds.IntersectWith(allowedTypeIds);
 
                 if (!gameToUpdate.HasMarkers)
                 {
@@ -359,16 +344,14 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
         private async Task LoadSelectLists()
         {
-            var catalogClubId = BoardGame?.FkBgdClub ?? await GetCurrentCatalogClubIdAsync();
             BoardGameTypes = new SelectList(await _context.BoardGameTypes.AsNoTracking().Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
             VictoryConditions = new SelectList(await _context.BoardGameVictoryConditionTypes.AsNoTracking().Where(t => !t.Inactive).OrderBy(t => t.TypeDesc).ToListAsync(), "Id", "TypeDesc");
-            Publishers = new SelectList(await _context.Publishers.AsNoTracking().Where(p => !p.Inactive && (p.FkBgdClub == null || p.FkBgdClub == catalogClubId)).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
+            Publishers = new SelectList(await _context.Publishers.AsNoTracking().Where(p => !p.Inactive).OrderBy(p => p.PublisherName).ToListAsync(), "Id", "PublisherName");
             EloMethods = new SelectList(await _context.EloMethods.AsNoTracking().Where(e => !e.Inactive).OrderBy(e => e.MethodName).ToListAsync(), "Id", "MethodName");
         }
 
         private async Task LoadExpansionBaseGames(long id)
         {
-            var catalogClubId = BoardGame?.FkBgdClub ?? await GetCurrentCatalogClubIdAsync();
             var linkedExpansionIds = _context.BoardGameExpansions
                 .Where(link => !link.Inactive)
                 .Select(link => link.FkBgdExpansionBoardGame);
@@ -384,7 +367,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                     .AsNoTracking()
                     .Where(bg => !bg.Inactive
                         && !bg.IsExpansion
-                        && bg.FkBgdClub == catalogClubId
                         && bg.Id != id
                         && !linkedExpansionIds.Contains(bg.Id))
                     .OrderBy(bg => bg.BoardGameName)
@@ -399,11 +381,10 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         {
             AvailableMarkerTypes.Clear();
             var existingIds = ExistingMarkers.Where(m => !m.Inactive).Select(m => m.FkBgdBoardGameMarkerType).ToHashSet();
-            var catalogClubId = BoardGame?.FkBgdClub ?? await GetCurrentCatalogClubIdAsync();
 
             var types = await _context.BoardGameMarkerTypes
                 .AsNoTracking()
-                .Where(t => !t.Inactive && !existingIds.Contains(t.Id) && (t.FkBgdClub == null || t.FkBgdClub == catalogClubId))
+                .Where(t => !t.Inactive && !existingIds.Contains(t.Id))
                 .OrderBy(t => t.TypeDesc)
                 .ToListAsync();
 
@@ -445,23 +426,6 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
                 if (img?.ImageBytes != null) CurrentImageUrl = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.ImageBytes)}";
             }
-        }
-
-        private async Task<long?> GetCurrentCatalogClubIdAsync()
-        {
-            var club = await _currentClubService.GetCurrentClubAsync();
-            return club.HasClub && !club.IsPlatformAdminMode ? club.CurrentClubId : null;
-        }
-
-        private bool CanManageGame(BoardGame boardGame, CurrentClubContext currentClub)
-        {
-            if (currentClub.IsPlatformAdminMode)
-            {
-                return boardGame.FkBgdClub == null;
-            }
-
-            return currentClub.CurrentClubId.HasValue
-                && boardGame.FkBgdClub == currentClub.CurrentClubId.Value;
         }
     }
 

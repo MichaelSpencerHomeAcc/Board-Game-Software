@@ -177,12 +177,7 @@
                     <div class="avatar-container">
                         @if (!string.IsNullOrEmpty(Model.BoardGameFrontImageUrl))
                         {
-                            <img src="@Model.BoardGameFrontImageUrl"
-                                 alt="@Model.BoardGame.BoardGameName cover"
-                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                            <div class="avatar-large-text" style="display: none; background-color: @Model.GetAvatarColor(Model.BoardGame.BoardGameName);">
-                                @Model.GetInitials(Model.BoardGame.BoardGameName)
-                            </div>
+                            <img src="@Model.BoardGameFrontImageUrl" alt="Cover" />
                         }
                         else
                         {

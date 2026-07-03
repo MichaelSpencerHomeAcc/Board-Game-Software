@@ -1,5 +1,4 @@
 using Board_Game_Software.Models;
-using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -12,12 +11,10 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
     public class IndexModel : PageModel
     {
         private readonly BoardGameDbContext _context;
-        private readonly ICurrentClubService _currentClubService;
 
-        public IndexModel(BoardGameDbContext context, ICurrentClubService currentClubService)
+        public IndexModel(BoardGameDbContext context)
         {
             _context = context;
-            _currentClubService = currentClubService;
         }
 
         public sealed class MarkerTypeRow
@@ -27,8 +24,6 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
             public string TypeDesc { get; init; } = string.Empty;
             public string? AlignmentDesc { get; init; }
             public string? AdditionalDesc { get; init; }
-            public string ScopeName { get; init; } = "Global";
-            public bool IsGlobal { get; init; }
         }
 
         public IList<MarkerTypeRow> MarkerTypes { get; private set; } = new List<MarkerTypeRow>();
@@ -49,17 +44,10 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
         {
             SearchTerm = search;
             PageNumber = Math.Max(1, pageNumber);
-            var club = await _currentClubService.GetCurrentClubAsync();
 
             var query = _context.BoardGameMarkerTypes
                 .AsNoTracking()
                 .Where(m => !m.Inactive);
-
-            if (!club.IsPlatformAdminMode)
-            {
-                var clubId = club.CurrentClubId;
-                query = query.Where(m => m.FkBgdClub == null || m.FkBgdClub == clubId);
-            }
 
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
@@ -86,9 +74,7 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
                     Gid = m.Gid,
                     TypeDesc = m.TypeDesc,
                     AlignmentDesc = m.FkBgdMarkerAlignmentTypeNavigation != null ? m.FkBgdMarkerAlignmentTypeNavigation.TypeDesc : null,
-                    AdditionalDesc = m.FkBgdMarkerAdditionalTypeNavigation != null ? m.FkBgdMarkerAdditionalTypeNavigation.TypeDesc : null,
-                    ScopeName = m.FkBgdClubNavigation != null ? m.FkBgdClubNavigation.ClubName : "Global",
-                    IsGlobal = m.FkBgdClub == null
+                    AdditionalDesc = m.FkBgdMarkerAdditionalTypeNavigation != null ? m.FkBgdMarkerAdditionalTypeNavigation.TypeDesc : null
                 })
                 .ToListAsync();
         }
@@ -96,11 +82,7 @@ namespace Board_Game_Software.Pages.DataSetup.BoardGameMarkerTypes
         public async Task<IActionResult> OnPostDeleteAsync(long id)
         {
             // tracked for update
-            var club = await _currentClubService.GetCurrentClubAsync();
-            var markerType = await _context.BoardGameMarkerTypes
-                .FirstOrDefaultAsync(m => m.Id == id
-                    && ((club.IsPlatformAdminMode && m.FkBgdClub == null)
-                        || (!club.IsPlatformAdminMode && m.FkBgdClub == club.CurrentClubId)));
+            var markerType = await _context.BoardGameMarkerTypes.FindAsync(id);
             if (markerType == null) return NotFound();
 
             var linkedCount = await _context.BoardGameMarkers
