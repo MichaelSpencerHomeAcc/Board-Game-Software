@@ -148,21 +148,9 @@ namespace Board_Game_Software.Controllers
                 return NotFound();
             }
 
-            var publicUrl = image.PublicUrl.Trim();
-            if (publicUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-            {
-                publicUrl = $"https://{publicUrl["http://".Length..]}";
-            }
-
-            if (!Uri.TryCreate(publicUrl, UriKind.Absolute, out var parsedUrl)
-                || parsedUrl.Scheme != Uri.UriSchemeHttps)
-            {
-                return NotFound();
-            }
-
             Response.Headers["Cache-Control"] = "public,max-age=604800";
             Response.Headers["X-Media-Source"] = "azure-blob";
-            return Redirect(parsedUrl.ToString());
+            return Redirect(image.PublicUrl);
         }
     }
 }
