@@ -16,13 +16,14 @@ namespace Board_Game_Software.Services
         {
             var rows = await _db.BoardGameMatchPlayerResults
                 .Where(r => !r.Inactive
-                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch == matchId)
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch == matchId
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.HasValue)
                 .Select(r => new
                 {
                     MatchId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch,
                     GameId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame,
                     GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
-                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer,
+                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer!.Value,
                     PlayerName = (r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.FirstName + " " + r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.LastName).Trim(),
                     r.Win,
                     r.RatingChangeMu
@@ -76,12 +77,13 @@ namespace Board_Game_Software.Services
             var wins = await _db.BoardGameMatchPlayerResults.AsNoTracking()
                 .Where(r => !r.Inactive
                     && r.Win
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.HasValue
                     && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.MatchComplete == true
                     && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.BoardGameNightBoardGameMatches
                         .Any(nm => !nm.Inactive && nm.FkBgdBoardGameNight == nightId))
                 .Select(r => new
                 {
-                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer,
+                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer!.Value,
                     Shelves = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameShelfSections
                         .Where(s => !s.Inactive)
                         .Select(s => new { s.FkBgdShelfSectionNavigation.FkBgdShelf, s.FkBgdShelfSectionNavigation.FkBgdShelfNavigation.ShelfName })

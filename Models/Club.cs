@@ -40,6 +40,20 @@ public partial class Club
 
     public decimal? Longitude { get; set; }
 
+    public string ClubType { get; set; } = ClubDefaults.PublicClubType;
+
+    public string Visibility { get; set; } = ClubDefaults.PublicVisibility;
+
+    public bool IsDiscoverable { get; set; } = true;
+
+    public bool AllowJoinRequests { get; set; } = true;
+
+    public string DefaultGameNightVisibility { get; set; } = ClubDefaults.PublicVisibility;
+
+    public string DefaultMatchVisibility { get; set; } = ClubDefaults.PublicVisibility;
+
+    public bool ShowStatsPublicly { get; set; } = true;
+
     public virtual ICollection<ClubMembership> ClubMemberships { get; set; } = new List<ClubMembership>();
 
     public virtual ICollection<PlayerClub> PlayerClubs { get; set; } = new List<PlayerClub>();

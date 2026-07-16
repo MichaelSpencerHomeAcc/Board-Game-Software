@@ -166,16 +166,56 @@
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
         <div class="card card-custom mb-5">
-            <div class="row">
-                <div class="col-md-4 col-lg-3">
-                    <label asp-for="Input.GameNightDate" class="form-label fw-bold text-body-secondary">Event Date</label>
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label asp-for="Input.Title" class="form-label fw-bold text-body-secondary">Title</label>
+                    <input asp-for="Input.Title" class="form-control" placeholder="Friday games, campaign night, intro session..." />
+                    <span asp-validation-for="Input.Title" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Input.Visibility" class="form-label fw-bold text-body-secondary">Visibility</label>
+                    <select asp-for="Input.Visibility" class="form-select">
+                        @foreach (var visibility in Model.VisibilityOptions)
+                        {
+                            <option value="@visibility.Value">@visibility.Label</option>
+                        }
+                    </select>
+                    <span asp-validation-for="Input.Visibility" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <label asp-for="Input.StartsAt" class="form-label fw-bold text-body-secondary">Starts</label>
                     <div class="input-group shadow-sm">
                         <span class="input-group-text bg-body border-end-0 text-muted">
-                            <i class="bi bi-calendar3"></i>
+                            <i class="bi bi-calendar-event"></i>
                         </span>
-                        <input asp-for="Input.GameNightDate" class="form-control border-start-0" type="date" />
+                        <input asp-for="Input.StartsAt" class="form-control border-start-0" type="datetime-local" />
                     </div>
-                    <span asp-validation-for="Input.GameNightDate" class="text-danger small"></span>
+                    <span asp-validation-for="Input.StartsAt" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <label asp-for="Input.EndsAt" class="form-label fw-bold text-body-secondary">Ends</label>
+                    <div class="input-group shadow-sm">
+                        <span class="input-group-text bg-body border-end-0 text-muted">
+                            <i class="bi bi-clock"></i>
+                        </span>
+                        <input asp-for="Input.EndsAt" class="form-control border-start-0" type="datetime-local" />
+                    </div>
+                    <span asp-validation-for="Input.EndsAt" class="text-danger small"></span>
+                </div>
+                <div class="col-lg-6">
+                    <label asp-for="Input.BookingUrl" class="form-label fw-bold text-body-secondary">Booking URL</label>
+                    <div class="input-group shadow-sm">
+                        <span class="input-group-text bg-body border-end-0 text-muted">
+                            <i class="bi bi-link-45deg"></i>
+                        </span>
+                        <input asp-for="Input.BookingUrl" class="form-control border-start-0" placeholder="https://..." />
+                    </div>
+                    <span asp-validation-for="Input.BookingUrl" class="text-danger small"></span>
+                </div>
+                <div class="col-12">
+                    <label asp-for="Input.Description" class="form-label fw-bold text-body-secondary">Description</label>
+                    <textarea asp-for="Input.Description" class="form-control" rows="3" placeholder="What should attendees know?"></textarea>
+                    <span asp-validation-for="Input.Description" class="text-danger small"></span>
                 </div>
             </div>
         </div>

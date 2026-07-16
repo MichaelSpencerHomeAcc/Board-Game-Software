@@ -26,9 +26,27 @@ public partial class BoardGameMatchPlayer
 
     public long FkBgdBoardGameMatch { get; set; }
 
-    public long FkBgdPlayer { get; set; }
+    public long? FkBgdPlayer { get; set; }
+
+    public string? GuestName { get; set; }
+
+    public string? InvitedEmail { get; set; }
 
     public long? FkBgdBoardGameMarker { get; set; }
+
+    public decimal? Score { get; set; }
+
+    public int? Placement { get; set; }
+
+    public bool? Won { get; set; }
+
+    public string? TeamId { get; set; }
+
+    public string? Faction { get; set; }
+
+    public string? CharacterName { get; set; }
+
+    public string? Colour { get; set; }
 
     public virtual ICollection<BoardGameMatchPlayerResult> BoardGameMatchPlayerResults { get; set; } = new List<BoardGameMatchPlayerResult>();
 
@@ -36,5 +54,5 @@ public partial class BoardGameMatchPlayer
 
     public virtual BoardGameMatch FkBgdBoardGameMatchNavigation { get; set; } = null!;
 
-    public virtual Player FkBgdPlayerNavigation { get; set; } = null!;
+    public virtual Player? FkBgdPlayerNavigation { get; set; }
 }

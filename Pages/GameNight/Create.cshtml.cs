@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 
 namespace Board_Game_Software.Pages.GameNight
 {
@@ -21,6 +22,7 @@ namespace Board_Game_Software.Pages.GameNight
         }
 
         public List<PlayerRow> AllPlayers { get; private set; } = new();
+        public List<VisibilityOption> VisibilityOptions { get; private set; } = new();
 
         [BindProperty]
         public CreateInput Input { get; set; } = new();
@@ -32,7 +34,10 @@ namespace Board_Game_Software.Pages.GameNight
                 return Forbid();
             }
 
-            Input.GameNightDate = DateOnly.FromDateTime(DateTime.Today);
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            Input.StartsAt = DateTime.Today.AddHours(19);
+            Input.GameNightDate = DateOnly.FromDateTime(Input.StartsAt);
+            Input.Visibility = await GetDefaultVisibilityAsync(currentClub.CurrentClubId);
             await LoadPlayersAndAvatarsAsync();
             return Page();
         }
@@ -47,6 +52,15 @@ namespace Board_Game_Software.Pages.GameNight
             }
 
             var currentClubId = currentClub.CurrentClubId;
+            Input.GameNightDate = DateOnly.FromDateTime(Input.StartsAt);
+            if (!GameNightDefaults.IsValidVisibility(Input.Visibility))
+            {
+                ModelState.AddModelError(nameof(Input.Visibility), "Choose a valid visibility.");
+            }
+            if (Input.EndsAt.HasValue && Input.EndsAt.Value <= Input.StartsAt)
+            {
+                ModelState.AddModelError(nameof(Input.EndsAt), "End time must be after the start time.");
+            }
             Input.SelectedPlayerIds = await KeepCurrentClubPlayerIdsAsync(Input.SelectedPlayerIds, currentClubId);
 
             if (!ModelState.IsValid)
@@ -63,6 +77,13 @@ namespace Board_Game_Software.Pages.GameNight
                 Gid = Guid.NewGuid(),
                 Inactive = false,
                 GameNightDate = Input.GameNightDate,
+                Title = string.IsNullOrWhiteSpace(Input.Title) ? null : Input.Title.Trim(),
+                Description = string.IsNullOrWhiteSpace(Input.Description) ? null : Input.Description.Trim(),
+                StartsAt = Input.StartsAt,
+                EndsAt = Input.EndsAt,
+                Visibility = Input.Visibility,
+                BookingUrl = string.IsNullOrWhiteSpace(Input.BookingUrl) ? null : Input.BookingUrl.Trim(),
+                CreatedByUserId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier),
                 Finished = false,
                 FkBgdClub = currentClubId,
                 TimeCreated = now,
@@ -101,6 +122,7 @@ namespace Board_Game_Software.Pages.GameNight
         {
             var currentClub = await _currentClubService.GetCurrentClubAsync();
             var currentClubId = currentClub.CurrentClubId;
+            await LoadVisibilityOptionsAsync(currentClubId);
 
             // 1) SQL (no tracking, lightweight projection)
             var query = _db.Set<Player>()
@@ -173,7 +195,31 @@ namespace Board_Game_Software.Pages.GameNight
             [Required]
             public DateOnly GameNightDate { get; set; }
 
+            [StringLength(160)]
+            public string? Title { get; set; }
+
+            [StringLength(1000)]
+            public string? Description { get; set; }
+
+            [Required]
+            public DateTime StartsAt { get; set; }
+
+            public DateTime? EndsAt { get; set; }
+
+            [Required]
+            public string Visibility { get; set; } = GameNightDefaults.MembersOnlyVisibility;
+
+            [StringLength(500)]
+            [Url]
+            public string? BookingUrl { get; set; }
+
             public List<long> SelectedPlayerIds { get; set; } = new();
+        }
+
+        public class VisibilityOption
+        {
+            public string Value { get; init; } = string.Empty;
+            public string Label { get; init; } = string.Empty;
         }
 
         public class PlayerRow
@@ -216,6 +262,48 @@ namespace Board_Game_Software.Pages.GameNight
                 .Select(pc => pc.FkBgdPlayer)
                 .Distinct()
                 .ToListAsync();
+        }
+
+        private async Task LoadVisibilityOptionsAsync(long? currentClubId)
+        {
+            var clubType = await _db.Clubs.AsNoTracking()
+                .Where(c => currentClubId.HasValue && c.Id == currentClubId.Value && !c.Inactive)
+                .Select(c => c.ClubType)
+                .FirstOrDefaultAsync();
+
+            var values = clubType == ClubDefaults.PrivateGroupType
+                ? [GameNightDefaults.PrivateVisibility]
+                : GameNightDefaults.VisibilityLevels;
+
+            VisibilityOptions = values
+                .Select(value => new VisibilityOption
+                {
+                    Value = value,
+                    Label = GameNightDefaults.GetDisplayName(value)
+                })
+                .ToList();
+        }
+
+        private async Task<string> GetDefaultVisibilityAsync(long? currentClubId)
+        {
+            if (!currentClubId.HasValue)
+            {
+                return GameNightDefaults.PrivateVisibility;
+            }
+
+            var club = await _db.Clubs.AsNoTracking()
+                .Where(c => c.Id == currentClubId.Value && !c.Inactive)
+                .Select(c => new { c.ClubType, c.DefaultGameNightVisibility })
+                .FirstOrDefaultAsync();
+
+            if (club?.ClubType == ClubDefaults.PrivateGroupType)
+            {
+                return GameNightDefaults.PrivateVisibility;
+            }
+
+            return GameNightDefaults.IsValidVisibility(club?.DefaultGameNightVisibility)
+                ? club!.DefaultGameNightVisibility
+                : GameNightDefaults.MembersOnlyVisibility;
         }
     }
 }

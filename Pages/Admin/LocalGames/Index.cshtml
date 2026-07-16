@@ -1,0 +1,133 @@
+@page
+@model Board_Game_Software.Pages.Admin.LocalGames.IndexModel
+@using Board_Game_Software.Models
+@{
+    ViewData["Title"] = "Local Game Review";
+}
+
+<style>
+    .review-shell { max-width: 1320px; }
+    .review-panel, .review-card {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 8px;
+        background: var(--bs-body-tertiary);
+    }
+    .game-cover { width: 58px; height: 58px; border-radius: 6px; object-fit: cover; background: var(--bs-secondary-bg); }
+    .review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem; }
+    .meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+    @@media (max-width: 767.98px) {
+        .review-grid { grid-template-columns: 1fr; }
+        .meta-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div class="container-fluid py-4 review-shell">
+    <div class="review-panel p-4 mb-4">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+            <div>
+                <h1 class="fw-bold mb-1">Local Game Review</h1>
+                <div class="text-secondary">Approve, merge, or reject club-added games while keeping match history intact.</div>
+            </div>
+            <form method="get" class="d-flex flex-column flex-md-row gap-2">
+                <input asp-for="Search" class="form-control" placeholder="Search local or shared games..." />
+                <select asp-for="Status" class="form-select">
+                    <option value="open">Open review</option>
+                    <option value="linked">Linked / merged</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+                <button class="btn btn-primary px-4" type="submit">
+                    <i class="bi bi-search me-1"></i> Filter
+                </button>
+            </form>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-info">@Model.StatusMessage</div>
+    }
+
+    @if (!Model.LocalGames.Any())
+    {
+        <div class="review-panel p-5 text-center text-secondary">
+            No local games match this filter.
+        </div>
+    }
+    else
+    {
+        <div class="review-grid">
+            @foreach (var game in Model.LocalGames)
+            {
+                var isOpen = game.Status == BoardGameDefaults.LocalOnlyStatus || game.Status == BoardGameDefaults.PendingReviewLocalStatus;
+                <article class="review-card p-3">
+                    <div class="d-flex gap-3 mb-3">
+                        <img src="/media/boardgame/front/@game.Gid" class="game-cover" alt="@game.Name cover" />
+                        <div class="min-w-0 flex-grow-1">
+                            <h2 class="h5 fw-bold mb-1 text-truncate">@game.Name</h2>
+                            <div class="text-secondary small text-truncate">@game.ClubName</div>
+                            <span class="badge rounded-pill text-bg-secondary mt-2">@BoardGameDefaults.GetDisplayName(game.Status)</span>
+                        </div>
+                    </div>
+
+                    <div class="meta-grid mb-3">
+                        <div>
+                            <div class="small text-secondary text-uppercase fw-bold">Publisher</div>
+                            <div class="fw-semibold text-truncate">@(game.PublisherName ?? "Not set")</div>
+                        </div>
+                        <div>
+                            <div class="small text-secondary text-uppercase fw-bold">Players</div>
+                            <div class="fw-semibold">@game.PlayerRange</div>
+                        </div>
+                        <div>
+                            <div class="small text-secondary text-uppercase fw-bold">Matches</div>
+                            <div class="fw-semibold">@game.MatchCount</div>
+                        </div>
+                        <div>
+                            <div class="small text-secondary text-uppercase fw-bold">Submitted</div>
+                            <div class="fw-semibold">@game.SubmittedAt.ToString("dd MMM yyyy")</div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(game.LinkedGameName) || !string.IsNullOrWhiteSpace(game.MergedIntoName))
+                    {
+                        <div class="border border-secondary-subtle rounded p-2 mb-3 small">
+                            Linked shared game: <strong>@(game.MergedIntoName ?? game.LinkedGameName)</strong>
+                        </div>
+                    }
+
+                    @if (isOpen)
+                    {
+                        <div class="d-grid gap-2">
+                            <form method="post" asp-page-handler="ApproveNew" asp-route-id="@game.Id">
+                                <input type="hidden" asp-for="Search" />
+                                <input type="hidden" asp-for="Status" />
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="bi bi-check-circle me-1"></i> Approve as shared game
+                                </button>
+                            </form>
+
+                            <form method="post" asp-page-handler="Merge" asp-route-id="@game.Id" class="d-grid gap-2">
+                                <input type="hidden" asp-for="Search" />
+                                <input type="hidden" asp-for="Status" />
+                                <select name="canonicalGameId" class="form-select" asp-items="Model.CanonicalOptions">
+                                    <option value="">Choose shared game to merge into...</option>
+                                </select>
+                                <button type="submit" class="btn btn-outline-primary">
+                                    <i class="bi bi-intersect me-1"></i> Merge/link to shared game
+                                </button>
+                            </form>
+
+                            <form method="post" asp-page-handler="Reject" asp-route-id="@game.Id">
+                                <input type="hidden" asp-for="Search" />
+                                <input type="hidden" asp-for="Status" />
+                                <button type="submit" class="btn btn-outline-danger w-100">
+                                    <i class="bi bi-x-circle me-1"></i> Reject
+                                </button>
+                            </form>
+                        </div>
+                    }
+                </article>
+            }
+        </div>
+    }
+</div>

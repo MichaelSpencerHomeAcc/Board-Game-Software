@@ -25,9 +25,17 @@ public partial class ClubMembership
 
     public long FkBgdClub { get; set; }
 
-    public string UserId { get; set; } = string.Empty;
+    public string? UserId { get; set; }
 
-    public string Role { get; set; } = "Member";
+    public string? GuestName { get; set; }
+
+    public string Role { get; set; } = ClubMembershipDefaults.MemberRole;
+
+    public string Status { get; set; } = ClubMembershipDefaults.ActiveStatus;
+
+    public string? InvitedEmail { get; set; }
+
+    public string? InvitedByUserId { get; set; }
 
     public DateTime JoinedAt { get; set; }
 

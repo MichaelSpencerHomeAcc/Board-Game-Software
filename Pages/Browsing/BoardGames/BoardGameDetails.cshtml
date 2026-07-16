@@ -204,6 +204,22 @@
                         {
                             <span class="badge bg-info-subtle text-info border rounded-pill"><i class="bi bi-puzzle me-1"></i> Expansion</span>
                         }
+                        @if (Model.BoardGame.FkBgdClub == null)
+                        {
+                            <span class="badge bg-primary-subtle text-primary border rounded-pill">Shared library</span>
+                        }
+                        else if (Model.BoardGame.FkBgdTemplateBoardGame.HasValue)
+                        {
+                            <span class="badge bg-success-subtle text-success border rounded-pill">Linked copy</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning-subtle text-warning border rounded-pill">Club-added game</span>
+                        }
+                        @if (Model.BoardGame.GameStatus == Board_Game_Software.Models.BoardGameDefaults.PendingStatus)
+                        {
+                            <span class="badge bg-warning-subtle text-warning border rounded-pill">Pending shared review</span>
+                        }
                     </div>
                 </div>
                 <div class="ms-md-auto mt-4 mt-md-0 d-flex gap-2">

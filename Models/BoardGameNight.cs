@@ -26,6 +26,22 @@ public partial class BoardGameNight
 
     public DateOnly GameNightDate { get; set; }
 
+    public string? Title { get; set; }
+
+    public string? Description { get; set; }
+
+    public DateTime StartsAt { get; set; }
+
+    public DateTime? EndsAt { get; set; }
+
+    public long? LocationId { get; set; }
+
+    public string Visibility { get; set; } = GameNightDefaults.MembersOnlyVisibility;
+
+    public string? BookingUrl { get; set; }
+
+    public string? CreatedByUserId { get; set; }
+
     public bool Finished { get; set; }
 
     public long? FkBgdClub { get; set; }

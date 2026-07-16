@@ -61,6 +61,10 @@ namespace Board_Game_Software.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("FK_bgd_Club");
 
+                    b.Property<long?>("FkBgdMergedIntoBoardGame")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FK_bgd_MergedIntoBoardGame");
+
                     b.Property<long?>("FkBgdPublisher")
                         .HasColumnType("bigint")
                         .HasColumnName("FK_bgd_Publisher");
@@ -68,6 +72,22 @@ namespace Board_Game_Software.Migrations
                     b.Property<long?>("FkBgdTemplateBoardGame")
                         .HasColumnType("bigint")
                         .HasColumnName("FK_bgd_TemplateBoardGame");
+
+                    b.Property<string>("GameSource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("manual");
+
+                    b.Property<string>("GameStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("approved");
 
                     b.Property<Guid>("Gid")
                         .ValueGeneratedOnAdd()
@@ -91,10 +111,23 @@ namespace Board_Game_Software.Migrations
                     b.Property<bool>("IsExpansion")
                         .HasColumnType("bit");
 
+                    b.Property<string>("LocalGameStatus")
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
                     b.Property<string>("ModifiedBy")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(120)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(120)")
+                        .HasDefaultValue("");
 
                     b.Property<byte?>("PlayerCountMax")
                         .HasColumnType("tinyint");
@@ -110,6 +143,10 @@ namespace Board_Game_Software.Migrations
 
                     b.Property<DateOnly?>("ReleaseDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("SubmittedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime>("TimeCreated")
                         .HasColumnType("datetime");
@@ -137,9 +174,17 @@ namespace Board_Game_Software.Migrations
                     b.HasIndex(new[] { "Gid" }, "AK_bgd_BoardGame_GID")
                         .IsUnique();
 
+                    b.HasIndex(new[] { "FkBgdClub", "LocalGameStatus" }, "IX_bgd_BoardGame_Club_LocalGameStatus");
+
+                    b.HasIndex(new[] { "FkBgdClub", "NormalizedName" }, "IX_bgd_BoardGame_Club_NormalizedName");
+
                     b.HasIndex(new[] { "FkBgdClub" }, "IX_bgd_BoardGame_FK_bgd_Club");
 
+                    b.HasIndex(new[] { "FkBgdMergedIntoBoardGame" }, "IX_bgd_BoardGame_FK_bgd_MergedIntoBoardGame");
+
                     b.HasIndex(new[] { "FkBgdTemplateBoardGame" }, "IX_bgd_BoardGame_FK_bgd_TemplateBoardGame");
+
+                    b.HasIndex(new[] { "GameStatus", "GameSource" }, "IX_bgd_BoardGame_Status_Source");
 
                     b.ToTable("BoardGame", "bgd", t =>
                         {
@@ -151,6 +196,89 @@ namespace Board_Game_Software.Migrations
                         });
 
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("Board_Game_Software.Models.BoardGameAlias", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("ID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AliasName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(160)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("FkBgdBoardGame")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FK_bgd_BoardGame");
+
+                    b.Property<Guid>("Gid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("GID")
+                        .HasDefaultValueSql("(newid())");
+
+                    b.Property<bool>("Inactive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ModifiedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("NormalizedAliasName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(160)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("manual");
+
+                    b.Property<DateTime>("TimeCreated")
+                        .HasColumnType("datetime");
+
+                    b.Property<DateTime>("TimeModified")
+                        .HasColumnType("datetime");
+
+                    b.Property<byte[]>("VersionStamp")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id")
+                        .HasName("PK_bgd_BoardGameAlias");
+
+                    b.HasIndex(new[] { "Gid" }, "AK_bgd_BoardGameAlias_GID")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "FkBgdBoardGame" }, "IX_bgd_BoardGameAlias_FK_bgd_BoardGame");
+
+                    b.HasIndex(new[] { "NormalizedAliasName" }, "IX_bgd_BoardGameAlias_NormalizedAliasName");
+
+                    b.HasIndex(new[] { "FkBgdBoardGame", "NormalizedAliasName" }, "UQ_bgd_BoardGameAlias_Game_NormalizedAlias")
+                        .IsUnique()
+                        .HasFilter("[Inactive] = 0");
+
+                    b.ToTable("BoardGameAlias", "bgd");
                 });
 
             modelBuilder.Entity("Board_Game_Software.Models.BoardGameEloMethod", b =>
@@ -447,6 +575,10 @@ namespace Board_Game_Software.Migrations
                     b.Property<int?>("CustomSort")
                         .HasColumnType("int");
 
+                    b.Property<long?>("FkBgdClub")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FK_bgd_Club");
+
                     b.Property<long?>("FkBgdMarkerAdditionalType")
                         .HasColumnType("bigint")
                         .HasColumnName("FK_bgd_MarkerAdditionalType");
@@ -454,10 +586,6 @@ namespace Board_Game_Software.Migrations
                     b.Property<long?>("FkBgdMarkerAlignmentType")
                         .HasColumnType("bigint")
                         .HasColumnName("FK_bgd_MarkerAlignmentType");
-
-                    b.Property<long?>("FkBgdClub")
-                        .HasColumnType("bigint")
-                        .HasColumnName("FK_bgd_Club");
 
                     b.Property<Guid>("Gid")
                         .ValueGeneratedOnAdd()
@@ -503,13 +631,13 @@ namespace Board_Game_Software.Migrations
                     b.HasIndex(new[] { "Gid" }, "AK_bgd_BoardGameMarkerType_GID")
                         .IsUnique();
 
-                    b.HasIndex(new[] { "TypeDesc" }, "UQ_bgd_BoardGameMarkerType_Global_TypeDesc")
-                        .IsUnique()
-                        .HasFilter("[FK_bgd_Club] IS NULL");
-
                     b.HasIndex(new[] { "FkBgdClub", "TypeDesc" }, "UQ_bgd_BoardGameMarkerType_Club_TypeDesc")
                         .IsUnique()
                         .HasFilter("[FK_bgd_Club] IS NOT NULL");
+
+                    b.HasIndex(new[] { "TypeDesc" }, "UQ_bgd_BoardGameMarkerType_Global_TypeDesc")
+                        .IsUnique()
+                        .HasFilter("[FK_bgd_Club] IS NULL");
 
                     b.ToTable("BoardGameMarkerType", "bgd", t =>
                         {
@@ -544,6 +672,10 @@ namespace Board_Game_Software.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("FK_bgd_BoardGame");
 
+                    b.Property<long?>("FkBgdClub")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FK_bgd_Club");
+
                     b.Property<long?>("FkBgdResultType")
                         .HasColumnType("bigint")
                         .HasColumnName("FK_bgd_ResultType");
@@ -564,10 +696,26 @@ namespace Board_Game_Software.Migrations
                     b.Property<DateTime?>("MatchDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("MatchType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("scored_match");
+
                     b.Property<string>("ModifiedBy")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PlayContext")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("club_game_night");
 
                     b.Property<DateTime>("TimeCreated")
                         .HasColumnType("datetime");
@@ -580,6 +728,14 @@ namespace Board_Game_Software.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("members_only");
+
                     b.HasKey("Id")
                         .HasName("PK_bgd_BoardGameMatch");
 
@@ -589,6 +745,12 @@ namespace Board_Game_Software.Migrations
 
                     b.HasIndex(new[] { "Gid" }, "AK_bgd_BoardGameMatch_GID")
                         .IsUnique();
+
+                    b.HasIndex(new[] { "PlayContext", "Visibility" }, "IX_bgd_BoardGameMatch_Context_Visibility");
+
+                    b.HasIndex(new[] { "FkBgdClub" }, "IX_bgd_BoardGameMatch_FK_bgd_Club");
+
+                    b.HasIndex(new[] { "MatchType", "MatchComplete" }, "IX_bgd_BoardGameMatch_Type_Complete");
 
                     b.ToTable("BoardGameMatch", "bgd", t =>
                         {
@@ -611,10 +773,22 @@ namespace Board_Game_Software.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("CharacterName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Colour")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Faction")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
 
                     b.Property<long?>("FkBgdBoardGameMarker")
                         .HasColumnType("bigint")
@@ -624,7 +798,7 @@ namespace Board_Game_Software.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("FK_bgd_BoardGameMatch");
 
-                    b.Property<long>("FkBgdPlayer")
+                    b.Property<long?>("FkBgdPlayer")
                         .HasColumnType("bigint")
                         .HasColumnName("FK_bgd_Player");
 
@@ -634,13 +808,31 @@ namespace Board_Game_Software.Migrations
                         .HasColumnName("GID")
                         .HasDefaultValueSql("(newid())");
 
+                    b.Property<string>("GuestName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
                     b.Property<bool>("Inactive")
                         .HasColumnType("bit");
+
+                    b.Property<string>("InvitedEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("ModifiedBy")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<int?>("Placement")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("Score")
+                        .HasColumnType("decimal(9, 2)");
+
+                    b.Property<string>("TeamId")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<DateTime>("TimeCreated")
                         .HasColumnType("datetime");
@@ -652,6 +844,9 @@ namespace Board_Game_Software.Migrations
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<bool?>("Won")
+                        .HasColumnType("bit");
 
                     b.HasKey("Id")
                         .HasName("PK_bgd_BoardGameMatchPlayer");
@@ -672,6 +867,8 @@ namespace Board_Game_Software.Migrations
                             t.HasTrigger("bgdBoardGameMatchPlayer_InsertAfter");
 
                             t.HasTrigger("bgdBoardGameMatchPlayer_UpdateInteadOf");
+
+                            t.HasCheckConstraint("CK_bgd_BoardGameMatchPlayer_PlayerOrGuest", "[FK_bgd_Player] IS NOT NULL OR [GuestName] IS NOT NULL OR [InvitedEmail] IS NOT NULL");
                         });
 
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
@@ -778,10 +975,25 @@ namespace Board_Game_Software.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("BookingUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("EndsAt")
+                        .HasColumnType("datetime");
 
                     b.Property<bool>("Finished")
                         .HasColumnType("bit");
@@ -802,10 +1014,19 @@ namespace Board_Game_Software.Migrations
                     b.Property<bool>("Inactive")
                         .HasColumnType("bit");
 
+                    b.Property<long?>("LocationId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("LocationId");
+
                     b.Property<string>("ModifiedBy")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("StartsAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("(getdate())");
 
                     b.Property<DateTime>("TimeCreated")
                         .HasColumnType("datetime");
@@ -813,18 +1034,32 @@ namespace Board_Game_Software.Migrations
                     b.Property<DateTime>("TimeModified")
                         .HasColumnType("datetime");
 
+                    b.Property<string>("Title")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
                     b.Property<byte[]>("VersionStamp")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("members_only");
+
                     b.HasKey("Id")
                         .HasName("PK_bgd_BoardGameNight");
 
-                    b.HasIndex("FkBgdClub");
-
                     b.HasIndex(new[] { "Gid" }, "AK_bgd_BoardGameNight_GID")
                         .IsUnique();
+
+                    b.HasIndex(new[] { "FkBgdClub", "StartsAt" }, "IX_bgd_BoardGameNight_Club_StartsAt");
+
+                    b.HasIndex(new[] { "FkBgdClub", "Visibility" }, "IX_bgd_BoardGameNight_Club_Visibility");
 
                     b.ToTable("BoardGameNight", "bgd", t =>
                         {
@@ -1340,11 +1575,24 @@ namespace Board_Game_Software.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<bool>("AllowJoinRequests")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("ClubName")
                         .IsRequired()
                         .HasMaxLength(120)
                         .IsUnicode(false)
                         .HasColumnType("varchar(120)");
+
+                    b.Property<string>("ClubType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("public_club");
 
                     b.Property<string>("ContactEmail")
                         .HasMaxLength(256)
@@ -1354,6 +1602,22 @@ namespace Board_Game_Software.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("DefaultGameNightVisibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("public");
+
+                    b.Property<string>("DefaultMatchVisibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("public");
 
                     b.Property<string>("Description")
                         .HasMaxLength(500)
@@ -1368,6 +1632,11 @@ namespace Board_Game_Software.Migrations
                     b.Property<bool>("Inactive")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsDiscoverable")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<decimal?>("Latitude")
                         .HasColumnType("decimal(9, 6)");
 
@@ -1378,6 +1647,11 @@ namespace Board_Game_Software.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("ShowStatsPublicly")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Slug")
                         .HasMaxLength(80)
@@ -1403,11 +1677,21 @@ namespace Board_Game_Software.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("public");
+
                     b.HasKey("Id")
                         .HasName("PK_bgd_Club");
 
                     b.HasIndex(new[] { "Gid" }, "AK_bgd_Club_GID")
                         .IsUnique();
+
+                    b.HasIndex(new[] { "IsDiscoverable", "Visibility" }, "IX_bgd_Club_Discovery");
 
                     b.HasIndex(new[] { "Slug" }, "UQ_bgd_Club_Slug")
                         .IsUnique()
@@ -1440,8 +1724,20 @@ namespace Board_Game_Software.Migrations
                         .HasColumnName("GID")
                         .HasDefaultValueSql("(newid())");
 
+                    b.Property<string>("GuestName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
                     b.Property<bool>("Inactive")
                         .HasColumnType("bit");
+
+                    b.Property<string>("InvitedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("InvitedEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("datetime");
@@ -1457,6 +1753,14 @@ namespace Board_Game_Software.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(30)");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("active");
+
                     b.Property<DateTime>("TimeCreated")
                         .HasColumnType("datetime");
 
@@ -1464,7 +1768,6 @@ namespace Board_Game_Software.Migrations
                         .HasColumnType("datetime");
 
                     b.Property<string>("UserId")
-                        .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
@@ -1479,8 +1782,12 @@ namespace Board_Game_Software.Migrations
                     b.HasIndex(new[] { "Gid" }, "AK_bgd_ClubMembership_GID")
                         .IsUnique();
 
+                    b.HasIndex(new[] { "FkBgdClub", "InvitedEmail" }, "IX_bgd_ClubMembership_Club_InvitedEmail")
+                        .HasFilter("[InvitedEmail] IS NOT NULL");
+
                     b.HasIndex(new[] { "FkBgdClub", "UserId" }, "UQ_bgd_ClubMembership_Club_User")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
 
                     b.ToTable("ClubMembership", "bgd");
                 });
@@ -1498,10 +1805,6 @@ namespace Board_Game_Software.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
-
-                    b.Property<long?>("FkBgdClub")
-                        .HasColumnType("bigint")
-                        .HasColumnName("FK_bgd_Club");
 
                     b.Property<Guid>("Gid")
                         .ValueGeneratedOnAdd()
@@ -2230,11 +2533,11 @@ namespace Board_Game_Software.Migrations
                     b.HasIndex(new[] { "Gid" }, "AK_bgd_Publisher_GID")
                         .IsUnique();
 
-                    b.HasIndex(new[] { "PublisherName" }, "IX_bgd_Publisher_Global_PublisherName")
-                        .HasFilter("[FK_bgd_Club] IS NULL");
-
                     b.HasIndex(new[] { "FkBgdClub", "PublisherName" }, "IX_bgd_Publisher_Club_PublisherName")
                         .HasFilter("[FK_bgd_Club] IS NOT NULL");
+
+                    b.HasIndex(new[] { "PublisherName" }, "IX_bgd_Publisher_Global_PublisherName")
+                        .HasFilter("[FK_bgd_Club] IS NULL");
 
                     b.ToTable("Publisher", "bgd", t =>
                         {
@@ -2464,15 +2767,15 @@ namespace Board_Game_Software.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<long?>("FkBgdClub")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FK_bgd_Club");
+
                     b.Property<Guid>("Gid")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("GID")
                         .HasDefaultValueSql("(newid())");
-
-                    b.Property<long?>("FkBgdClub")
-                        .HasColumnType("bigint")
-                        .HasColumnName("FK_bgd_Club");
 
                     b.Property<bool>("Inactive")
                         .HasColumnType("bit");
@@ -2674,11 +2977,87 @@ namespace Board_Game_Software.Migrations
 
                     b.HasIndex(new[] { "CreatedAtUtc" }, "IX_bgd_StoredImage_CreatedAtUtc");
 
-                    b.HasIndex(new[] { "UploadedByUserId" }, "IX_bgd_StoredImage_UploadedByUserId");
-
                     b.HasIndex(new[] { "OwnerType", "OwnerId" }, "IX_bgd_StoredImage_OwnerType_OwnerId");
 
+                    b.HasIndex(new[] { "UploadedByUserId" }, "IX_bgd_StoredImage_UploadedByUserId");
+
                     b.ToTable("StoredImage", "bgd");
+                });
+
+            modelBuilder.Entity("Board_Game_Software.Models.UserAccountTier", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("ID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("Gid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("GID")
+                        .HasDefaultValueSql("(newid())");
+
+                    b.Property<bool>("Inactive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsComped")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("ModifiedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("SubscriptionTier")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasDefaultValue("free_player");
+
+                    b.Property<DateTime>("TimeCreated")
+                        .HasColumnType("datetime");
+
+                    b.Property<DateTime>("TimeModified")
+                        .HasColumnType("datetime");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<byte[]>("VersionStamp")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id")
+                        .HasName("PK_bgd_UserAccountTier");
+
+                    b.HasIndex(new[] { "Gid" }, "AK_bgd_UserAccountTier_GID")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "SubscriptionTier" }, "IX_bgd_UserAccountTier_SubscriptionTier");
+
+                    b.HasIndex(new[] { "UserId" }, "UQ_bgd_UserAccountTier_UserId")
+                        .IsUnique()
+                        .HasFilter("[Inactive] = 0");
+
+                    b.ToTable("UserAccountTier", "bgd");
                 });
 
             modelBuilder.Entity("Board_Game_Software.Models.VwBoardGame", b =>
@@ -3205,13 +3584,28 @@ namespace Board_Game_Software.Migrations
 
             modelBuilder.Entity("Board_Game_Software.Models.VwBoardGameNight", b =>
                 {
+                    b.Property<string>("BookingUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ClubName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("EndsAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("Finished")
                         .HasColumnType("bit");
+
+                    b.Property<long?>("FkBgdClub")
+                        .HasColumnType("bigint");
 
                     b.Property<DateOnly>("GameNightDate")
                         .HasColumnType("date");
@@ -3239,16 +3633,26 @@ namespace Board_Game_Software.Migrations
                     b.Property<int>("PlayerCount")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("TimeCreated")
                         .HasColumnType("datetime");
 
                     b.Property<DateTime>("TimeModified")
                         .HasColumnType("datetime");
 
+                    b.Property<string>("Title")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<byte[]>("VersionStamp")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.ToTable((string)null);
 
@@ -4295,6 +4699,11 @@ namespace Board_Game_Software.Migrations
                         .HasForeignKey("FkBgdClub")
                         .HasConstraintName("FK_bgd_BoardGame__bgd_Club");
 
+                    b.HasOne("Board_Game_Software.Models.BoardGame", "FkBgdMergedIntoBoardGameNavigation")
+                        .WithMany("MergedBoardGames")
+                        .HasForeignKey("FkBgdMergedIntoBoardGame")
+                        .HasConstraintName("FK_bgd_BoardGame__bgd_MergedIntoBoardGame");
+
                     b.HasOne("Board_Game_Software.Models.Publisher", "FkBgdPublisherNavigation")
                         .WithMany("BoardGames")
                         .HasForeignKey("FkBgdPublisher")
@@ -4311,9 +4720,22 @@ namespace Board_Game_Software.Migrations
 
                     b.Navigation("FkBgdClubNavigation");
 
+                    b.Navigation("FkBgdMergedIntoBoardGameNavigation");
+
                     b.Navigation("FkBgdPublisherNavigation");
 
                     b.Navigation("FkBgdTemplateBoardGameNavigation");
+                });
+
+            modelBuilder.Entity("Board_Game_Software.Models.BoardGameAlias", b =>
+                {
+                    b.HasOne("Board_Game_Software.Models.BoardGame", "FkBgdBoardGameNavigation")
+                        .WithMany("BoardGameAliases")
+                        .HasForeignKey("FkBgdBoardGame")
+                        .IsRequired()
+                        .HasConstraintName("FK_bgd_BoardGameAlias__bgd_BoardGame");
+
+                    b.Navigation("FkBgdBoardGameNavigation");
                 });
 
             modelBuilder.Entity("Board_Game_Software.Models.BoardGameEloMethod", b =>
@@ -4404,12 +4826,19 @@ namespace Board_Game_Software.Migrations
                         .IsRequired()
                         .HasConstraintName("FK_bgd_BoardGameMatch__bgd_BoardGame");
 
+                    b.HasOne("Board_Game_Software.Models.Club", "FkBgdClubNavigation")
+                        .WithMany()
+                        .HasForeignKey("FkBgdClub")
+                        .HasConstraintName("FK_bgd_BoardGameMatch__bgd_Club");
+
                     b.HasOne("Board_Game_Software.Models.ResultType", "FkBgdResultTypeNavigation")
                         .WithMany("BoardGameMatches")
                         .HasForeignKey("FkBgdResultType")
                         .HasConstraintName("FK_bgd_BoardGameMatch__bgd_ResultType");
 
                     b.Navigation("FkBgdBoardGameNavigation");
+
+                    b.Navigation("FkBgdClubNavigation");
 
                     b.Navigation("FkBgdResultTypeNavigation");
                 });
@@ -4430,7 +4859,6 @@ namespace Board_Game_Software.Migrations
                     b.HasOne("Board_Game_Software.Models.Player", "FkBgdPlayerNavigation")
                         .WithMany("BoardGameMatchPlayers")
                         .HasForeignKey("FkBgdPlayer")
-                        .IsRequired()
                         .HasConstraintName("FK_bgd_BoardGameMatchPlayer__bgd_Player");
 
                     b.Navigation("FkBgdBoardGameMarkerNavigation");
@@ -4696,6 +5124,16 @@ namespace Board_Game_Software.Migrations
                     b.Navigation("FkBgdPlayerNavigation");
                 });
 
+            modelBuilder.Entity("Board_Game_Software.Models.Publisher", b =>
+                {
+                    b.HasOne("Board_Game_Software.Models.Club", "FkBgdClubNavigation")
+                        .WithMany("Publishers")
+                        .HasForeignKey("FkBgdClub")
+                        .HasConstraintName("FK_bgd_Publisher__bgd_Club");
+
+                    b.Navigation("FkBgdClubNavigation");
+                });
+
             modelBuilder.Entity("Board_Game_Software.Models.Shelf", b =>
                 {
                     b.HasOne("Board_Game_Software.Models.Club", "FkBgdClubNavigation")
@@ -4719,6 +5157,8 @@ namespace Board_Game_Software.Migrations
 
             modelBuilder.Entity("Board_Game_Software.Models.BoardGame", b =>
                 {
+                    b.Navigation("BoardGameAliases");
+
                     b.Navigation("BoardGameEloMethods");
 
                     b.Navigation("BoardGameExpansionBaseGames");
@@ -4736,6 +5176,8 @@ namespace Board_Game_Software.Migrations
                     b.Navigation("BoardGameVotes");
 
                     b.Navigation("ClubBoardGameCopies");
+
+                    b.Navigation("MergedBoardGames");
 
                     b.Navigation("PlayerAchievements");
 
@@ -4844,13 +5286,6 @@ namespace Board_Game_Software.Migrations
 
             modelBuilder.Entity("Board_Game_Software.Models.Publisher", b =>
                 {
-                    b.HasOne("Board_Game_Software.Models.Club", "FkBgdClubNavigation")
-                        .WithMany("Publishers")
-                        .HasForeignKey("FkBgdClub")
-                        .HasConstraintName("FK_bgd_Publisher__bgd_Club");
-
-                    b.Navigation("FkBgdClubNavigation");
-
                     b.Navigation("BoardGames");
                 });
 

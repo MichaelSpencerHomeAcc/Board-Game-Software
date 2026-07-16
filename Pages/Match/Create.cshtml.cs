@@ -2,9 +2,12 @@ using Board_Game_Software.Models;
 using Board_Game_Software.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Board_Game_Software.Pages.Match
 {
@@ -20,9 +23,14 @@ namespace Board_Game_Software.Pages.Match
         }
 
         public DateOnly? NightDate { get; private set; }
+        public string PageTitle { get; private set; } = "Record Match";
+        public string CancelUrl { get; private set; } = "/GameNight";
         public List<GameRow> Games { get; private set; } = new();
         public List<NightPlayerRow> Players { get; private set; } = new();
         public GameRow? PreselectedGame { get; private set; }
+        public List<SelectListItem> MatchTypeOptions { get; } = MatchDefaults.MatchTypes
+            .Select(type => new SelectListItem(MatchDefaults.GetMatchTypeLabel(type), type))
+            .ToList();
 
         [BindProperty]
         public InputModel Input { get; set; } = new();
@@ -45,6 +53,14 @@ namespace Board_Game_Software.Pages.Match
             public Guid PlayerGid { get; set; }       
         }
 
+        private sealed class RosterQueryRow
+        {
+            public long Id { get; init; }
+            public Guid Gid { get; init; }
+            public string? FirstName { get; init; }
+            public string? LastName { get; init; }
+        }
+
         public sealed class PlayerMarkerInput
         {
             public long PlayerId { get; set; }
@@ -53,24 +69,46 @@ namespace Board_Game_Software.Pages.Match
 
         public sealed class InputModel
         {
-            [Required] public long NightId { get; set; }
+            public long? NightId { get; set; }
             public string? ReturnUrl { get; set; }
+            public string PlayContext { get; set; } = MatchDefaults.ClubGameNightContext;
+            public string MatchType { get; set; } = MatchDefaults.ScoredMatchType;
             [Required] public long? BoardGameId { get; set; }
             [Required] public DateTime MatchDate { get; set; }
             public List<long> SelectedPlayerIds { get; set; } = new();
+            public string? GuestNames { get; set; }
             public string? PlayerMarkersJson { get; set; }
         }
 
-        public async Task<IActionResult> OnGetAsync(long nightId, string? returnUrl = null, long? boardGameId = null)
+        public async Task<IActionResult> OnGetAsync(long? nightId = null, string? returnUrl = null, long? boardGameId = null)
         {
-            var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == nightId);
-            if (night == null) return NotFound();
-            if (!await CanAccessNightAsync(night)) return Forbid();
+            BoardGameNight? night = null;
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
 
-            NightDate = night.GameNightDate;
+            if (nightId.HasValue)
+            {
+                night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == nightId.Value);
+                if (night == null) return NotFound();
+                if (!await CanAccessNightAsync(night)) return Forbid();
+
+                NightDate = night.GameNightDate;
+                PageTitle = "Record Game Night Match";
+                CancelUrl = returnUrl ?? $"/GameNight/Details/{nightId.Value}";
+            }
+            else
+            {
+                PageTitle = currentClub.CurrentClubId.HasValue ? "Record One-Off Match" : "Record Personal Play";
+                CancelUrl = returnUrl ?? "/Browsing/BoardGames";
+            }
+
             Input.NightId = nightId;
             Input.ReturnUrl = returnUrl;
-            Input.MatchDate = night.GameNightDate.ToDateTime(new TimeOnly(DateTime.Now.Hour, DateTime.Now.Minute));
+            Input.MatchType = MatchDefaults.ScoredMatchType;
+            Input.MatchDate = night?.GameNightDate.ToDateTime(new TimeOnly(DateTime.Now.Hour, DateTime.Now.Minute)) ?? DateTime.Now;
+
+            var matchClubId = night?.FkBgdClub ?? (!currentClub.IsPlatformAdminMode ? currentClub.CurrentClubId : null);
+            var clubType = await GetClubTypeAsync(matchClubId);
+            Input.PlayContext = GetPlayContext(matchClubId, clubType, night != null);
 
             var linkedExpansionIds = _db.BoardGameExpansions
                 .Where(link => !link.Inactive)
@@ -80,13 +118,18 @@ namespace Board_Game_Software.Pages.Match
                 .Include(g => g.BoardGameExpansionBaseGames)
                     .ThenInclude(link => link.FkBgdExpansionBoardGameNavigation)
                 .Where(g => !g.Inactive
+                    && g.GameStatus != BoardGameDefaults.RejectedStatus
+                    && g.GameStatus != BoardGameDefaults.MergedStatus
                     && !g.IsExpansion
                     && !linkedExpansionIds.Contains(g.Id));
 
-            if (night.FkBgdClub.HasValue)
+            if (matchClubId.HasValue)
             {
-                var nightClubId = night.FkBgdClub.Value;
-                gamesQuery = gamesQuery.Where(g => g.FkBgdClub == nightClubId);
+                gamesQuery = gamesQuery.Where(g => g.FkBgdClub == matchClubId.Value);
+            }
+            else
+            {
+                gamesQuery = gamesQuery.Where(g => g.FkBgdClub == null);
             }
 
             var games = await gamesQuery
@@ -109,12 +152,14 @@ namespace Board_Game_Software.Pages.Match
                 Input.BoardGameId = PreselectedGame?.Id;
             }
 
-            var roster = await _db.BoardGameNightPlayers.AsNoTracking()
-                .Include(r => r.FkBgdPlayerNavigation)
-                .Where(r => r.FkBgdBoardGameNight == nightId && !r.Inactive)
-                .Select(r => r.FkBgdPlayerNavigation)
-                .Select(p => new { p.Id, p.Gid, p.FirstName, p.LastName })
-                .ToListAsync();
+            var roster = nightId.HasValue
+                ? await _db.BoardGameNightPlayers.AsNoTracking()
+                    .Include(r => r.FkBgdPlayerNavigation)
+                    .Where(r => r.FkBgdBoardGameNight == nightId.Value && !r.Inactive)
+                    .Select(r => r.FkBgdPlayerNavigation)
+                    .Select(p => new RosterQueryRow { Id = p.Id, Gid = p.Gid, FirstName = p.FirstName, LastName = p.LastName })
+                    .ToListAsync()
+                : await LoadOneOffRosterAsync(matchClubId);
 
             Players = roster.Select(p => new NightPlayerRow
             {
@@ -163,7 +208,7 @@ namespace Board_Game_Software.Pages.Match
         {
             if (!ModelState.IsValid)
             {
-                await OnGetAsync(Input.NightId, Input.ReturnUrl);
+                await OnGetAsync(Input.NightId, Input.ReturnUrl, Input.BoardGameId);
                 return Page();
             }
 
@@ -171,9 +216,25 @@ namespace Board_Game_Software.Pages.Match
                 ? new List<PlayerMarkerInput>()
                 : (JsonSerializer.Deserialize<List<PlayerMarkerInput>>(Input.PlayerMarkersJson) ?? new List<PlayerMarkerInput>());
 
-            var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == Input.NightId);
-            if (night == null) return NotFound();
-            if (!await CanAccessNightAsync(night)) return Forbid();
+            if (!MatchDefaults.IsValidMatchType(Input.MatchType))
+            {
+                ModelState.AddModelError(nameof(Input.MatchType), "Choose a valid match type.");
+                await OnGetAsync(Input.NightId, Input.ReturnUrl, Input.BoardGameId);
+                return Page();
+            }
+
+            BoardGameNight? night = null;
+            if (Input.NightId.HasValue)
+            {
+                night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == Input.NightId.Value);
+                if (night == null) return NotFound();
+                if (!await CanAccessNightAsync(night)) return Forbid();
+            }
+
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            var matchClubId = night?.FkBgdClub ?? (!currentClub.IsPlatformAdminMode ? currentClub.CurrentClubId : null);
+            var clubType = await GetClubTypeAsync(matchClubId);
+            Input.PlayContext = GetPlayContext(matchClubId, clubType, night != null);
 
             var now = DateTime.UtcNow;
             var who = User.Identity?.Name ?? "system";
@@ -183,27 +244,47 @@ namespace Board_Game_Software.Pages.Match
                 .Include(g => g.FkBgdBoardGameVictoryConditionTypeNavigation)
                 .FirstOrDefaultAsync(g => g.Id == Input.BoardGameId);
 
-            if (game == null || game.Inactive || (night.FkBgdClub.HasValue && game.FkBgdClub != night.FkBgdClub.Value))
+            if (game == null ||
+                game.Inactive ||
+                game.GameStatus is BoardGameDefaults.RejectedStatus or BoardGameDefaults.MergedStatus ||
+                game.FkBgdClub != matchClubId)
             {
-                ModelState.AddModelError(nameof(Input.BoardGameId), "Choose a game from this club's library.");
-                await OnGetAsync(Input.NightId, Input.ReturnUrl);
+                ModelState.AddModelError(nameof(Input.BoardGameId), matchClubId.HasValue
+                    ? "Choose a game from this club's library."
+                    : "Choose a shared library game for personal play.");
+                await OnGetAsync(Input.NightId, Input.ReturnUrl, Input.BoardGameId);
                 return Page();
             }
 
-            var validNightPlayerIds = await _db.BoardGameNightPlayers.AsNoTracking()
-                .Where(np => np.FkBgdBoardGameNight == Input.NightId && !np.Inactive)
-                .Select(np => np.FkBgdPlayer)
-                .ToListAsync();
+            var validPlayerIds = Input.NightId.HasValue
+                ? await _db.BoardGameNightPlayers.AsNoTracking()
+                    .Where(np => np.FkBgdBoardGameNight == Input.NightId.Value && !np.Inactive)
+                    .Select(np => np.FkBgdPlayer)
+                    .ToListAsync()
+                : (await LoadOneOffRosterAsync(matchClubId)).Select(p => p.Id).ToList();
 
             Input.SelectedPlayerIds = Input.SelectedPlayerIds
                 .Distinct()
-                .Where(validNightPlayerIds.Contains)
+                .Where(validPlayerIds.Contains)
                 .ToList();
 
-            if (!Input.SelectedPlayerIds.Any())
+            var guestNames = ParseGuestNames(Input.GuestNames);
+
+            if (!Input.SelectedPlayerIds.Any() && !guestNames.Any())
             {
-                ModelState.AddModelError(nameof(Input.SelectedPlayerIds), "Select at least one player from this game night.");
-                await OnGetAsync(Input.NightId, Input.ReturnUrl);
+                ModelState.AddModelError(nameof(Input.SelectedPlayerIds), Input.NightId.HasValue
+                    ? "Select at least one game-night player or add a guest."
+                    : "Select at least one player or add a guest.");
+                await OnGetAsync(Input.NightId, Input.ReturnUrl, Input.BoardGameId);
+                return Page();
+            }
+
+            var totalParticipants = Input.SelectedPlayerIds.Count + guestNames.Count;
+            var maxPlayers = GetCombinedMaxPlayers(game);
+            if (maxPlayers.HasValue && totalParticipants > maxPlayers.Value)
+            {
+                ModelState.AddModelError(nameof(Input.SelectedPlayerIds), $"This game allows up to {maxPlayers.Value} players.");
+                await OnGetAsync(Input.NightId, Input.ReturnUrl, Input.BoardGameId);
                 return Page();
             }
 
@@ -216,6 +297,10 @@ namespace Board_Game_Software.Pages.Match
             {
                 Gid = Guid.NewGuid(),
                 FkBgdBoardGame = Input.BoardGameId!.Value,
+                FkBgdClub = matchClubId,
+                PlayContext = Input.PlayContext,
+                MatchType = Input.MatchType,
+                Visibility = GetMatchVisibility(matchClubId, clubType),
                 MatchDate = Input.MatchDate,
                 FinishedDate = Input.MatchDate,
                 TimeCreated = now,
@@ -228,17 +313,20 @@ namespace Board_Game_Software.Pages.Match
             _db.BoardGameMatches.Add(match);
             await _db.SaveChangesAsync(); // Need match.Id
 
-            // 2) Link to night
-            _db.BoardGameNightBoardGameMatches.Add(new BoardGameNightBoardGameMatch
+            // 2) Link to night when this is a scheduled game-night match.
+            if (Input.NightId.HasValue)
             {
-                FkBgdBoardGameNight = Input.NightId,
-                FkBgdBoardGameMatch = match.Id,
-                Gid = Guid.NewGuid(),
-                TimeCreated = now,
-                TimeModified = now,
-                CreatedBy = who,
-                ModifiedBy = who
-            });
+                _db.BoardGameNightBoardGameMatches.Add(new BoardGameNightBoardGameMatch
+                {
+                    FkBgdBoardGameNight = Input.NightId.Value,
+                    FkBgdBoardGameMatch = match.Id,
+                    Gid = Guid.NewGuid(),
+                    TimeCreated = now,
+                    TimeModified = now,
+                    CreatedBy = who,
+                    ModifiedBy = who
+                });
+            }
 
             var markerByPlayerId = playerMarkers.ToDictionary(x => x.PlayerId, x => x.MarkerId);
 
@@ -280,6 +368,20 @@ namespace Board_Game_Software.Pages.Match
                 });
             }
 
+            foreach (var guestName in guestNames)
+            {
+                matchPlayers.Add(new BoardGameMatchPlayer
+                {
+                    FkBgdBoardGameMatch = match.Id,
+                    GuestName = guestName,
+                    Gid = Guid.NewGuid(),
+                    TimeCreated = now,
+                    TimeModified = now,
+                    CreatedBy = who,
+                    ModifiedBy = who,
+                });
+            }
+
             _db.BoardGameMatchPlayers.AddRange(matchPlayers);
             await _db.SaveChangesAsync(); 
 
@@ -313,7 +415,7 @@ namespace Board_Game_Software.Pages.Match
             _db.BoardGameMatchPlayerResults.AddRange(results);
 
             await _db.SaveChangesAsync();
-            return Redirect(Input.ReturnUrl ?? $"/GameNight/Details/{Input.NightId}");
+            return Redirect(Input.ReturnUrl ?? (Input.NightId.HasValue ? $"/GameNight/Details/{Input.NightId.Value}" : $"/Match/Results/{match.Id}"));
         }
 
         private static int? GetCombinedMinPlayers(BoardGame game)
@@ -353,6 +455,88 @@ namespace Board_Game_Software.Pages.Match
 
             expansionIds.Insert(0, gameId);
             return expansionIds;
+        }
+
+        private async Task<List<RosterQueryRow>> LoadOneOffRosterAsync(long? clubId)
+        {
+            if (clubId.HasValue)
+            {
+                return await _db.Players
+                    .AsNoTracking()
+                    .Where(p => !p.Inactive &&
+                        p.PlayerClubs.Any(pc => !pc.Inactive && pc.FkBgdClub == clubId.Value))
+                    .OrderBy(p => p.FirstName)
+                    .ThenBy(p => p.LastName)
+                    .Select(p => new RosterQueryRow { Id = p.Id, Gid = p.Gid, FirstName = p.FirstName, LastName = p.LastName })
+                    .ToListAsync();
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return await _db.Players
+                .AsNoTracking()
+                .Where(p => !p.Inactive && p.FkdboAspNetUsers == userId)
+                .OrderBy(p => p.FirstName)
+                .ThenBy(p => p.LastName)
+                .Select(p => new RosterQueryRow { Id = p.Id, Gid = p.Gid, FirstName = p.FirstName, LastName = p.LastName })
+                .ToListAsync();
+        }
+
+        private static List<string> ParseGuestNames(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return new List<string>();
+            }
+
+            return Regex.Split(value, @"[\r\n,;]+")
+                .Select(name => name.Trim())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(24)
+                .ToList();
+        }
+
+        private async Task<string?> GetClubTypeAsync(long? clubId)
+        {
+            if (!clubId.HasValue)
+            {
+                return null;
+            }
+
+            return await _db.Clubs
+                .AsNoTracking()
+                .Where(c => c.Id == clubId.Value && !c.Inactive)
+                .Select(c => c.ClubType)
+                .FirstOrDefaultAsync();
+        }
+
+        private static string GetPlayContext(long? clubId, string? clubType, bool hasGameNight)
+        {
+            if (!clubId.HasValue)
+            {
+                return MatchDefaults.PersonalContext;
+            }
+
+            if (hasGameNight)
+            {
+                return MatchDefaults.ClubGameNightContext;
+            }
+
+            return clubType == ClubDefaults.PrivateGroupType
+                ? MatchDefaults.PrivateGroupContext
+                : MatchDefaults.ClubOneOffContext;
+        }
+
+        private static string GetMatchVisibility(long? clubId, string? clubType)
+        {
+            if (!clubId.HasValue)
+            {
+                return MatchDefaults.PrivateVisibility;
+            }
+
+            return clubType == ClubDefaults.PrivateGroupType
+                ? MatchDefaults.PrivateVisibility
+                : MatchDefaults.MembersOnlyVisibility;
         }
 
         private async Task<bool> CanAccessNightAsync(BoardGameNight night)

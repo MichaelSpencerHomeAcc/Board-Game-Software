@@ -109,7 +109,9 @@ namespace Board_Game_Software.Pages.GameNight
                 .ToListAsync();
 
             var rows = await _db.BoardGameMatchPlayerResults.AsNoTracking()
-                .Where(r => !r.Inactive && matchIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch))
+                .Where(r => !r.Inactive
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.HasValue
+                    && matchIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch))
                 .Select(r => new
                 {
                     MatchId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch,
@@ -117,7 +119,7 @@ namespace Board_Game_Software.Pages.GameNight
                     GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
                     GameGid = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.Gid,
                     r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FinishedDate,
-                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer,
+                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer!.Value,
                     PlayerName = (r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.FirstName + " " + r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.LastName).Trim(),
                     r.FinalScore,
                     r.Win,

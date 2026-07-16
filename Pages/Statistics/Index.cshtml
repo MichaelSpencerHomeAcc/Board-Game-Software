@@ -17,6 +17,8 @@
     .kpi-value { font-size: 2rem; font-weight: 900; line-height: 1; }
     .cover-thumb { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: var(--bs-secondary-bg); }
     .activity-bars { display: grid; grid-template-columns: repeat(auto-fit, minmax(86px, 1fr)); gap: .75rem; align-items: end; min-height: 180px; }
+    .activity-list { display: grid; gap: .55rem; }
+    .activity-row { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: .75rem; align-items: center; border: 1px solid var(--bs-border-color); border-radius: 8px; padding: .55rem; background: var(--bs-body-bg); }
     .activity-column { display: grid; grid-template-rows: 1fr auto auto; gap: .4rem; min-height: 160px; }
     .activity-bar {
         align-self: end;
@@ -37,7 +39,7 @@
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
                 <h1 class="fw-bold mb-1">Statistics</h1>
-                <div class="text-secondary">A cleaner view of recent play, records, player bests, and activity trends.</div>
+                <div class="text-secondary">@Model.ScopeLabel activity, records, player bests, and trends.</div>
             </div>
             <form method="get" class="filters-grid d-grid gap-2" style="grid-template-columns: minmax(220px, 1.3fr) minmax(120px, .7fr) minmax(140px, .8fr) auto;">
                 <select asp-for="SelectedPlayerId" asp-items="Model.PlayerList" class="form-select">
@@ -76,6 +78,60 @@
         <div class="stats-kpi p-3">
             <div class="text-secondary small text-uppercase fw-bold">Most Wins</div>
             <div class="fw-bold fs-5 text-truncate">@Model.Summary.TopWinner</div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-6">
+            <section class="stats-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 fw-bold mb-0">Most Played Games</h2>
+                    <span class="badge rounded-pill text-bg-secondary">Activity</span>
+                </div>
+                @if (Model.MostPlayedGames.Any())
+                {
+                    <div class="activity-list">
+                        @foreach (var game in Model.MostPlayedGames)
+                        {
+                            <a asp-page="/Browsing/BoardGames/BoardGameDetails" asp-route-id="@game.Id" class="activity-row text-decoration-none text-body">
+                                <img src="/media/boardgame/front/@game.Gid" class="cover-thumb" alt="@game.Name cover" />
+                                <span class="fw-semibold text-truncate">@game.Name</span>
+                                <span class="badge rounded-pill text-bg-primary">@game.Count</span>
+                            </a>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="text-secondary py-4 text-center">No game activity in this scope yet.</div>
+                }
+            </section>
+        </div>
+
+        <div class="col-xl-6">
+            <section class="stats-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 fw-bold mb-0">Most Active Players</h2>
+                    <span class="badge rounded-pill text-bg-secondary">Activity</span>
+                </div>
+                @if (Model.MostActivePlayers.Any())
+                {
+                    <div class="activity-list">
+                        @foreach (var player in Model.MostActivePlayers)
+                        {
+                            <div class="activity-row">
+                                <img src="/media/player/@player.Gid" class="cover-thumb rounded-circle" alt="@player.Name" />
+                                <span class="fw-semibold text-truncate">@player.Name</span>
+                                <span class="badge rounded-pill text-bg-primary">@player.Count</span>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="text-secondary py-4 text-center">No player activity in this scope yet.</div>
+                }
+            </section>
         </div>
     </div>
 
@@ -139,6 +195,33 @@
 
     @if (Model.SelectedPlayerId.HasValue)
     {
+        <div class="stats-kpis mb-4">
+            <div class="stats-kpi p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Player Plays</div>
+                <div class="kpi-value">@Model.PersonalSummary.TotalPlays</div>
+            </div>
+            <div class="stats-kpi p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Competitive Wins</div>
+                <div class="kpi-value">@Model.PersonalSummary.Wins</div>
+            </div>
+            <div class="stats-kpi p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Win Rate</div>
+                <div class="kpi-value">@Model.PersonalSummary.WinRate.ToString("N0")%</div>
+            </div>
+            <div class="stats-kpi p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Player Games</div>
+                <div class="kpi-value">@Model.PersonalSummary.GamesPlayed</div>
+            </div>
+            <div class="stats-kpi p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Favourite</div>
+                <div class="fw-bold fs-5 text-truncate">@Model.PersonalSummary.MostPlayedGame</div>
+            </div>
+            <div class="stats-kpi p-3">
+                <div class="text-secondary small text-uppercase fw-bold">Recent Play</div>
+                <div class="fw-bold fs-5 text-truncate">@(Model.PersonalSummary.LastPlayed?.ToString("dd MMM yyyy") ?? "None yet")</div>
+            </div>
+        </div>
+
         <section class="stats-table-wrap p-3 mb-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h2 class="h5 fw-bold mb-0">Personal Bests @(string.IsNullOrWhiteSpace(Model.SelectedPlayerName) ? "" : "for " + Model.SelectedPlayerName)</h2>

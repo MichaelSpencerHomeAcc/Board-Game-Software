@@ -119,6 +119,44 @@
                         <input asp-for="BoardGame.BoardGameName" class="form-control bg-dark text-white border-secondary" placeholder="e.g. Scythe" />
                     </div>
 
+                    @if (Model.DuplicateCandidates.Any())
+                    {
+                        <div class="alert alert-warning border-warning mb-4">
+                            <div class="fw-bold mb-2">
+                                <i class="bi bi-exclamation-triangle me-1"></i> Possible existing games found
+                            </div>
+                            <div class="d-grid gap-2 mb-3">
+                                @foreach (var candidate in Model.DuplicateCandidates)
+                                {
+                                    <a asp-page="./BoardGameDetails"
+                                       asp-route-id="@candidate.Id"
+                                       class="d-flex align-items-center gap-2 text-decoration-none text-body border border-warning-subtle rounded p-2">
+                                        <img src="/media/boardgame/front/@candidate.Gid"
+                                             alt="@candidate.Name cover"
+                                             style="width:42px;height:42px;object-fit:cover;border-radius:6px;background:#111;" />
+                                        <span class="flex-grow-1 min-w-0">
+                                            <span class="fw-semibold d-block text-truncate">@candidate.Name</span>
+                                            <span class="small text-secondary">
+                                                @(candidate.PublisherName ?? "Publisher not set")
+                                                · @(candidate.IsClubGame ? "Club library" : "Shared library")
+                                            </span>
+                                        </span>
+                                        @if (candidate.IsExactMatch)
+                                        {
+                                            <span class="badge rounded-pill text-bg-warning">Exact</span>
+                                        }
+                                    </a>
+                                }
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" asp-for="ConfirmAddDespiteMatches" />
+                                <label class="form-check-label" asp-for="ConfirmAddDespiteMatches">
+                                    Add this as a separate game anyway
+                                </label>
+                            </div>
+                        </div>
+                    }
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">

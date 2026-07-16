@@ -201,6 +201,14 @@
                                             {
                                                 <span class="badge bg-secondary-subtle text-secondary border ms-1">Club game</span>
                                             }
+                                            @if (item.BoardGame.LocalGameStatus == Board_Game_Software.Models.BoardGameDefaults.LocalOnlyStatus)
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning border ms-1">Club-added</span>
+                                            }
+                                            else if (item.BoardGame.LocalGameStatus == Board_Game_Software.Models.BoardGameDefaults.PendingReviewLocalStatus)
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning border ms-1">Pending review</span>
+                                            }
                                         </span>
                                         <small class="text-muted">@(item.BoardGame.FkBgdPublisherNavigation?.PublisherName ?? "Unknown Publisher")</small>
                                         @if (item.ExpansionNames.Any())
@@ -259,7 +267,7 @@
                                         </a>
                                     }
 
-                                    @if (!Model.Templates && User.IsInRole("Admin"))
+                                    @if (!Model.Templates && (User.IsInRole("Admin") || Model.CurrentClub.CanManageCurrentClub))
                                     {
                                         <a asp-page="./Edit" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-pencil"></i>
@@ -270,6 +278,9 @@
                                     {
                                         <a asp-page="./EloRankings" asp-route-id="@item.BoardGame.Id" class="btn btn-sm btn-outline-warning">
                                             <i class="bi bi-trophy"></i>
+                                        </a>
+                                        <a asp-page="/Match/Create" asp-route-boardGameId="@item.BoardGame.Id" asp-route-returnUrl="@Url.Page("./Index", new { search = Model.SearchTerm, pageNumber = Model.PageNumber })" class="btn btn-sm btn-outline-success" title="Log one-off play">
+                                            <i class="bi bi-dice-5"></i>
                                         </a>
                                     }
 
@@ -326,6 +337,20 @@
                     ? "No available templates to import. This club already has the matching template games, or your search has filtered them out."
                     : "Adjust your search or add a new game.")
             </p>
+            @if (!Model.Templates && (User.IsInRole("Admin") || Model.CurrentClub.CanManageCurrentClub))
+            {
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                    @if (Model.CanImportTemplates)
+                    {
+                        <a asp-page="./Index" asp-route-templates="true" asp-route-search="@Model.SearchTerm" class="btn btn-outline-info">
+                            <i class="bi bi-cloud-download me-1"></i> Search shared library
+                        </a>
+                    }
+                    <a asp-page="./Add" asp-route-missingName="@Model.SearchTerm" class="btn btn-primary">
+                        <i class="bi bi-plus-circle me-1"></i> Add missing game
+                    </a>
+                </div>
+            }
         </div>
     }
     else if (Model.TotalPages > 1)

@@ -26,6 +26,14 @@ public partial class BoardGameMatch
 
     public long FkBgdBoardGame { get; set; }
 
+    public long? FkBgdClub { get; set; }
+
+    public string PlayContext { get; set; } = MatchDefaults.ClubGameNightContext;
+
+    public string MatchType { get; set; } = MatchDefaults.ScoredMatchType;
+
+    public string Visibility { get; set; } = MatchDefaults.MembersOnlyVisibility;
+
     public DateTime? MatchDate { get; set; }
 
     public long? FkBgdResultType { get; set; }
@@ -41,6 +49,8 @@ public partial class BoardGameMatch
     public virtual ICollection<PlayerAchievement> PlayerAchievements { get; set; } = new List<PlayerAchievement>();
 
     public virtual BoardGame FkBgdBoardGameNavigation { get; set; } = null!;
+
+    public virtual Club? FkBgdClubNavigation { get; set; }
 
     public virtual ResultType? FkBgdResultTypeNavigation { get; set; }
 }

@@ -58,11 +58,13 @@ namespace Board_Game_Software.Pages.Statistics
                 .Where(r =>
                     !r.Inactive &&
                     r.FinalScore.HasValue &&
+                    r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.HasValue &&
                     r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame == targetId.Value &&
+                    MatchDefaults.CompetitiveMatchTypes.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.MatchType) &&
                     r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.MatchComplete == true)
                 .Select(r => new
                 {
-                    r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer,
+                    FkBgdPlayer = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer!.Value,
                     PlayerGid = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation!.Gid,
                     PlayerName = ((r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.FirstName ?? "") + " " +
                                   (r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayerNavigation.LastName ?? "")).Trim(),

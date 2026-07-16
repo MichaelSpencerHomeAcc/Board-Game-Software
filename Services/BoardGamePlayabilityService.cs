@@ -35,7 +35,11 @@ namespace Board_Game_Software.Services
                 .ToListAsync();
 
             var gamesQuery = _db.BoardGames.AsNoTracking()
-                .Where(g => !g.Inactive && !g.IsExpansion && !expansionGameIds.Contains(g.Id));
+                .Where(g => !g.Inactive &&
+                    g.GameStatus != BoardGameDefaults.RejectedStatus &&
+                    g.GameStatus != BoardGameDefaults.MergedStatus &&
+                    !g.IsExpansion &&
+                    !expansionGameIds.Contains(g.Id));
 
             if (clubId.HasValue)
             {

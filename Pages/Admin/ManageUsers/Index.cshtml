@@ -77,6 +77,13 @@
                     {
                         <span class="badge rounded-pill text-bg-warning">No roles</span>
                     }
+                    <span class="badge rounded-pill text-bg-primary">
+                        <i class="bi bi-credit-card me-1"></i>@user.TierLabel
+                    </span>
+                    @if (user.IsComped)
+                    {
+                        <span class="badge rounded-pill text-bg-success">Comped</span>
+                    }
                 </div>
 
                 <form method="post" asp-page-handler="UpdateRoles" class="mb-3">
@@ -93,6 +100,28 @@
                     <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">
                         <i class="bi bi-shield-check me-1"></i> Save Roles
                     </button>
+                </form>
+
+                <form method="post" asp-page-handler="UpdateTier" class="border-top border-secondary-subtle pt-3 mb-3">
+                    <input type="hidden" asp-for="UserId" value="@user.Id" />
+                    <div class="small text-secondary text-uppercase fw-bold mb-2">Tier</div>
+                    <div class="d-grid gap-2">
+                        <select name="SubscriptionTier" class="form-select form-select-sm">
+                            @foreach (var tier in Model.TierOptions)
+                            {
+                                <option value="@tier.Value" selected="@(tier.Value == user.SubscriptionTier)">@tier.Text</option>
+                            }
+                        </select>
+                        <label class="form-check">
+                            <input type="checkbox" name="IsComped" value="true" class="form-check-input" checked="@user.IsComped" />
+                            <input type="hidden" name="IsComped" value="false" />
+                            <span class="form-check-label">Manual comp / override</span>
+                        </label>
+                        <input name="TierNotes" value="@user.TierNotes" class="form-control form-control-sm" maxlength="500" placeholder="Tier notes" />
+                        <button type="submit" class="btn btn-outline-primary btn-sm rounded-pill px-3 justify-self-start">
+                            <i class="bi bi-credit-card-2-front me-1"></i> Save Tier
+                        </button>
+                    </div>
                 </form>
 
                 <div class="border-top border-secondary-subtle pt-3">

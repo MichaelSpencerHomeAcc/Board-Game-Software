@@ -59,6 +59,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .Include(bg => bg.BoardGameExpansionBaseGames)
                     .ThenInclude(link => link.FkBgdExpansionBoardGameNavigation)
                 .Where(bg => !bg.Inactive
+                    && bg.GameStatus != BoardGameDefaults.RejectedStatus
+                    && bg.GameStatus != BoardGameDefaults.MergedStatus
                     && !bg.IsExpansion
                     && !linkedExpansionIds.Contains(bg.Id));
 
@@ -67,6 +69,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
                 var cleanSearch = SearchTerm.Replace("min", "", StringComparison.OrdinalIgnoreCase).Trim();
+                var normalizedSearch = BoardGameDefaults.NormalizeName(SearchTerm);
                 bool isNumber = int.TryParse(cleanSearch, out int numericValue);
 
                 if (isNumber)
@@ -80,6 +83,10 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                             && numericValue <= link.FkBgdExpansionBoardGameNavigation.PlayerCountMax)
                         || (bg.PlayingTimeMinInMinutes <= numericValue && numericValue <= bg.PlayingTimeMaxInMinutes)
                         || bg.BoardGameName.Contains(SearchTerm)
+                        || bg.NormalizedName.Contains(normalizedSearch)
+                        || bg.BoardGameAliases.Any(alias => !alias.Inactive &&
+                            (alias.AliasName.Contains(SearchTerm) ||
+                             alias.NormalizedAliasName.Contains(normalizedSearch)))
                         || (bg.FkBgdBoardGameTypeNavigation != null && bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(SearchTerm))
                     );
                 }
@@ -87,6 +94,10 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 {
                     query = query.Where(bg =>
                         bg.BoardGameName.Contains(SearchTerm)
+                        || bg.NormalizedName.Contains(normalizedSearch)
+                        || bg.BoardGameAliases.Any(alias => !alias.Inactive &&
+                            (alias.AliasName.Contains(SearchTerm) ||
+                             alias.NormalizedAliasName.Contains(normalizedSearch)))
                         || (bg.FkBgdBoardGameTypeNavigation != null && bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(SearchTerm))
                     );
                 }
@@ -127,6 +138,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             var currentClub = await _currentClubService.GetCurrentClubAsync();
 
             var cleanSearch = term.Replace("min", "", StringComparison.OrdinalIgnoreCase).Trim();
+            var normalizedTerm = BoardGameDefaults.NormalizeName(term);
             bool isNumber = int.TryParse(cleanSearch, out int numericValue);
             var linkedExpansionIds = _context.BoardGameExpansions
                 .Where(link => !link.Inactive)
@@ -138,6 +150,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .Include(bg => bg.BoardGameExpansionBaseGames)
                     .ThenInclude(link => link.FkBgdExpansionBoardGameNavigation)
                 .Where(bg => !bg.Inactive
+                    && bg.GameStatus != BoardGameDefaults.RejectedStatus
+                    && bg.GameStatus != BoardGameDefaults.MergedStatus
                     && !bg.IsExpansion
                     && !linkedExpansionIds.Contains(bg.Id));
 
@@ -154,6 +168,10 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                         && numericValue <= link.FkBgdExpansionBoardGameNavigation.PlayerCountMax)
                     || (bg.PlayingTimeMinInMinutes <= numericValue && numericValue <= bg.PlayingTimeMaxInMinutes)
                     || bg.BoardGameName.Contains(term)
+                    || bg.NormalizedName.Contains(normalizedTerm)
+                    || bg.BoardGameAliases.Any(alias => !alias.Inactive &&
+                        (alias.AliasName.Contains(term) ||
+                         alias.NormalizedAliasName.Contains(normalizedTerm)))
                     || (bg.FkBgdBoardGameTypeNavigation != null && bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(term))
                 );
             }
@@ -161,6 +179,10 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             {
                 query = query.Where(bg =>
                     bg.BoardGameName.Contains(term) ||
+                    bg.NormalizedName.Contains(normalizedTerm) ||
+                    bg.BoardGameAliases.Any(alias => !alias.Inactive &&
+                        (alias.AliasName.Contains(term) ||
+                         alias.NormalizedAliasName.Contains(normalizedTerm))) ||
                     (bg.FkBgdBoardGameTypeNavigation != null && bg.FkBgdBoardGameTypeNavigation.TypeDesc.Contains(term))
                 );
             }
@@ -234,6 +256,13 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 FkBgdPublisher = template.FkBgdPublisher,
                 FkBgdClub = currentClubId,
                 FkBgdTemplateBoardGame = template.Id,
+                NormalizedName = string.IsNullOrWhiteSpace(template.NormalizedName)
+                    ? BoardGameDefaults.NormalizeName(template.BoardGameName)
+                    : template.NormalizedName,
+                GameStatus = BoardGameDefaults.ApprovedStatus,
+                GameSource = template.GameSource,
+                LocalGameStatus = BoardGameDefaults.SharedCopyLocalStatus,
+                SubmittedByUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
                 PlayerCountMin = template.PlayerCountMin,
                 PlayerCountMax = template.PlayerCountMax,
                 PlayingTimeMinInMinutes = template.PlayingTimeMinInMinutes,
@@ -333,6 +362,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
                 return query.Where(bg =>
                     bg.FkBgdClub == null &&
+                    bg.GameStatus == BoardGameDefaults.ApprovedStatus &&
                     !_context.BoardGames.Any(other =>
                         !other.Inactive &&
                         other.FkBgdClub == null &&
@@ -347,6 +377,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             {
                 return query.Where(bg =>
                     bg.FkBgdClub == null &&
+                    bg.GameStatus == BoardGameDefaults.ApprovedStatus &&
                     !_context.BoardGames.Any(other =>
                         !other.Inactive &&
                         other.FkBgdClub == null &&
@@ -360,6 +391,8 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 var currentClubId = currentClub.CurrentClubId.Value;
                 return query.Where(bg =>
                     bg.FkBgdClub == currentClubId &&
+                    bg.GameStatus != BoardGameDefaults.RejectedStatus &&
+                    bg.GameStatus != BoardGameDefaults.MergedStatus &&
                     !_context.BoardGames.Any(other =>
                         !other.Inactive &&
                         other.FkBgdClub == currentClubId &&

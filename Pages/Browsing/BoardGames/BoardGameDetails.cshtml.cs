@@ -63,6 +63,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .FirstOrDefaultAsync(bg => bg.Id == id);
 
             if (boardGame == null) return NotFound();
+            if (boardGame.GameStatus is BoardGameDefaults.RejectedStatus or BoardGameDefaults.MergedStatus) return NotFound();
             var currentClub = await _currentClubService.GetCurrentClubAsync();
             if (!CanViewGame(boardGame, currentClub)) return NotFound();
 
@@ -136,6 +137,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
             var boardGame = await _context.BoardGames.AsNoTracking().FirstOrDefaultAsync(bg => bg.Id == id);
             if (boardGame == null) return NotFound();
+            if (boardGame.GameStatus is BoardGameDefaults.RejectedStatus or BoardGameDefaults.MergedStatus) return NotFound();
 
             var currentClub = await _currentClubService.GetCurrentClubAsync();
             if (!CanViewGame(boardGame, currentClub)) return NotFound();

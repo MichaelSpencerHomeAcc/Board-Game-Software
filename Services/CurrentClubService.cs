@@ -80,6 +80,7 @@ public sealed class CurrentClubService : ICurrentClubService
         {
             clubsQuery = clubsQuery.Where(c => c.ClubMemberships.Any(m =>
                 !m.Inactive &&
+                m.Status == ClubMembershipDefaults.ActiveStatus &&
                 m.UserId == userId));
         }
 
@@ -92,7 +93,9 @@ public sealed class CurrentClubService : ICurrentClubService
                 Role = isAdmin
                     ? "Admin"
                     : c.ClubMemberships
-                        .Where(m => !m.Inactive && m.UserId == userId)
+                        .Where(m => !m.Inactive &&
+                            m.Status == ClubMembershipDefaults.ActiveStatus &&
+                            m.UserId == userId)
                         .Select(m => m.Role)
                         .FirstOrDefault()
             })

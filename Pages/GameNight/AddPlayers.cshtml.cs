@@ -24,11 +24,15 @@ namespace Board_Game_Software.Pages.GameNight
         [BindProperty]
         public AddInput Input { get; set; } = new();
 
+        [BindProperty]
+        public QuickAddInput QuickAdd { get; set; } = new();
+
         public async Task<IActionResult> OnGetAsync(long id, string? returnUrl)
         {
             var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id);
             if (night == null) return NotFound();
-            if (!await CanAccessNightAsync(night)) return Forbid();
+            if (!await CanManageNightAsync(night)) return Forbid();
+            if (night.Finished) return RedirectToPage("/GameNight/Details", new { id });
 
             Input.NightId = id;
             Input.ReturnUrl = returnUrl;
@@ -49,7 +53,8 @@ namespace Board_Game_Software.Pages.GameNight
 
             var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == Input.NightId);
             if (night == null) return NotFound();
-            if (!await CanAccessNightAsync(night)) return Forbid();
+            if (!await CanManageNightAsync(night)) return Forbid();
+            if (night.Finished) return Redirect(Input.ReturnUrl ?? fallbackUrl);
 
             var validPlayerIds = await GetAvailablePlayerQuery(night)
                 .Where(p => Input.SelectedPlayerIds.Contains(p.Id))
@@ -80,6 +85,79 @@ namespace Board_Game_Software.Pages.GameNight
             await _db.SaveChangesAsync();
 
             return Redirect(Input.ReturnUrl ?? fallbackUrl);
+        }
+
+        public async Task<IActionResult> OnPostQuickAddAsync()
+        {
+            var fallbackUrl = Url.Page("/GameNight/Details", new { id = QuickAdd.NightId })
+                ?? $"/GameNight/Details/{QuickAdd.NightId}";
+
+            var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == QuickAdd.NightId);
+            if (night == null) return NotFound();
+            if (!await CanManageNightAsync(night)) return Forbid();
+            if (night.Finished) return Redirect(QuickAdd.ReturnUrl ?? fallbackUrl);
+
+            QuickAdd.FirstName = QuickAdd.FirstName?.Trim();
+            QuickAdd.LastName = QuickAdd.LastName?.Trim();
+
+            if (string.IsNullOrWhiteSpace(QuickAdd.FirstName) && string.IsNullOrWhiteSpace(QuickAdd.LastName))
+            {
+                ModelState.AddModelError(nameof(QuickAdd.FirstName), "Enter at least a first or last name.");
+                Input.NightId = QuickAdd.NightId;
+                Input.ReturnUrl = QuickAdd.ReturnUrl;
+                await LoadPlayersAsync();
+                return Page();
+            }
+
+            var now = DateTime.UtcNow;
+            var userName = User?.Identity?.Name ?? "system";
+
+            var player = new Player
+            {
+                Gid = Guid.NewGuid(),
+                FirstName = QuickAdd.FirstName,
+                LastName = QuickAdd.LastName,
+                FkBgdClub = night.FkBgdClub,
+                Inactive = false,
+                TimeCreated = now,
+                TimeModified = now,
+                CreatedBy = userName,
+                ModifiedBy = userName
+            };
+
+            _db.Players.Add(player);
+            await _db.SaveChangesAsync();
+
+            if (night.FkBgdClub.HasValue)
+            {
+                _db.PlayerClubs.Add(new PlayerClub
+                {
+                    Gid = Guid.NewGuid(),
+                    Inactive = false,
+                    TimeCreated = now,
+                    TimeModified = now,
+                    CreatedBy = userName,
+                    ModifiedBy = userName,
+                    FkBgdPlayer = player.Id,
+                    FkBgdClub = night.FkBgdClub.Value,
+                    JoinedAt = now
+                });
+            }
+
+            _db.BoardGameNightPlayers.Add(new BoardGameNightPlayer
+            {
+                Gid = Guid.NewGuid(),
+                Inactive = false,
+                TimeCreated = now,
+                TimeModified = now,
+                CreatedBy = userName,
+                ModifiedBy = userName,
+                FkBgdBoardGameNight = QuickAdd.NightId,
+                FkBgdPlayer = player.Id
+            });
+
+            await _db.SaveChangesAsync();
+            return Redirect(QuickAdd.ReturnUrl ?? fallbackUrl);
         }
 
         private async Task LoadPlayersAsync()
@@ -126,12 +204,14 @@ namespace Board_Game_Software.Pages.GameNight
             return query;
         }
 
-        private async Task<bool> CanAccessNightAsync(BoardGameNight night)
+        private async Task<bool> CanManageNightAsync(BoardGameNight night)
         {
             if (User.IsInRole("Admin")) return true;
 
             var currentClub = await _currentClubService.GetCurrentClubAsync();
-            return night.FkBgdClub.HasValue && night.FkBgdClub == currentClub.CurrentClubId;
+            return night.FkBgdClub.HasValue
+                && night.FkBgdClub == currentClub.CurrentClubId
+                && currentClub.CanManageCurrentClub;
         }
 
         public class AddInput
@@ -139,6 +219,14 @@ namespace Board_Game_Software.Pages.GameNight
             public long NightId { get; set; }
             public string? ReturnUrl { get; set; }
             public List<long> SelectedPlayerIds { get; set; } = new();
+        }
+
+        public class QuickAddInput
+        {
+            public long NightId { get; set; }
+            public string? ReturnUrl { get; set; }
+            public string? FirstName { get; set; }
+            public string? LastName { get; set; }
         }
 
         public class PlayerRow

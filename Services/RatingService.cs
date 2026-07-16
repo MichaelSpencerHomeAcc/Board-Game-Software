@@ -43,19 +43,24 @@ public class RatingService
 
         foreach (var mp in match.BoardGameMatchPlayers)
         {
+            if (!mp.FkBgdPlayer.HasValue)
+            {
+                continue;
+            }
+
             var res = mp.BoardGameMatchPlayerResults.FirstOrDefault();
             if (res == null) continue;
 
             var ratingRecord = await _db.PlayerBoardGameRatings
                 .FirstOrDefaultAsync(r =>
-                    r.FkBgdPlayer == mp.FkBgdPlayer &&
+                    r.FkBgdPlayer == mp.FkBgdPlayer.Value &&
                     r.FkBgdBoardGame == match.FkBgdBoardGame);
 
             if (ratingRecord == null)
             {
                 ratingRecord = new PlayerBoardGameRating
                 {
-                    FkBgdPlayer = mp.FkBgdPlayer,
+                    FkBgdPlayer = mp.FkBgdPlayer.Value,
                     FkBgdBoardGame = match.FkBgdBoardGame,
                     RatingMu = methodEntry.InitialMu,
                     RatingSigma = methodEntry.InitialSigma,

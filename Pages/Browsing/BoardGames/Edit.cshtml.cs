@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     public class EditModel : PageModel
     {
         private readonly BoardGameDbContext _context;
@@ -90,6 +90,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 .FirstOrDefaultAsync(x => x.Id == id);
 
             if (gameToUpdate == null) return NotFound();
+            if (gameToUpdate.GameStatus is BoardGameDefaults.RejectedStatus or BoardGameDefaults.MergedStatus) return NotFound();
             var currentClub = await _currentClubService.GetCurrentClubAsync();
             if (!CanManageGame(gameToUpdate, currentClub)) return NotFound();
 
@@ -132,6 +133,7 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
                 gameToUpdate.ModifiedBy = actor;
                 gameToUpdate.TimeModified = now;
+                gameToUpdate.NormalizedName = BoardGameDefaults.NormalizeName(gameToUpdate.BoardGameName);
 
                 // ELO LOGIC
                 var currentEloLink = gameToUpdate.BoardGameEloMethods.FirstOrDefault(x => !x.Inactive);
@@ -228,11 +230,22 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
                 if (ImageUpload != null && ImageUpload.Length > 0)
                 {
-                    await _imageService.UploadGameCoverAsync(
-                        checked((int)gameToUpdate.Id),
-                        ImageUpload,
-                        actor,
-                        HttpContext.RequestAborted);
+                    try
+                    {
+                        await _imageService.UploadGameCoverAsync(
+                            checked((int)gameToUpdate.Id),
+                            ImageUpload,
+                            actor,
+                            HttpContext.RequestAborted);
+                    }
+                    catch (Exception ex)
+                    {
+                        ModelState.AddModelError(nameof(ImageUpload), $"Image upload failed: {ex.Message}");
+                        BoardGame = gameToUpdate;
+                        CaptureModelStateDebug();
+                        await ReloadPageData(id);
+                        return Page();
+                    }
                 }
 
                 await _context.SaveChangesAsync();
@@ -418,10 +431,11 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         {
             if (currentClub.IsPlatformAdminMode)
             {
-                return boardGame.FkBgdClub == null;
+                return User.IsInRole("Admin") && boardGame.FkBgdClub == null;
             }
 
-            return currentClub.CurrentClubId.HasValue
+            return (User.IsInRole("Admin") || currentClub.CanManageCurrentClub)
+                && currentClub.CurrentClubId.HasValue
                 && boardGame.FkBgdClub == currentClub.CurrentClubId.Value;
         }
     }

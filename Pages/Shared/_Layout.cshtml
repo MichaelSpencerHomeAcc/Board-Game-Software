@@ -181,6 +181,7 @@
                     <ul class="nav nav-pills flex-column mb-4">
                         <li><a class="nav-link @IsActive("Board Games")" asp-page="/Browsing/BoardGames/Index"><i class="bi bi-dice-5 me-2"></i> Board Games</a></li>
                         <li><a class="nav-link @IsActive("Game Night")" asp-page="/GameNight/Index"><i class="bi bi-calendar-check me-2"></i> Game Nights</a></li>
+                        <li><a class="nav-link @IsActive("Open Matches")" asp-page="/Match/Open"><i class="bi bi-play-circle me-2"></i> Open Matches</a></li>
                     </ul>
 
                     @* --- NEW: Unified Analytics Section --- *@
@@ -204,6 +205,7 @@
                         <h6 class="text-uppercase text-danger-emphasis fw-bold small mb-3">Admin</h6>
                         <ul class="nav nav-pills flex-column">
                             <li><a class="nav-link @IsActive("Clubs")" asp-page="/Admin/Clubs/Index"><i class="bi bi-buildings me-2"></i> Clubs</a></li>
+                            <li><a class="nav-link @IsActive("LocalGames")" asp-page="/Admin/LocalGames/Index"><i class="bi bi-controller me-2"></i> Local Games</a></li>
                             <li><a class="nav-link @IsActive("Users")" asp-page="/Admin/ManageUsers/Index"><i class="bi bi-gear me-2"></i> Manage Users</a></li>
                             <li><a class="nav-link @IsActive("Merge Players")" asp-page="/Admin/PlayerMerge/Index"><i class="bi bi-intersect me-2"></i> Merge Players</a></li>
                             <li><a class="nav-link @IsActive("Data Health")" asp-page="/Admin/DataHealth/Index"><i class="bi bi-clipboard2-pulse me-2"></i> Data Health</a></li>

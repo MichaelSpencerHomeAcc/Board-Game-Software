@@ -33,7 +33,7 @@ public class GameNightService
             if (match == null || match.MatchComplete != true) continue;
 
             var players = match.BoardGameMatchPlayers
-                .Where(p => !p.Inactive) // if you have this flag
+                .Where(p => !p.Inactive && p.FkBgdPlayer.HasValue) // if you have this flag
                 .ToList();
 
             int N = players.Count;
@@ -52,7 +52,7 @@ public class GameNightService
                 return new MatchRow
                 {
                     MatchPlayer = mp,
-                    PlayerId = mp.FkBgdPlayer,
+                    PlayerId = mp.FkBgdPlayer!.Value,
                     PlayerName = $"{mp.FkBgdPlayerNavigation.FirstName} {mp.FkBgdPlayerNavigation.LastName}".Trim(),
                     PlayerGid = mp.FkBgdPlayerNavigation.Gid,
                     Win = win,

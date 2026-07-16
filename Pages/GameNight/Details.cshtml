@@ -1,11 +1,12 @@
 ﻿@page "{id:long}"
 @model Board_Game_Software.Pages.GameNight.DetailsModel
+@using Board_Game_Software.Models
 @using System.Text.Encodings.Web
 
 @{
     ViewData["Title"] = "Game Night Details";
     var isAdmin = Model.IsAdmin;
-    var canEdit = isAdmin && !Model.Night.Finished;
+    var canEdit = Model.CanManageNight && !Model.Night.Finished;
     var finished = Model.Night.Finished;
     var hasStandings = Model.HasStandings;
     var completedMatches = Model.Matches.Count(m => m.IsComplete);
@@ -550,10 +551,16 @@
                             <i class="bi @(finished ? "bi-check2-circle" : "bi-broadcast-pin")"></i>
                             @statusText
                         </span>
-                        <span class="text-secondary small">@Model.Night.GameNightDate.ToString("dddd, MMMM dd yyyy")</span>
+                        <span class="text-secondary small">
+                            @Model.Night.StartsAt.ToString("dddd, MMMM dd yyyy HH:mm")
+                            @if (Model.Night.EndsAt.HasValue)
+                            {
+                                <span> - @Model.Night.EndsAt.Value.ToString("HH:mm")</span>
+                            }
+                        </span>
                     </div>
 
-                    <h1 class="fw-bold mb-2 text-white">Game Night Dashboard</h1>
+                    <h1 class="fw-bold mb-2 text-white">@(string.IsNullOrWhiteSpace(Model.Night.Title) ? "Game Night Dashboard" : Model.Night.Title)</h1>
                     <div class="text-secondary">
                         @if (leader != null && hasStandings)
                         {
@@ -564,6 +571,24 @@
                             <span><i class="bi bi-people-fill text-info me-1"></i>@Model.Players.Count players are ready for the first match.</span>
                         }
                     </div>
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <span class="badge bg-secondary-subtle text-secondary border">
+                            <i class="bi bi-eye me-1"></i>@GameNightDefaults.GetDisplayName(Model.Night.Visibility)
+                        </span>
+                        @if (!string.IsNullOrWhiteSpace(Model.Night.BookingUrl))
+                        {
+                            <a class="badge bg-primary-subtle text-primary border text-decoration-none"
+                               href="@Model.Night.BookingUrl"
+                               target="_blank"
+                               rel="noopener noreferrer">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>Booking
+                            </a>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(Model.Night.Description))
+                    {
+                        <p class="text-secondary mt-3 mb-0">@Model.Night.Description</p>
+                    }
                 </div>
 
                 <div class="d-flex flex-wrap align-content-start gap-2 justify-content-lg-end">
@@ -571,6 +596,12 @@
                     {
                         <a class="btn btn-info rounded-pill px-4 fw-bold text-dark" asp-page="/Match/Create" asp-route-nightId="@Model.Night.Id">
                             <i class="bi bi-plus-lg me-1"></i> Add Match
+                        </a>
+                        <a class="btn btn-outline-info rounded-pill px-4 fw-bold"
+                           asp-page="AddPlayers"
+                           asp-route-id="@Model.Night.Id"
+                           asp-route-returnUrl="@Url.Page("Details", new { id = Model.Night.Id })">
+                            <i class="bi bi-person-plus-fill me-1"></i> Add Players
                         </a>
                         <a class="btn btn-outline-info rounded-pill px-4 fw-bold" asp-page="Host" asp-route-id="@Model.Night.Id">
                             <i class="bi bi-phone-fill me-1"></i> Host Mode
@@ -647,9 +678,20 @@
 
                         @if (!hasStandings)
                         {
-                            <span class="small text-secondary">
-                                <i class="bi bi-info-circle me-1"></i>No completed matches yet
-                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="small text-secondary">
+                                    <i class="bi bi-info-circle me-1"></i>No completed matches yet
+                                </span>
+                                @if (canEdit)
+                                {
+                                    <a class="btn btn-sm btn-outline-info"
+                                       asp-page="AddPlayers"
+                                       asp-route-id="@Model.Night.Id"
+                                       asp-route-returnUrl="@Url.Page("Details", new { id = Model.Night.Id })">
+                                        <i class="bi bi-person-plus-fill me-1"></i>Add
+                                    </a>
+                                }
+                            </div>
                         }
                     </div>
 
@@ -773,6 +815,19 @@
                                                  loading="lazy" decoding="async"
                                                  onerror="makeInitialsAvatar(this, '@safeName')" />
                                             <div class="small fw-bold text-light text-truncate mt-2">@p.Name</div>
+                                            @if (p.CanRemove)
+                                            {
+                                                <form method="post"
+                                                      asp-page-handler="RemovePlayer"
+                                                      asp-route-id="@Model.Night.Id"
+                                                      asp-route-playerId="@p.PlayerId"
+                                                      class="mt-2"
+                                                      onsubmit="return confirm('Remove @safeName from this game night?');">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove from game night">
+                                                        <i class="bi bi-x-lg"></i>
+                                                    </button>
+                                                </form>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -792,6 +847,19 @@
                                          loading="lazy" decoding="async"
                                          onerror="makeInitialsAvatar(this, '@safeName')" />
                                     <div class="small fw-bold text-light text-truncate mt-2">@p.Name</div>
+                                    @if (p.CanRemove)
+                                    {
+                                        <form method="post"
+                                              asp-page-handler="RemovePlayer"
+                                              asp-route-id="@Model.Night.Id"
+                                              asp-route-playerId="@p.PlayerId"
+                                              class="mt-2"
+                                              onsubmit="return confirm('Remove @safeName from this game night?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove from game night">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </form>
+                                    }
                                 </div>
                             }
                         </div>

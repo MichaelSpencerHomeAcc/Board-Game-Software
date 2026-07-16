@@ -52,8 +52,6 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/DataSetup/Shelves", "AdminOnly");
     options.Conventions.AuthorizeFolder("/GameNight");
     options.Conventions.AuthorizeFolder("/Match");
-    options.Conventions.AuthorizePage("/Browsing/BoardGames/Add", "AdminOnly");
-    options.Conventions.AuthorizePage("/Browsing/BoardGames/Edit", "AdminOnly");
 });
 builder.Services.AddControllers();
 
@@ -76,6 +74,7 @@ builder.Services.AddScoped<AchievementService>();
 
 builder.Services.AddScoped<GameNightService>();
 builder.Services.AddScoped<ICurrentClubService, CurrentClubService>();
+builder.Services.AddScoped<IFeatureGateService, FeatureGateService>();
 builder.Services.AddScoped<ImageService>();
 
 var app = builder.Build();
@@ -206,8 +205,7 @@ app.MapGet("/health", async (
     var blobOptions = azureBlobOptions.Value;
     var blobConfigured =
         !string.IsNullOrWhiteSpace(blobOptions.ConnectionString) &&
-        !string.IsNullOrWhiteSpace(blobOptions.ContainerName) &&
-        !string.IsNullOrWhiteSpace(blobOptions.PublicBaseUrl);
+        !string.IsNullOrWhiteSpace(blobOptions.ContainerName);
 
     var healthy = sqlConfigured && sqlConnected && blobConfigured;
     var response = new
@@ -225,7 +223,8 @@ app.MapGet("/health", async (
             {
                 configured = blobConfigured,
                 containerNameConfigured = !string.IsNullOrWhiteSpace(blobOptions.ContainerName),
-                publicBaseUrlConfigured = !string.IsNullOrWhiteSpace(blobOptions.PublicBaseUrl)
+                publicBaseUrlConfigured = !string.IsNullOrWhiteSpace(blobOptions.PublicBaseUrl),
+                publicBaseUrlRequired = false
             }
         }
     };

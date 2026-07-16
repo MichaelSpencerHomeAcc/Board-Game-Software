@@ -26,6 +26,18 @@ public partial class BoardGame
 
     public string BoardGameName { get; set; } = null!;
 
+    public string NormalizedName { get; set; } = string.Empty;
+
+    public string GameStatus { get; set; } = BoardGameDefaults.ApprovedStatus;
+
+    public string GameSource { get; set; } = BoardGameDefaults.ManualSource;
+
+    public string? LocalGameStatus { get; set; }
+
+    public long? FkBgdMergedIntoBoardGame { get; set; }
+
+    public string? SubmittedByUserId { get; set; }
+
     public long? FkBgdBoardGameType { get; set; }
 
     public long? FkBgdBoardGameVictoryConditionType { get; set; }
@@ -62,6 +74,8 @@ public partial class BoardGame
 
     public virtual ICollection<BoardGameEloMethod> BoardGameEloMethods { get; set; } = new List<BoardGameEloMethod>();
 
+    public virtual ICollection<BoardGameAlias> BoardGameAliases { get; set; } = new List<BoardGameAlias>();
+
     public virtual ICollection<BoardGameExpansion> BoardGameExpansionBaseGames { get; set; } = new List<BoardGameExpansion>();
 
     public virtual ICollection<BoardGameExpansion> BoardGameExpansionExpansionGames { get; set; } = new List<BoardGameExpansion>();
@@ -84,7 +98,11 @@ public partial class BoardGame
 
     public virtual BoardGame? FkBgdTemplateBoardGameNavigation { get; set; }
 
+    public virtual BoardGame? FkBgdMergedIntoBoardGameNavigation { get; set; }
+
     public virtual ICollection<BoardGame> ClubBoardGameCopies { get; set; } = new List<BoardGame>();
+
+    public virtual ICollection<BoardGame> MergedBoardGames { get; set; } = new List<BoardGame>();
 
     public virtual ICollection<PlayerBoardGameRating> PlayerBoardGameRatings { get; set; } = new List<PlayerBoardGameRating>();
 

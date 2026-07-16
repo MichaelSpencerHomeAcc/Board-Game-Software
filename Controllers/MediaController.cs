@@ -1,7 +1,9 @@
 using Board_Game_Software.Models;
 using Board_Game_Software.Services;
+using BoardGameClubSoftware.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Board_Game_Software.Controllers
 {
@@ -9,10 +11,12 @@ namespace Board_Game_Software.Controllers
     public class MediaController : Controller
     {
         private readonly BoardGameDbContext _db;
+        private readonly AzureBlobOptions _azureBlobOptions;
 
-        public MediaController(BoardGameDbContext db)
+        public MediaController(BoardGameDbContext db, IOptions<AzureBlobOptions> azureBlobOptions)
         {
             _db = db;
+            _azureBlobOptions = azureBlobOptions.Value;
         }
 
         [HttpGet("marker-type/{gid:guid}")]
@@ -143,14 +147,48 @@ namespace Board_Game_Software.Controllers
 
         private IActionResult RedirectToStoredImage(StoredImage image)
         {
-            if (string.IsNullOrWhiteSpace(image.PublicUrl))
+            var publicUrl = ResolvePublicUrl(image);
+            if (string.IsNullOrWhiteSpace(publicUrl))
             {
                 return NotFound();
             }
 
             Response.Headers["Cache-Control"] = "public,max-age=604800";
             Response.Headers["X-Media-Source"] = "azure-blob";
-            return Redirect(image.PublicUrl);
+            return Redirect(publicUrl);
+        }
+
+        private string? ResolvePublicUrl(StoredImage image)
+        {
+            if (Uri.TryCreate(image.PublicUrl, UriKind.Absolute, out _))
+            {
+                return image.PublicUrl;
+            }
+
+            if (string.IsNullOrWhiteSpace(image.BlobKey) ||
+                string.IsNullOrWhiteSpace(_azureBlobOptions.ConnectionString) ||
+                string.IsNullOrWhiteSpace(_azureBlobOptions.ContainerName))
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_azureBlobOptions.PublicBaseUrl))
+            {
+                return $"{_azureBlobOptions.PublicBaseUrl.TrimEnd('/')}/{image.BlobKey.TrimStart('/')}";
+            }
+
+            try
+            {
+                var container = new Azure.Storage.Blobs.BlobContainerClient(
+                    _azureBlobOptions.ConnectionString,
+                    _azureBlobOptions.ContainerName);
+
+                return container.GetBlobClient(image.BlobKey).Uri.ToString();
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

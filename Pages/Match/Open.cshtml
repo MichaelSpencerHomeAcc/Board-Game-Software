@@ -1,0 +1,88 @@
+@page
+@model Board_Game_Software.Pages.Match.OpenModel
+@{
+    ViewData["Title"] = "Open Matches";
+}
+
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <h1 class="text-body m-0">Open One-Off Matches</h1>
+            <p class="text-muted mb-0">@Model.ScopeLabel</p>
+        </div>
+        <a asp-page="/Browsing/BoardGames/Index" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-circle me-1"></i> Log new play
+        </a>
+    </div>
+
+    @if (!Model.Matches.Any())
+    {
+        <div class="border border-secondary-subtle rounded-3 p-4 bg-body-tertiary">
+            <div class="d-flex align-items-center gap-3">
+                <div class="fs-3 text-primary"><i class="bi bi-check2-circle"></i></div>
+                <div>
+                    <h2 class="h5 mb-1">No open one-off matches</h2>
+                    <p class="text-muted mb-0">Incomplete one-off and personal plays will appear here.</p>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive border border-secondary-subtle rounded-3 bg-body">
+            <table class="table table-hover align-middle mb-0 mobile-card-table">
+                <thead class="border-bottom border-secondary-subtle">
+                    <tr>
+                        <th class="ps-4">Game</th>
+                        <th>Players</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th class="text-end pe-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var match in Model.Matches)
+                    {
+                        var hasImage = match.GameGid != Guid.Empty;
+                        <tr>
+                            <td class="ps-4" data-label="Game">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="rounded border border-secondary-subtle bg-body-tertiary d-flex align-items-center justify-content-center"
+                                         style="width:56px;height:56px;overflow:hidden;flex:0 0 56px;">
+                                        @if (hasImage)
+                                        {
+                                            <img src="/media/boardgame/front/@match.GameGid" alt="@match.GameName" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;" />
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-dice-5 text-muted"></i>
+                                        }
+                                    </div>
+                                    <div class="min-width-0">
+                                        <div class="fw-bold text-body-emphasis">@match.GameName</div>
+                                        <small class="text-muted">@match.ParticipantCount player@(match.ParticipantCount == 1 ? "" : "s")</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td data-label="Players">
+                                <span class="text-truncate d-inline-block" style="max-width: 320px;">@match.Participants</span>
+                            </td>
+                            <td data-label="Type">
+                                <span class="badge bg-primary-subtle text-primary border">@match.ContextLabel</span>
+                                <span class="badge bg-secondary-subtle text-secondary border">@match.Visibility</span>
+                            </td>
+                            <td data-label="Date">
+                                @(match.MatchDate?.ToString("dd MMM yyyy HH:mm") ?? "Not set")
+                            </td>
+                            <td class="text-end pe-4" data-label="Action">
+                                <a asp-page="/Match/Results" asp-route-id="@match.MatchId" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-pencil-square me-1"></i> Continue
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

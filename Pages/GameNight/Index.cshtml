@@ -1,5 +1,6 @@
 ﻿@page
 @model Board_Game_Software.Pages.GameNight.IndexModel
+@using Board_Game_Software.Models
 @{
     ViewData["Title"] = "Board Game Nights";
     var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -111,8 +112,7 @@
             <a class="btn btn-outline-secondary rounded-pill px-4" asp-page="Archive">
                 <i class="bi bi-archive me-2"></i>History
             </a>
-            @* Only show the Schedule button to administrators *@
-            @if (Model.IsAdmin)
+            @if (Model.CanSchedule)
             {
                 <a class="btn btn-primary rounded-pill shadow px-4" asp-page="/GameNight/Create">
                     <i class="bi bi-plus-lg me-2"></i>Schedule Night
@@ -158,15 +158,23 @@
                                 <span class="day">@n.GameNightDate.Day</span>
                             </div>
                             <div>
-                                <h5 class="mb-0 fw-bold text-body">Game Night</h5>
-                                <div class="text-muted small">@n.GameNightDate.ToString("dddd, yyyy")</div>
+                                <h5 class="mb-0 fw-bold text-body">@(string.IsNullOrWhiteSpace(n.Title) ? "Game Night" : n.Title)</h5>
+                                <div class="text-muted small">@n.StartsAt.ToString("dddd, yyyy HH:mm")</div>
                                 <div class="mt-2">
                                     <span class="badge rounded-pill @(n.FkBgdClub.HasValue ? "text-bg-info" : "text-bg-primary")">
                                         @(n.ClubName ?? "Platform")
                                     </span>
+                                    <span class="badge rounded-pill bg-secondary-subtle text-secondary border">
+                                        @GameNightDefaults.GetDisplayName(n.Visibility)
+                                    </span>
                                 </div>
                             </div>
                         </div>
+
+                        @if (!string.IsNullOrWhiteSpace(n.Description))
+                        {
+                            <p class="text-muted small mb-4">@n.Description</p>
+                        }
 
                         @* Stats Row *@
                         <div class="row g-3 mb-4">
@@ -212,8 +220,7 @@
             </div>
             <h3 class="fw-bold">No sessions scheduled</h3>
             <p class="text-secondary">Start a new game night to begin tracking matches.</p>
-            @* Only allow admins to see the Schedule button in empty state *@
-            @if (Model.IsAdmin)
+            @if (Model.CanSchedule)
             {
                 <a class="btn btn-primary px-4 mt-2" asp-page="/GameNight/Create">Schedule First Night</a>
             }

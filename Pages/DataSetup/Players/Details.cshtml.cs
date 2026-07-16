@@ -151,11 +151,14 @@ namespace Board_Game_Software.Pages.DataSetup.Players
 
             var matchIds = rows.Select(r => r.MatchId).Distinct().ToList();
             var otherPlayers = await _context.BoardGameMatchPlayers.AsNoTracking()
-                .Where(mp => matchIds.Contains(mp.FkBgdBoardGameMatch) && mp.FkBgdPlayer != playerId && !mp.Inactive)
+                .Where(mp => matchIds.Contains(mp.FkBgdBoardGameMatch)
+                    && mp.FkBgdPlayer.HasValue
+                    && mp.FkBgdPlayer != playerId
+                    && !mp.Inactive)
                 .Select(mp => new
                 {
                     mp.FkBgdBoardGameMatch,
-                    mp.FkBgdPlayer,
+                    FkBgdPlayer = mp.FkBgdPlayer!.Value,
                     Name = ((mp.FkBgdPlayerNavigation.FirstName ?? string.Empty) + " " + (mp.FkBgdPlayerNavigation.LastName ?? string.Empty)).Trim(),
                     Result = mp.BoardGameMatchPlayerResults.Where(r => !r.Inactive).Select(r => new { r.Win, r.FinalTeam }).FirstOrDefault()
                 })

@@ -8,10 +8,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Board_Game_Software.Pages.Browsing.BoardGames
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     public class AddModel : PageModel
     {
         private readonly BoardGameDbContext _context;
@@ -46,22 +47,42 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         [BindProperty]
         public long? SelectedEloMethodId { get; set; }
 
+        [BindProperty]
+        public bool ConfirmAddDespiteMatches { get; set; }
+
         public List<MarkerTypeViewModel> AvailableMarkerTypes { get; set; } = new();
+        public List<DuplicateCandidate> DuplicateCandidates { get; private set; } = new();
         public SelectList BoardGameTypes { get; set; } = default!;
         public SelectList VictoryConditions { get; set; } = default!;
         public SelectList Publishers { get; set; } = default!;
         public SelectList EloMethods { get; set; } = default!;
         public SelectList BaseGames { get; set; } = default!;
 
-        public async Task<IActionResult> OnGet()
+        public async Task<IActionResult> OnGet(string? missingName)
         {
+            if (!await CanAddGameAsync())
+            {
+                return Forbid();
+            }
+
+            if (!string.IsNullOrWhiteSpace(missingName))
+            {
+                BoardGame.BoardGameName = missingName.Trim();
+            }
+
             await LoadSelectLists();
             await LoadAvailableMarkerTypes();
+            await LoadDuplicateCandidatesAsync(BoardGame.BoardGameName);
             return Page();
         }
 
         public async Task<IActionResult> OnPostAsync()
         {
+            if (!await CanAddGameAsync())
+            {
+                return Forbid();
+            }
+
             // 1. Set Audit and Identity Fields
             string user = User.Identity?.Name ?? "system";
             BoardGame.CreatedBy = user;
@@ -70,15 +91,39 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
             BoardGame.TimeModified = DateTime.Now;
             BoardGame.Gid = Guid.NewGuid();
             BoardGame.FkBgdClub = await GetCurrentCatalogClubIdAsync();
+            BoardGame.NormalizedName = BoardGameDefaults.NormalizeName(BoardGame.BoardGameName);
+            BoardGame.SubmittedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (BoardGame.FkBgdClub.HasValue)
+            {
+                BoardGame.GameStatus = BoardGameDefaults.PendingStatus;
+                BoardGame.GameSource = BoardGameDefaults.ClubSubmittedSource;
+                BoardGame.LocalGameStatus = BoardGameDefaults.LocalOnlyStatus;
+            }
+            else
+            {
+                BoardGame.GameStatus = BoardGameDefaults.ApprovedStatus;
+                BoardGame.GameSource = BoardGameDefaults.AdminCreatedSource;
+                BoardGame.LocalGameStatus = null;
+            }
 
             // 2. Bypass Validation for background-set fields
             ModelState.Remove("BoardGame.CreatedBy");
             ModelState.Remove("BoardGame.ModifiedBy");
             ModelState.Remove("BoardGame.Gid");
+            ModelState.Remove("BoardGame.NormalizedName");
+            ModelState.Remove("BoardGame.GameStatus");
+            ModelState.Remove("BoardGame.GameSource");
 
             if (BoardGame.IsExpansion && (ExpansionBaseGameIds == null || !ExpansionBaseGameIds.Any()))
             {
                 ModelState.AddModelError(nameof(ExpansionBaseGameIds), "Select at least one base game for this expansion.");
+            }
+
+            await LoadDuplicateCandidatesAsync(BoardGame.BoardGameName);
+            if (DuplicateCandidates.Any() && !ConfirmAddDespiteMatches)
+            {
+                ModelState.AddModelError(nameof(BoardGame.BoardGameName), "Possible matching games were found. Choose an existing game or confirm that this is a separate game.");
             }
 
             ImageUploadValidationResult? imageValidation = null;
@@ -175,11 +220,19 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 // 7. Handle Box Art Upload
                 if (ImageUpload != null && ImageUpload.Length > 0)
                 {
-                    await _imageService.UploadGameCoverAsync(
-                        checked((int)BoardGame.Id),
-                        ImageUpload,
-                        User.Identity?.Name,
-                        HttpContext.RequestAborted);
+                    try
+                    {
+                        await _imageService.UploadGameCoverAsync(
+                            checked((int)BoardGame.Id),
+                            ImageUpload,
+                            User.Identity?.Name,
+                            HttpContext.RequestAborted);
+                    }
+                    catch (Exception ex)
+                    {
+                        ModelState.AddModelError(nameof(ImageUpload), $"Image upload failed: {ex.Message}");
+                        throw;
+                    }
                 }
 
                 await transaction.CommitAsync();
@@ -190,8 +243,12 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
                 await transaction.RollbackAsync();
 
                 // Extract inner exception message if available for better error trapping
-                var errorMsg = ex.InnerException?.Message ?? ex.Message;
-                ModelState.AddModelError(string.Empty, $"Critical Error: {errorMsg}");
+                if (!ModelState.ContainsKey(nameof(ImageUpload)) ||
+                    ModelState[nameof(ImageUpload)]?.Errors.Count == 0)
+                {
+                    var errorMsg = ex.InnerException?.Message ?? ex.Message;
+                    ModelState.AddModelError(string.Empty, $"Critical Error: {errorMsg}");
+                }
 
                 await LoadSelectLists();
                 await LoadAvailableMarkerTypes();
@@ -201,6 +258,11 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
         public async Task<IActionResult> OnPostQuickAddPublisherAsync(string publisherName)
         {
+            if (!await CanAddGameAsync())
+            {
+                return Forbid();
+            }
+
             var name = publisherName?.Trim();
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -244,6 +306,11 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
 
         public async Task<IActionResult> OnPostQuickAddGameTypeAsync(string typeDesc)
         {
+            if (!await CanAddGameAsync())
+            {
+                return Forbid();
+            }
+
             var name = typeDesc?.Trim();
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -337,6 +404,80 @@ namespace Board_Game_Software.Pages.Browsing.BoardGames
         {
             var club = await _currentClubService.GetCurrentClubAsync();
             return club.HasClub && !club.IsPlatformAdminMode ? club.CurrentClubId : null;
+        }
+
+        private async Task LoadDuplicateCandidatesAsync(string? gameName)
+        {
+            DuplicateCandidates.Clear();
+            if (string.IsNullOrWhiteSpace(gameName))
+            {
+                return;
+            }
+
+            var catalogClubId = await GetCurrentCatalogClubIdAsync();
+            var normalizedName = BoardGameDefaults.NormalizeName(gameName);
+            if (normalizedName.Length < 3)
+            {
+                return;
+            }
+
+            var primaryWord = normalizedName
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(word => word.Length >= 3)
+                .OrderByDescending(word => word.Length)
+                .FirstOrDefault() ?? normalizedName;
+
+            var query = _context.BoardGames
+                .AsNoTracking()
+                .Include(g => g.FkBgdPublisherNavigation)
+                .Where(g => !g.Inactive &&
+                    g.GameStatus != BoardGameDefaults.RejectedStatus &&
+                    g.GameStatus != BoardGameDefaults.MergedStatus &&
+                    (g.FkBgdClub == null || g.FkBgdClub == catalogClubId));
+
+            query = query.Where(g =>
+                g.NormalizedName == normalizedName ||
+                g.NormalizedName.Contains(normalizedName) ||
+                normalizedName.Contains(g.NormalizedName) ||
+                g.BoardGameAliases.Any(alias => !alias.Inactive &&
+                    (alias.NormalizedAliasName == normalizedName ||
+                     alias.NormalizedAliasName.Contains(normalizedName) ||
+                     normalizedName.Contains(alias.NormalizedAliasName))) ||
+                g.NormalizedName.Contains(primaryWord) ||
+                g.BoardGameAliases.Any(alias => !alias.Inactive && alias.NormalizedAliasName.Contains(primaryWord)));
+
+            DuplicateCandidates = await query
+                .OrderBy(g => g.NormalizedName == normalizedName ? 0 : 1)
+                .ThenBy(g => g.FkBgdClub == catalogClubId ? 0 : 1)
+                .ThenBy(g => g.BoardGameName)
+                .Take(8)
+                .Select(g => new DuplicateCandidate
+                {
+                    Id = g.Id,
+                    Gid = g.Gid,
+                    Name = g.BoardGameName,
+                    PublisherName = g.FkBgdPublisherNavigation == null ? null : g.FkBgdPublisherNavigation.PublisherName,
+                    IsClubGame = g.FkBgdClub.HasValue,
+                    IsExactMatch = g.NormalizedName == normalizedName ||
+                        g.BoardGameAliases.Any(alias => !alias.Inactive && alias.NormalizedAliasName == normalizedName)
+                })
+                .ToListAsync();
+        }
+
+        private async Task<bool> CanAddGameAsync()
+        {
+            var club = await _currentClubService.GetCurrentClubAsync();
+            return User.IsInRole("Admin") || club.CanManageCurrentClub;
+        }
+
+        public sealed class DuplicateCandidate
+        {
+            public long Id { get; init; }
+            public Guid Gid { get; init; }
+            public string Name { get; init; } = string.Empty;
+            public string? PublisherName { get; init; }
+            public bool IsClubGame { get; init; }
+            public bool IsExactMatch { get; init; }
         }
     }
 }

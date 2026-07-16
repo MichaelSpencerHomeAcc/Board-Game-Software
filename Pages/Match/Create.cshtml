@@ -234,12 +234,13 @@
     <form method="post" id="matchForm">
         <input type="hidden" asp-for="Input.NightId" />
         <input type="hidden" asp-for="Input.ReturnUrl" />
+        <input type="hidden" asp-for="Input.PlayContext" />
         <input type="hidden" asp-for="Input.BoardGameId" id="hiddenGameId" />
         <input type="hidden" asp-for="Input.PlayerMarkersJson" id="markersJson" />
 
         @* STEP 1 *@
         <div id="step1" class="step-content active text-center">
-            <h1 class="display-6 fw-bold mb-3">Step 1: Choose Game</h1>
+            <h1 class="display-6 fw-bold mb-3">@Model.PageTitle</h1>
             <input type="text" id="gameSearchInput" class="form-control mb-5 p-3 rounded-pill bg-dark text-white border-secondary"
                    placeholder="Search library..." style="max-width:400px; margin:0 auto;">
 
@@ -272,13 +273,30 @@
                     <div id="limitDisplay" class="text-info small fw-bold"></div>
                     <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" onclick="goToStep(1)">Change Game</button>
                 </div>
-                <div class="ms-auto text-end">
-                    <label class="form-label small fw-bold text-uppercase opacity-50">Match Start Time</label>
-                    <input asp-for="Input.MatchDate" type="datetime-local" class="form-control form-control-sm" />
+                <div class="ms-auto">
+                    <div class="row g-2 justify-content-end">
+                        <div class="col-sm-auto">
+                            <label class="form-label small fw-bold text-uppercase opacity-50">Match type</label>
+                            <select asp-for="Input.MatchType" asp-items="Model.MatchTypeOptions" class="form-select form-select-sm"></select>
+                        </div>
+                        <div class="col-sm-auto">
+                            <label class="form-label small fw-bold text-uppercase opacity-50">Match Start Time</label>
+                            <input asp-for="Input.MatchDate" type="datetime-local" class="form-control form-control-sm" />
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <h4 class="fw-bold mb-4">Step 2: Assign Players & Roles</h4>
+            <div class="mb-4">
+                <label asp-for="Input.GuestNames" class="form-label fw-bold">Guests</label>
+                <textarea asp-for="Input.GuestNames"
+                          class="form-control bg-dark text-white border-secondary"
+                          rows="2"
+                          id="guestNamesInput"
+                          placeholder="Add guest names, separated by commas or new lines"></textarea>
+                <div class="form-text">Use this for people who are playing but do not have a player profile yet.</div>
+            </div>
             <div class="row g-3">
                 @foreach (var p in Model.Players)
                 {
@@ -309,7 +327,7 @@
 
             <div class="mt-5 d-flex gap-3 justify-content-center step-nav">
                 <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 shadow">Save Match</button>
-                <a href="/GameNight/Details/@Model.Input.NightId" class="btn btn-outline-secondary btn-lg rounded-pill px-4">Cancel</a>
+                <a href="@Model.CancelUrl" class="btn btn-outline-secondary btn-lg rounded-pill px-4">Cancel</a>
             </div>
         </div>
     </form>
@@ -388,7 +406,7 @@
         }
 
         function updateLockState() {
-            const count = $('.p-check:checked').length;
+            const count = $('.p-check:checked').length + getGuestCount();
             $('.player-tile').each(function () {
                 const chk = $(this).find('.p-check');
                 if (!chk.is(':checked')) {
@@ -396,6 +414,15 @@
                     else $(this).removeClass('locked');
                 }
             });
+        }
+
+        function getGuestCount() {
+            const raw = $('#guestNamesInput').val() || '';
+            return raw
+                .split(/[\r\n,;]+/)
+                .map(x => x.trim())
+                .filter((x, index, all) => x && all.findIndex(y => y.toLowerCase() === x.toLowerCase()) === index)
+                .length;
         }
 
         function openMarkerModal(pid) {
@@ -450,6 +477,8 @@
             $('#markersJson').val(JSON.stringify(data));
             return true;
         });
+
+        $('#guestNamesInput').on('input', updateLockState);
 
         $(async function () {
             if (preselectedGame) {

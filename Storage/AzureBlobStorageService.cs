@@ -13,6 +13,16 @@ public sealed class AzureBlobStorageService : IBlobStorageService
     {
         _options = options.Value;
 
+        if (string.IsNullOrWhiteSpace(_options.ConnectionString))
+        {
+            throw new InvalidOperationException("AzureBlob:ConnectionString is not configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.ContainerName))
+        {
+            throw new InvalidOperationException("AzureBlob:ContainerName is not configured.");
+        }
+
         _container = new BlobContainerClient(
             _options.ConnectionString,
             _options.ContainerName);
@@ -62,7 +72,12 @@ public sealed class AzureBlobStorageService : IBlobStorageService
 
     public string GetPublicUrl(string blobKey)
     {
-        var baseUrl = _options.PublicBaseUrl.TrimEnd('/');
-        return $"{baseUrl}/{blobKey.TrimStart('/')}";
+        if (!string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
+        {
+            var baseUrl = _options.PublicBaseUrl.TrimEnd('/');
+            return $"{baseUrl}/{blobKey.TrimStart('/')}";
+        }
+
+        return _container.GetBlobClient(blobKey).Uri.ToString();
     }
 }

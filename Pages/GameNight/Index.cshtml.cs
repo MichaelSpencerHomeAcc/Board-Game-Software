@@ -22,6 +22,7 @@ namespace Board_Game_Software.Pages.GameNight
 
         public List<VwBoardGameNight> Nights { get; set; } = new();
         public bool IsAdmin { get; set; } // Tracks administrative permissions
+        public bool CanSchedule { get; private set; }
         public CurrentClubContext CurrentClub { get; private set; } = CurrentClubContext.Empty;
 
         public async Task OnGetAsync()
@@ -29,6 +30,7 @@ namespace Board_Game_Software.Pages.GameNight
             // Determine if the current user has administrative rights
             IsAdmin = User.IsInRole("Admin");
             CurrentClub = await _currentClubService.GetCurrentClubAsync();
+            CanSchedule = IsAdmin || CurrentClub.CanManageCurrentClub;
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             // Calculate the date 3 months ago
@@ -67,6 +69,12 @@ namespace Board_Game_Software.Pages.GameNight
                     ModifiedBy = n.ModifiedBy,
                     TimeModified = n.TimeModified,
                     GameNightDate = n.GameNightDate,
+                    Title = n.Title,
+                    Description = n.Description,
+                    StartsAt = n.StartsAt,
+                    EndsAt = n.EndsAt,
+                    Visibility = n.Visibility,
+                    BookingUrl = n.BookingUrl,
                     Finished = n.Finished,
                     FkBgdClub = n.FkBgdClub,
                     ClubName = n.FkBgdClubNavigation != null ? n.FkBgdClubNavigation.ClubName : null,

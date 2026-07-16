@@ -13,6 +13,12 @@ namespace Board_Game_Software.Models
         public string ModifiedBy { get; set; } = null!;
         public DateTime TimeModified { get; set; }
         public DateOnly GameNightDate { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public DateTime StartsAt { get; set; }
+        public DateTime? EndsAt { get; set; }
+        public string Visibility { get; set; } = GameNightDefaults.MembersOnlyVisibility;
+        public string? BookingUrl { get; set; }
         public bool Finished { get; set; }
 
         // New columns from the updated SQL view

@@ -17,6 +17,8 @@ public partial class BoardGameDbContext : DbContext
 
     public virtual DbSet<BoardGame> BoardGames { get; set; }
 
+    public virtual DbSet<BoardGameAlias> BoardGameAliases { get; set; }
+
     public virtual DbSet<BoardGameEloMethod> BoardGameEloMethods { get; set; }
 
     public virtual DbSet<BoardGameExpansion> BoardGameExpansions { get; set; }
@@ -78,6 +80,8 @@ public partial class BoardGameDbContext : DbContext
     public virtual DbSet<ShelfSection> ShelfSections { get; set; }
 
     public virtual DbSet<StoredImage> StoredImages => Set<StoredImage>();
+
+    public virtual DbSet<UserAccountTier> UserAccountTiers { get; set; }
 
     public virtual DbSet<MarkerAdditionalType> MarkerAdditionalTypes { get; set; }
 
@@ -171,7 +175,15 @@ public partial class BoardGameDbContext : DbContext
 
             entity.HasIndex(e => e.FkBgdClub, "IX_bgd_BoardGame_FK_bgd_Club");
 
+            entity.HasIndex(e => new { e.FkBgdClub, e.LocalGameStatus }, "IX_bgd_BoardGame_Club_LocalGameStatus");
+
+            entity.HasIndex(e => new { e.FkBgdClub, e.NormalizedName }, "IX_bgd_BoardGame_Club_NormalizedName");
+
+            entity.HasIndex(e => e.FkBgdMergedIntoBoardGame, "IX_bgd_BoardGame_FK_bgd_MergedIntoBoardGame");
+
             entity.HasIndex(e => e.FkBgdTemplateBoardGame, "IX_bgd_BoardGame_FK_bgd_TemplateBoardGame");
+
+            entity.HasIndex(e => new { e.GameStatus, e.GameSource }, "IX_bgd_BoardGame_Status_Source");
 
             entity.Property(e => e.Id).HasColumnName("ID");
             entity.Property(e => e.BoardGameName)
@@ -183,15 +195,32 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.FkBgdBoardGameType).HasColumnName("FK_bgd_BoardGameType");
             entity.Property(e => e.FkBgdBoardGameVictoryConditionType).HasColumnName("FK_bgd_BoardGameVictoryConditionType");
             entity.Property(e => e.FkBgdClub).HasColumnName("FK_bgd_Club");
+            entity.Property(e => e.FkBgdMergedIntoBoardGame).HasColumnName("FK_bgd_MergedIntoBoardGame");
             entity.Property(e => e.FkBgdPublisher).HasColumnName("FK_bgd_Publisher");
             entity.Property(e => e.FkBgdTemplateBoardGame).HasColumnName("FK_bgd_TemplateBoardGame");
             entity.Property(e => e.Gid)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("GID");
+            entity.Property(e => e.GameSource)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(BoardGameDefaults.ManualSource);
+            entity.Property(e => e.GameStatus)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(BoardGameDefaults.ApprovedStatus);
             entity.Property(e => e.HeightCm).HasColumnType("decimal(5, 2)");
             entity.Property(e => e.HowToPlayHyperlink).IsUnicode(false);
             entity.Property(e => e.IsExpansion).HasColumnType("bit");
+            entity.Property(e => e.LocalGameStatus)
+                .HasMaxLength(30)
+                .IsUnicode(false);
             entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.NormalizedName)
+                .HasMaxLength(120)
+                .IsUnicode(false)
+                .HasDefaultValue("");
+            entity.Property(e => e.SubmittedByUserId).HasMaxLength(450);
             entity.Property(e => e.TimeCreated).HasColumnType("datetime");
             entity.Property(e => e.TimeModified).HasColumnType("datetime");
             entity.Property(e => e.VersionStamp)
@@ -218,6 +247,53 @@ public partial class BoardGameDbContext : DbContext
             entity.HasOne(d => d.FkBgdTemplateBoardGameNavigation).WithMany(p => p.ClubBoardGameCopies)
                 .HasForeignKey(d => d.FkBgdTemplateBoardGame)
                 .HasConstraintName("FK_bgd_BoardGame__bgd_TemplateBoardGame");
+
+            entity.HasOne(d => d.FkBgdMergedIntoBoardGameNavigation).WithMany(p => p.MergedBoardGames)
+                .HasForeignKey(d => d.FkBgdMergedIntoBoardGame)
+                .HasConstraintName("FK_bgd_BoardGame__bgd_MergedIntoBoardGame");
+        });
+
+        modelBuilder.Entity<BoardGameAlias>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_bgd_BoardGameAlias");
+
+            entity.ToTable("BoardGameAlias", "bgd");
+
+            entity.HasIndex(e => e.Gid, "AK_bgd_BoardGameAlias_GID").IsUnique();
+            entity.HasIndex(e => e.FkBgdBoardGame, "IX_bgd_BoardGameAlias_FK_bgd_BoardGame");
+            entity.HasIndex(e => e.NormalizedAliasName, "IX_bgd_BoardGameAlias_NormalizedAliasName");
+            entity.HasIndex(e => new { e.FkBgdBoardGame, e.NormalizedAliasName }, "UQ_bgd_BoardGameAlias_Game_NormalizedAlias")
+                .IsUnique()
+                .HasFilter("[Inactive] = 0");
+
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.AliasName)
+                .HasMaxLength(160)
+                .IsUnicode(false);
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime");
+            entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.FkBgdBoardGame).HasColumnName("FK_bgd_BoardGame");
+            entity.Property(e => e.Gid)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("GID");
+            entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.NormalizedAliasName)
+                .HasMaxLength(160)
+                .IsUnicode(false);
+            entity.Property(e => e.Source)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(BoardGameDefaults.ManualSource);
+            entity.Property(e => e.TimeCreated).HasColumnType("datetime");
+            entity.Property(e => e.TimeModified).HasColumnType("datetime");
+            entity.Property(e => e.VersionStamp)
+                .IsRowVersion()
+                .IsConcurrencyToken();
+
+            entity.HasOne(d => d.FkBgdBoardGameNavigation).WithMany(p => p.BoardGameAliases)
+                .HasForeignKey(d => d.FkBgdBoardGame)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_bgd_BoardGameAlias__bgd_BoardGame");
         });
 
         modelBuilder.Entity<BoardGameExpansion>(entity =>
@@ -428,26 +504,46 @@ public partial class BoardGameDbContext : DbContext
                 });
 
             entity.HasIndex(e => e.Gid, "AK_bgd_BoardGameMatch_GID").IsUnique();
+            entity.HasIndex(e => e.FkBgdClub, "IX_bgd_BoardGameMatch_FK_bgd_Club");
+            entity.HasIndex(e => new { e.PlayContext, e.Visibility }, "IX_bgd_BoardGameMatch_Context_Visibility");
+            entity.HasIndex(e => new { e.MatchType, e.MatchComplete }, "IX_bgd_BoardGameMatch_Type_Complete");
 
             entity.Property(e => e.Id).HasColumnName("ID");
             entity.Property(e => e.CreatedBy).HasMaxLength(128);
             entity.Property(e => e.FkBgdBoardGame).HasColumnName("FK_bgd_BoardGame");
+            entity.Property(e => e.FkBgdClub).HasColumnName("FK_bgd_Club");
             entity.Property(e => e.FkBgdResultType).HasColumnName("FK_bgd_ResultType");
             entity.Property(e => e.Gid)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("GID");
             entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.PlayContext)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(MatchDefaults.ClubGameNightContext);
+            entity.Property(e => e.MatchType)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(MatchDefaults.ScoredMatchType);
             entity.Property(e => e.TimeCreated).HasColumnType("datetime");
             entity.Property(e => e.TimeModified).HasColumnType("datetime");
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.Visibility)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(MatchDefaults.MembersOnlyVisibility);
             entity.Property(e => e.MatchComplete).HasColumnName("MatchComplete");
 
             entity.HasOne(d => d.FkBgdBoardGameNavigation).WithMany(p => p.BoardGameMatches)
                 .HasForeignKey(d => d.FkBgdBoardGame)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_bgd_BoardGameMatch__bgd_BoardGame");
+
+            entity.HasOne(d => d.FkBgdClubNavigation).WithMany()
+                .HasForeignKey(d => d.FkBgdClub)
+                .HasConstraintName("FK_bgd_BoardGameMatch__bgd_Club");
 
             entity.HasOne(d => d.FkBgdResultTypeNavigation).WithMany(p => p.BoardGameMatches)
                 .HasForeignKey(d => d.FkBgdResultType)
@@ -463,6 +559,7 @@ public partial class BoardGameDbContext : DbContext
                     tb.HasTrigger("bgdBoardGameMatchPlayer_DeleteInsteadOf");
                     tb.HasTrigger("bgdBoardGameMatchPlayer_InsertAfter");
                     tb.HasTrigger("bgdBoardGameMatchPlayer_UpdateInteadOf");
+                    tb.HasCheckConstraint("CK_bgd_BoardGameMatchPlayer_PlayerOrGuest", "[FK_bgd_Player] IS NOT NULL OR [GuestName] IS NOT NULL OR [InvitedEmail] IS NOT NULL");
                 });
 
             entity.HasIndex(e => e.Gid, "AK_bgd_BoardGameMatchPlayer_GID").IsUnique();
@@ -472,6 +569,13 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.FkBgdBoardGameMarker).HasColumnName("FK_bgd_BoardGameMarker");
             entity.Property(e => e.FkBgdBoardGameMatch).HasColumnName("FK_bgd_BoardGameMatch");
             entity.Property(e => e.FkBgdPlayer).HasColumnName("FK_bgd_Player");
+            entity.Property(e => e.CharacterName).HasMaxLength(160);
+            entity.Property(e => e.Colour).HasMaxLength(80);
+            entity.Property(e => e.Faction).HasMaxLength(160);
+            entity.Property(e => e.GuestName).HasMaxLength(160);
+            entity.Property(e => e.InvitedEmail).HasMaxLength(256);
+            entity.Property(e => e.Score).HasColumnType("decimal(9, 2)");
+            entity.Property(e => e.TeamId).HasMaxLength(80);
             entity.Property(e => e.Gid)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("GID");
@@ -556,19 +660,34 @@ public partial class BoardGameDbContext : DbContext
                 });
 
             entity.HasIndex(e => e.Gid, "AK_bgd_BoardGameNight_GID").IsUnique();
+            entity.HasIndex(e => new { e.FkBgdClub, e.StartsAt }, "IX_bgd_BoardGameNight_Club_StartsAt");
+            entity.HasIndex(e => new { e.FkBgdClub, e.Visibility }, "IX_bgd_BoardGameNight_Club_Visibility");
 
             entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.BookingUrl).HasMaxLength(500);
             entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.CreatedByUserId).HasMaxLength(450);
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.EndsAt).HasColumnType("datetime");
             entity.Property(e => e.FkBgdClub).HasColumnName("FK_bgd_Club");
             entity.Property(e => e.Gid)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("GID");
+            entity.Property(e => e.LocationId).HasColumnName("LocationId");
             entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.StartsAt)
+                .HasColumnType("datetime")
+                .HasDefaultValueSql("(getdate())");
             entity.Property(e => e.TimeCreated).HasColumnType("datetime");
             entity.Property(e => e.TimeModified).HasColumnType("datetime");
+            entity.Property(e => e.Title).HasMaxLength(160);
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
+            entity.Property(e => e.Visibility)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(GameNightDefaults.MembersOnlyVisibility);
 
             entity.HasOne(d => d.FkBgdClubNavigation).WithMany(p => p.BoardGameNights)
                 .HasForeignKey(d => d.FkBgdClub)
@@ -582,23 +701,39 @@ public partial class BoardGameDbContext : DbContext
             entity.ToTable("Club", "bgd");
 
             entity.HasIndex(e => e.Gid, "AK_bgd_Club_GID").IsUnique();
+            entity.HasIndex(e => new { e.IsDiscoverable, e.Visibility }, "IX_bgd_Club_Discovery");
             entity.HasIndex(e => e.Slug, "UQ_bgd_Club_Slug")
                 .IsUnique()
                 .HasFilter("[Slug] IS NOT NULL");
 
             entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.AllowJoinRequests).HasDefaultValue(true);
             entity.Property(e => e.ClubName)
                 .HasMaxLength(120)
                 .IsUnicode(false);
+            entity.Property(e => e.ClubType)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(ClubDefaults.PublicClubType);
             entity.Property(e => e.ContactEmail).HasMaxLength(256);
             entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.DefaultGameNightVisibility)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(ClubDefaults.PublicVisibility);
+            entity.Property(e => e.DefaultMatchVisibility)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(ClubDefaults.PublicVisibility);
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.Gid)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("GID");
+            entity.Property(e => e.IsDiscoverable).HasDefaultValue(true);
             entity.Property(e => e.Latitude).HasColumnType("decimal(9, 6)");
             entity.Property(e => e.Longitude).HasColumnType("decimal(9, 6)");
             entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.ShowStatsPublicly).HasDefaultValue(true);
             entity.Property(e => e.Slug)
                 .HasMaxLength(80)
                 .IsUnicode(false);
@@ -606,6 +741,10 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.TimeModified).HasColumnType("datetime");
             entity.Property(e => e.VenueAddress).HasMaxLength(300);
             entity.Property(e => e.VenueName).HasMaxLength(160);
+            entity.Property(e => e.Visibility)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(ClubDefaults.PublicVisibility);
             entity.Property(e => e.VersionStamp)
                 .IsRowVersion()
                 .IsConcurrencyToken();
@@ -618,7 +757,11 @@ public partial class BoardGameDbContext : DbContext
             entity.ToTable("ClubMembership", "bgd");
 
             entity.HasIndex(e => e.Gid, "AK_bgd_ClubMembership_GID").IsUnique();
-            entity.HasIndex(e => new { e.FkBgdClub, e.UserId }, "UQ_bgd_ClubMembership_Club_User").IsUnique();
+            entity.HasIndex(e => new { e.FkBgdClub, e.InvitedEmail }, "IX_bgd_ClubMembership_Club_InvitedEmail")
+                .HasFilter("[InvitedEmail] IS NOT NULL");
+            entity.HasIndex(e => new { e.FkBgdClub, e.UserId }, "UQ_bgd_ClubMembership_Club_User")
+                .IsUnique()
+                .HasFilter("[UserId] IS NOT NULL");
 
             entity.Property(e => e.Id).HasColumnName("ID");
             entity.Property(e => e.CreatedBy).HasMaxLength(128);
@@ -626,11 +769,18 @@ public partial class BoardGameDbContext : DbContext
             entity.Property(e => e.Gid)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("GID");
+            entity.Property(e => e.GuestName).HasMaxLength(160);
+            entity.Property(e => e.InvitedByUserId).HasMaxLength(450);
+            entity.Property(e => e.InvitedEmail).HasMaxLength(256);
             entity.Property(e => e.JoinedAt).HasColumnType("datetime");
             entity.Property(e => e.ModifiedBy).HasMaxLength(128);
             entity.Property(e => e.Role)
                 .HasMaxLength(30)
                 .IsUnicode(false);
+            entity.Property(e => e.Status)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(ClubMembershipDefaults.ActiveStatus);
             entity.Property(e => e.TimeCreated).HasColumnType("datetime");
             entity.Property(e => e.TimeModified).HasColumnType("datetime");
             entity.Property(e => e.UserId).HasMaxLength(450);
@@ -1004,6 +1154,38 @@ public partial class BoardGameDbContext : DbContext
             entity.HasOne(d => d.FkBgdClubNavigation).WithMany()
                 .HasForeignKey(d => d.FkBgdClub)
                 .HasConstraintName("FK_bgd_Player__bgd_Club");
+        });
+
+        modelBuilder.Entity<UserAccountTier>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_bgd_UserAccountTier");
+
+            entity.ToTable("UserAccountTier", "bgd");
+
+            entity.HasIndex(e => e.Gid, "AK_bgd_UserAccountTier_GID").IsUnique();
+            entity.HasIndex(e => e.UserId, "UQ_bgd_UserAccountTier_UserId")
+                .IsUnique()
+                .HasFilter("[Inactive] = 0");
+            entity.HasIndex(e => e.SubscriptionTier, "IX_bgd_UserAccountTier_SubscriptionTier");
+
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.Gid)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("GID");
+            entity.Property(e => e.IsComped).HasDefaultValue(false);
+            entity.Property(e => e.ModifiedBy).HasMaxLength(128);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.SubscriptionTier)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue(AccountTierDefaults.FreePlayer);
+            entity.Property(e => e.TimeCreated).HasColumnType("datetime");
+            entity.Property(e => e.TimeModified).HasColumnType("datetime");
+            entity.Property(e => e.UserId).HasMaxLength(450);
+            entity.Property(e => e.VersionStamp)
+                .IsRowVersion()
+                .IsConcurrencyToken();
         });
 
         modelBuilder.Entity<PlayerBoardGameRating>(entity =>

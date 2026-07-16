@@ -42,6 +42,7 @@ namespace Board_Game_Software.Pages.GameNight
         public List<RivalryInsight> Rivalries { get; private set; } = new();
         public List<AchievementHighlight> Achievements { get; private set; } = new();
         public bool IsAdmin { get; set; }
+        public bool CanManageNight { get; private set; }
 
         [TempData]
         public string? ErrorMessage { get; set; }
@@ -69,6 +70,7 @@ namespace Board_Game_Software.Pages.GameNight
             public int Firsts { get; init; }
             public int Seconds { get; init; }
             public int Thirds { get; init; }
+            public bool CanRemove { get; init; }
         }
 
         public sealed class GameSuggestion
@@ -116,12 +118,26 @@ namespace Board_Game_Software.Pages.GameNight
             }
 
             Night = night;
+            CanManageNight = CanManageNightFor(night, currentClub);
 
             // standings
             NightScores = await _nightService.GetCurrentScores(id);
             HasStandings = NightScores.Any(); // only true if there are completed matches
 
             var scoreMap = NightScores.ToDictionary(x => x.PlayerId, x => x);
+            var matchIdsForNight = await _db.BoardGameNightBoardGameMatches.AsNoTracking()
+                .Where(nm => nm.FkBgdBoardGameNight == id && !nm.Inactive)
+                .Select(nm => nm.FkBgdBoardGameMatch)
+                .ToListAsync();
+
+            var playerIdsUsedInMatches = await _db.BoardGameMatchPlayers.AsNoTracking()
+                .Where(mp => !mp.Inactive
+                    && mp.FkBgdPlayer.HasValue
+                    && matchIdsForNight.Contains(mp.FkBgdBoardGameMatch))
+                .Select(mp => mp.FkBgdPlayer!.Value)
+                .Distinct()
+                .ToListAsync();
+            var playerIdsUsedInMatchesSet = playerIdsUsedInMatches.ToHashSet();
 
             // roster (players) with points if available
             Players = await _db.BoardGameNightPlayers.AsNoTracking()
@@ -138,7 +154,8 @@ namespace Board_Game_Software.Pages.GameNight
                     BestGamePoints = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].BestGamePoints : 0,
                     Firsts = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].Firsts : 0,
                     Seconds = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].Seconds : 0,
-                    Thirds = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].Thirds : 0
+                    Thirds = scoreMap.ContainsKey(p.Id) ? scoreMap[p.Id].Thirds : 0,
+                    CanRemove = CanManageNight && !night.Finished && !playerIdsUsedInMatchesSet.Contains(p.Id)
                 })
                 .ToListAsync();
 
@@ -293,7 +310,8 @@ namespace Board_Game_Software.Pages.GameNight
                     });
 
             var groupHistory = await _db.BoardGameMatchPlayers.AsNoTracking()
-                .Where(mp => activePlayerIds.Contains(mp.FkBgdPlayer)
+                .Where(mp => mp.FkBgdPlayer.HasValue
+                    && activePlayerIds.Contains(mp.FkBgdPlayer.Value)
                     && !mp.Inactive
                     && mp.FkBgdBoardGameMatchNavigation.MatchComplete == true
                     && !mp.FkBgdBoardGameMatchNavigation.Inactive)
@@ -301,7 +319,7 @@ namespace Board_Game_Software.Pages.GameNight
                 {
                     MatchId = mp.FkBgdBoardGameMatch,
                     GameId = mp.FkBgdBoardGameMatchNavigation.FkBgdBoardGame,
-                    mp.FkBgdPlayer,
+                    FkBgdPlayer = mp.FkBgdPlayer!.Value,
                     MatchDate = mp.FkBgdBoardGameMatchNavigation.MatchDate
                 })
                 .ToListAsync();
@@ -443,7 +461,8 @@ namespace Board_Game_Software.Pages.GameNight
             var playerNames = Players.ToDictionary(p => p.PlayerId, p => p.Name);
 
             var rows = await _db.BoardGameMatchPlayers.AsNoTracking()
-                .Where(mp => activePlayerIds.Contains(mp.FkBgdPlayer)
+                .Where(mp => mp.FkBgdPlayer.HasValue
+                    && activePlayerIds.Contains(mp.FkBgdPlayer.Value)
                     && !mp.Inactive
                     && mp.FkBgdBoardGameMatchNavigation.MatchComplete == true
                     && !mp.FkBgdBoardGameMatchNavigation.Inactive)
@@ -452,7 +471,7 @@ namespace Board_Game_Software.Pages.GameNight
                     MatchId = mp.FkBgdBoardGameMatch,
                     GameName = mp.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
                     MatchDate = mp.FkBgdBoardGameMatchNavigation.MatchDate,
-                    PlayerId = mp.FkBgdPlayer,
+                    PlayerId = mp.FkBgdPlayer!.Value,
                     Result = mp.BoardGameMatchPlayerResults
                         .Where(r => !r.Inactive)
                         .Select(r => new { r.Win, r.FinalTeam })
@@ -566,12 +585,13 @@ namespace Board_Game_Software.Pages.GameNight
 
             var tonightRows = await _db.BoardGameMatchPlayerResults.AsNoTracking()
                 .Where(r => !r.Inactive
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.HasValue
                     && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.MatchComplete == true
                     && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.BoardGameNightBoardGameMatches
                         .Any(link => link.FkBgdBoardGameNight == nightId && !link.Inactive))
                 .Select(r => new
                 {
-                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer,
+                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer!.Value,
                     GameId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame,
                     GameName = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGameNavigation.BoardGameName,
                     MatchId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch,
@@ -588,9 +608,10 @@ namespace Board_Game_Software.Pages.GameNight
             var previousWins = await _db.BoardGameMatchPlayerResults.AsNoTracking()
                 .Where(r => !r.Inactive
                     && r.Win
-                    && activePlayerIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer)
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.HasValue
+                    && activePlayerIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.Value)
                     && !tonightMatchIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatch))
-                .Select(r => r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer)
+                .Select(r => r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer!.Value)
                 .Distinct()
                 .ToListAsync();
 
@@ -689,10 +710,12 @@ namespace Board_Game_Software.Pages.GameNight
         private async Task<(string PlayerName, int Count)> GetBestWinStreak(List<long> activePlayerIds, Dictionary<long, string> playerNames)
         {
             var results = await _db.BoardGameMatchPlayerResults.AsNoTracking()
-                .Where(r => !r.Inactive && activePlayerIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer))
+                .Where(r => !r.Inactive
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.HasValue
+                    && activePlayerIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.Value))
                 .Select(r => new
                 {
-                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer,
+                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer!.Value,
                     MatchDate = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.MatchDate,
                     r.Win
                 })
@@ -738,10 +761,11 @@ namespace Board_Game_Software.Pages.GameNight
             var playerGameWins = await _db.BoardGameMatchPlayerResults.AsNoTracking()
                 .Where(r => !r.Inactive
                     && r.Win
-                    && activePlayerIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer))
+                    && r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.HasValue
+                    && activePlayerIds.Contains(r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer.Value))
                 .Select(r => new
                 {
-                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer,
+                    PlayerId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdPlayer!.Value,
                     GameId = r.FkBgdBoardGameMatchPlayerNavigation.FkBgdBoardGameMatchNavigation.FkBgdBoardGame
                 })
                 .Distinct()
@@ -789,6 +813,65 @@ namespace Board_Game_Software.Pages.GameNight
                 _db.BoardGameNightBoardGameMatches.Remove(link);
                 await _db.SaveChangesAsync();
             }
+            return RedirectToPage(new { id });
+        }
+
+        public async Task<IActionResult> OnPostRemovePlayerAsync(long id, long playerId)
+        {
+            var night = await _db.BoardGameNights.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id);
+            if (night == null) return NotFound();
+
+            var currentClub = await _currentClubService.GetCurrentClubAsync();
+            if (!CanManageNightFor(night, currentClub)) return Forbid();
+
+            if (night.Finished)
+            {
+                ErrorMessage = "Finished game nights cannot be changed.";
+                return RedirectToPage(new { id });
+            }
+
+            var playerIsInMatch = await _db.BoardGameNightBoardGameMatches.AsNoTracking()
+                .Where(nm => nm.FkBgdBoardGameNight == id && !nm.Inactive)
+                .AnyAsync(nm => nm.FkBgdBoardGameMatchNavigation.BoardGameMatchPlayers.Any(mp =>
+                    !mp.Inactive &&
+                    mp.FkBgdPlayer == playerId));
+
+            if (playerIsInMatch)
+            {
+                ErrorMessage = "That player is already in a match on this night, so they cannot be removed from the roster.";
+                return RedirectToPage(new { id });
+            }
+
+            var nightPlayer = await _db.BoardGameNightPlayers
+                .FirstOrDefaultAsync(np => np.FkBgdBoardGameNight == id
+                    && np.FkBgdPlayer == playerId
+                    && !np.Inactive);
+
+            if (nightPlayer == null)
+            {
+                return RedirectToPage(new { id });
+            }
+
+            var now = DateTime.UtcNow;
+            var actor = User.Identity?.Name ?? "system";
+            nightPlayer.Inactive = true;
+            nightPlayer.TimeModified = now;
+            nightPlayer.ModifiedBy = actor;
+
+            var votes = await _db.BoardGameVotes
+                .Where(v => v.FkBgdBoardGameNight == id
+                    && v.FkBgdPlayer == playerId
+                    && !v.Inactive)
+                .ToListAsync();
+
+            foreach (var vote in votes)
+            {
+                vote.Inactive = true;
+                vote.TimeModified = now;
+                vote.ModifiedBy = actor;
+            }
+
+            await _db.SaveChangesAsync();
             return RedirectToPage(new { id });
         }
 
@@ -861,6 +944,18 @@ namespace Board_Game_Software.Pages.GameNight
             }
 
             return night.FkBgdClub.HasValue && night.FkBgdClub == currentClub.CurrentClubId;
+        }
+
+        private bool CanManageNightFor(BoardGameNight night, CurrentClubContext currentClub)
+        {
+            if (User.IsInRole("Admin"))
+            {
+                return true;
+            }
+
+            return night.FkBgdClub.HasValue
+                && night.FkBgdClub == currentClub.CurrentClubId
+                && currentClub.CanManageCurrentClub;
         }
     }
 }

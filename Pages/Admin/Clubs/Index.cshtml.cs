@@ -12,8 +12,6 @@ namespace Board_Game_Software.Pages.Admin.Clubs
     [Authorize(Roles = "Admin")]
     public class IndexModel : PageModel
     {
-        private static readonly string[] MembershipRoles = ["Owner", "Admin", "Member"];
-
         private readonly BoardGameDbContext _db;
         private readonly UserManager<IdentityUser> _userManager;
 
@@ -26,10 +24,15 @@ namespace Board_Game_Software.Pages.Admin.Clubs
         public List<ClubRow> Clubs { get; set; } = new();
         public SelectList UserOptions { get; set; } = default!;
         public SelectList RoleOptions { get; set; } = default!;
+        public List<SelectListItem> ClubTypeOptions { get; set; } = new();
+        public List<SelectListItem> VisibilityOptions { get; set; } = new();
+        public ClubAdminSummary Summary { get; set; } = new();
 
         [BindProperty] public ClubInput Input { get; set; } = new();
         [BindProperty] public long ClubId { get; set; }
         [BindProperty] public string? UserId { get; set; }
+        [BindProperty] public string? InvitedEmail { get; set; }
+        [BindProperty] public string? GuestName { get; set; }
         [BindProperty] public string? MembershipRole { get; set; }
         [BindProperty] public long MembershipId { get; set; }
 
@@ -46,6 +49,13 @@ namespace Board_Game_Software.Pages.Admin.Clubs
             public string? VenueAddress { get; set; }
             public decimal? Latitude { get; set; }
             public decimal? Longitude { get; set; }
+            public string ClubType { get; set; } = ClubDefaults.PublicClubType;
+            public string Visibility { get; set; } = ClubDefaults.PublicVisibility;
+            public bool IsDiscoverable { get; set; } = true;
+            public bool AllowJoinRequests { get; set; } = true;
+            public string DefaultGameNightVisibility { get; set; } = ClubDefaults.PublicVisibility;
+            public string DefaultMatchVisibility { get; set; } = ClubDefaults.PublicVisibility;
+            public bool ShowStatsPublicly { get; set; } = true;
             public string? OwnerUserId { get; set; }
             public bool CreateStarterShelf { get; set; } = true;
         }
@@ -61,6 +71,13 @@ namespace Board_Game_Software.Pages.Admin.Clubs
             public string? VenueAddress { get; init; }
             public decimal? Latitude { get; init; }
             public decimal? Longitude { get; init; }
+            public string ClubType { get; init; } = ClubDefaults.PublicClubType;
+            public string Visibility { get; init; } = ClubDefaults.PublicVisibility;
+            public bool IsDiscoverable { get; init; }
+            public bool AllowJoinRequests { get; init; }
+            public string DefaultGameNightVisibility { get; init; } = ClubDefaults.PublicVisibility;
+            public string DefaultMatchVisibility { get; init; } = ClubDefaults.PublicVisibility;
+            public bool ShowStatsPublicly { get; init; }
             public int PlayerCount { get; init; }
             public int BoardGameCount { get; init; }
             public int ShelfCount { get; init; }
@@ -70,17 +87,33 @@ namespace Board_Game_Software.Pages.Admin.Clubs
             public bool HasContact => !string.IsNullOrWhiteSpace(ContactEmail);
             public bool HasVenue => !string.IsNullOrWhiteSpace(VenueName);
             public bool HasMapLocation => Latitude.HasValue && Longitude.HasValue;
+            public string ClubTypeLabel => ClubDefaults.GetDisplayName(ClubType);
+            public string VisibilityLabel => ClubDefaults.GetDisplayName(Visibility);
+            public string DefaultGameNightVisibilityLabel => ClubDefaults.GetDisplayName(DefaultGameNightVisibility);
+            public string DefaultMatchVisibilityLabel => ClubDefaults.GetDisplayName(DefaultMatchVisibility);
             public List<string> Owners { get; init; } = new();
             public List<MemberRow> Members { get; init; } = new();
+        }
+
+        public sealed class ClubAdminSummary
+        {
+            public int TotalClubs { get; init; }
+            public int PublicClubs { get; init; }
+            public int PrivateGroups { get; init; }
+            public int HiddenClubs { get; init; }
+            public int ClubsNeedingOwner { get; init; }
         }
 
         public sealed class MemberRow
         {
             public long Id { get; init; }
-            public string UserId { get; init; } = string.Empty;
-            public string Email { get; init; } = string.Empty;
+            public string? UserId { get; init; }
+            public string DisplayName { get; init; } = string.Empty;
             public string Role { get; init; } = string.Empty;
+            public string Status { get; init; } = ClubMembershipDefaults.ActiveStatus;
             public DateTime JoinedAt { get; init; }
+            public string RoleLabel => ClubMembershipDefaults.GetDisplayName(Role);
+            public string StatusLabel => ClubMembershipDefaults.GetDisplayName(Status);
         }
 
         public async Task OnGetAsync()
@@ -100,6 +133,28 @@ namespace Board_Game_Software.Pages.Admin.Clubs
             if (slugExists)
             {
                 ModelState.AddModelError("Input.Slug", "That slug is already used by another club.");
+            }
+
+            NormalizeVisibilityInput();
+
+            if (!ClubDefaults.IsValidClubType(Input.ClubType))
+            {
+                ModelState.AddModelError("Input.ClubType", "Choose a valid club type.");
+            }
+
+            if (!ClubDefaults.IsValidVisibility(Input.Visibility))
+            {
+                ModelState.AddModelError("Input.Visibility", "Choose a valid club visibility.");
+            }
+
+            if (!ClubDefaults.IsValidVisibility(Input.DefaultGameNightVisibility))
+            {
+                ModelState.AddModelError("Input.DefaultGameNightVisibility", "Choose a valid game night visibility.");
+            }
+
+            if (!ClubDefaults.IsValidVisibility(Input.DefaultMatchVisibility))
+            {
+                ModelState.AddModelError("Input.DefaultMatchVisibility", "Choose a valid match visibility.");
             }
 
             if (!ModelState.IsValid)
@@ -135,6 +190,13 @@ namespace Board_Game_Software.Pages.Admin.Clubs
             club.VenueAddress = string.IsNullOrWhiteSpace(Input.VenueAddress) ? null : Input.VenueAddress.Trim();
             club.Latitude = Input.Latitude;
             club.Longitude = Input.Longitude;
+            club.ClubType = Input.ClubType;
+            club.Visibility = Input.Visibility;
+            club.IsDiscoverable = Input.IsDiscoverable;
+            club.AllowJoinRequests = Input.AllowJoinRequests;
+            club.DefaultGameNightVisibility = Input.DefaultGameNightVisibility;
+            club.DefaultMatchVisibility = Input.DefaultMatchVisibility;
+            club.ShowStatsPublicly = Input.ShowStatsPublicly;
             club.ModifiedBy = actor;
             club.TimeModified = now;
 
@@ -173,25 +235,52 @@ namespace Board_Game_Software.Pages.Admin.Clubs
 
         public async Task<IActionResult> OnPostAddMemberAsync()
         {
-            if (ClubId <= 0 || string.IsNullOrWhiteSpace(UserId))
+            if (ClubId <= 0)
             {
                 return RedirectToPage();
             }
 
-            if (string.IsNullOrWhiteSpace(MembershipRole) || !MembershipRoles.Contains(MembershipRole))
+            if (string.IsNullOrWhiteSpace(MembershipRole) || !ClubMembershipDefaults.IsValidRole(MembershipRole))
             {
-                MembershipRole = "Member";
+                MembershipRole = ClubMembershipDefaults.MemberRole;
             }
 
-            var user = await _userManager.FindByIdAsync(UserId);
             var clubExists = await _db.Clubs.AnyAsync(c => c.Id == ClubId);
-            if (user == null || !clubExists)
+            if (!clubExists)
             {
                 return NotFound();
             }
 
-            await UpsertMembershipAsync(ClubId, UserId, MembershipRole, User.Identity?.Name ?? "system", DateTime.UtcNow);
-            StatusMessage = $"Added {user.Email ?? user.UserName} to the club.";
+            var actor = User.Identity?.Name ?? "system";
+            var now = DateTime.UtcNow;
+
+            if (!string.IsNullOrWhiteSpace(UserId))
+            {
+                var user = await _userManager.FindByIdAsync(UserId);
+                if (user == null)
+                {
+                    return NotFound();
+                }
+
+                await UpsertMembershipAsync(ClubId, UserId, MembershipRole, actor, now);
+                StatusMessage = $"Added {user.Email ?? user.UserName} to the club.";
+                return RedirectToPage();
+            }
+
+            if (!string.IsNullOrWhiteSpace(InvitedEmail))
+            {
+                await UpsertInviteAsync(ClubId, InvitedEmail, MembershipRole, actor, _userManager.GetUserId(User), now);
+                StatusMessage = $"Invited {InvitedEmail.Trim()} to the club.";
+                return RedirectToPage();
+            }
+
+            if (!string.IsNullOrWhiteSpace(GuestName))
+            {
+                await UpsertGuestAsync(ClubId, GuestName, actor, now);
+                StatusMessage = $"Added guest {GuestName.Trim()} to the club.";
+                return RedirectToPage();
+            }
+
             return RedirectToPage();
         }
 
@@ -204,6 +293,7 @@ namespace Board_Game_Software.Pages.Admin.Clubs
             }
 
             membership.Inactive = true;
+            membership.Status = ClubMembershipDefaults.RemovedStatus;
             membership.ModifiedBy = User.Identity?.Name ?? "system";
             membership.TimeModified = DateTime.UtcNow;
             await _db.SaveChangesAsync();
@@ -220,7 +310,20 @@ namespace Board_Game_Software.Pages.Admin.Clubs
                 .ToListAsync();
 
             UserOptions = new SelectList(users, "Id", "Label");
-            RoleOptions = new SelectList(MembershipRoles);
+            RoleOptions = new SelectList(
+                ClubMembershipDefaults.Roles.Select(role => new
+                {
+                    Value = role,
+                    Label = ClubMembershipDefaults.GetDisplayName(role)
+                }),
+                "Value",
+                "Label");
+            ClubTypeOptions = ClubDefaults.ClubTypes
+                .Select(type => new SelectListItem(ClubDefaults.GetDisplayName(type), type))
+                .ToList();
+            VisibilityOptions = ClubDefaults.VisibilityLevels
+                .Select(visibility => new SelectListItem(ClubDefaults.GetDisplayName(visibility), visibility))
+                .ToList();
 
             var userLookup = users.ToDictionary(u => u.Id, u => u.Label);
             var clubs = await _db.Clubs
@@ -275,6 +378,13 @@ namespace Board_Game_Software.Pages.Admin.Clubs
                 VenueAddress = c.VenueAddress,
                 Latitude = c.Latitude,
                 Longitude = c.Longitude,
+                ClubType = c.ClubType,
+                Visibility = c.Visibility,
+                IsDiscoverable = c.IsDiscoverable,
+                AllowJoinRequests = c.AllowJoinRequests,
+                DefaultGameNightVisibility = c.DefaultGameNightVisibility,
+                DefaultMatchVisibility = c.DefaultMatchVisibility,
+                ShowStatsPublicly = c.ShowStatsPublicly,
                 PlayerCount = playerCounts.GetValueOrDefault(c.Id),
                 BoardGameCount = boardGameCounts.GetValueOrDefault(c.Id),
                 ShelfCount = shelfCounts.GetValueOrDefault(c.Id),
@@ -282,22 +392,65 @@ namespace Board_Game_Software.Pages.Admin.Clubs
                 OpenGameNightCount = gameNightCounts.GetValueOrDefault(c.Id)?.OpenCount ?? 0,
                 LastGameNightDate = gameNightCounts.GetValueOrDefault(c.Id)?.LastDate,
                 Owners = c.ClubMemberships
-                    .Where(m => m.Role == "Owner")
-                    .Select(m => userLookup.GetValueOrDefault(m.UserId, m.UserId))
+                    .Where(m => m.Role == ClubMembershipDefaults.OwnerRole &&
+                        m.Status == ClubMembershipDefaults.ActiveStatus &&
+                        !string.IsNullOrWhiteSpace(m.UserId))
+                    .Select(m => userLookup.GetValueOrDefault(m.UserId!, m.UserId!))
                     .ToList(),
                 Members = c.ClubMemberships
-                    .OrderBy(m => m.Role == "Owner" ? 0 : m.Role == "Admin" ? 1 : 2)
-                    .ThenBy(m => userLookup.GetValueOrDefault(m.UserId, m.UserId))
+                    .OrderBy(m => m.Status == ClubMembershipDefaults.ActiveStatus ? 0 : m.Status == ClubMembershipDefaults.InvitedStatus ? 1 : 2)
+                    .ThenBy(m => m.Role == ClubMembershipDefaults.OwnerRole ? 0 : m.Role == ClubMembershipDefaults.AdminRole ? 1 : m.Role == ClubMembershipDefaults.MemberRole ? 2 : 3)
+                    .ThenBy(m => GetMembershipDisplayName(m, userLookup))
                     .Select(m => new MemberRow
                     {
                         Id = m.Id,
                         UserId = m.UserId,
-                        Email = userLookup.GetValueOrDefault(m.UserId, m.UserId),
+                        DisplayName = GetMembershipDisplayName(m, userLookup),
                         Role = m.Role,
+                        Status = m.Status,
                         JoinedAt = m.JoinedAt
                     })
                     .ToList()
             }).ToList();
+
+            Summary = new ClubAdminSummary
+            {
+                TotalClubs = Clubs.Count,
+                PublicClubs = Clubs.Count(c => c.ClubType == ClubDefaults.PublicClubType),
+                PrivateGroups = Clubs.Count(c => c.ClubType == ClubDefaults.PrivateGroupType),
+                HiddenClubs = Clubs.Count(c => !c.IsDiscoverable || c.Visibility != ClubDefaults.PublicVisibility),
+                ClubsNeedingOwner = Clubs.Count(c => !c.Owners.Any())
+            };
+        }
+
+        private void NormalizeVisibilityInput()
+        {
+            Input.ClubType = string.IsNullOrWhiteSpace(Input.ClubType)
+                ? ClubDefaults.PublicClubType
+                : Input.ClubType.Trim();
+            Input.Visibility = string.IsNullOrWhiteSpace(Input.Visibility)
+                ? ClubDefaults.PublicVisibility
+                : Input.Visibility.Trim();
+            Input.DefaultGameNightVisibility = string.IsNullOrWhiteSpace(Input.DefaultGameNightVisibility)
+                ? ClubDefaults.PublicVisibility
+                : Input.DefaultGameNightVisibility.Trim();
+            Input.DefaultMatchVisibility = string.IsNullOrWhiteSpace(Input.DefaultMatchVisibility)
+                ? ClubDefaults.PublicVisibility
+                : Input.DefaultMatchVisibility.Trim();
+
+            if (Input.ClubType == ClubDefaults.PrivateGroupType)
+            {
+                Input.Visibility = ClubDefaults.PrivateVisibility;
+                Input.IsDiscoverable = false;
+                Input.AllowJoinRequests = false;
+                Input.DefaultGameNightVisibility = ClubDefaults.PrivateVisibility;
+                Input.DefaultMatchVisibility = ClubDefaults.PrivateVisibility;
+                Input.ShowStatsPublicly = false;
+            }
+            else if (Input.Visibility != ClubDefaults.PublicVisibility)
+            {
+                Input.IsDiscoverable = false;
+            }
         }
 
         private static string BuildSlug(string? requestedSlug, string clubName)
@@ -327,10 +480,98 @@ namespace Board_Game_Software.Pages.Admin.Clubs
 
             membership.Inactive = false;
             membership.Role = role;
+            membership.Status = ClubMembershipDefaults.ActiveStatus;
+            membership.GuestName = null;
+            membership.InvitedEmail = null;
+            membership.InvitedByUserId = null;
             membership.ModifiedBy = actor;
             membership.TimeModified = now;
 
             await _db.SaveChangesAsync();
+        }
+
+        private async Task UpsertInviteAsync(long clubId, string invitedEmail, string role, string actor, string? invitedByUserId, DateTime now)
+        {
+            var normalizedEmail = invitedEmail.Trim();
+            var membership = await _db.ClubMemberships
+                .FirstOrDefaultAsync(m => m.FkBgdClub == clubId && m.InvitedEmail == normalizedEmail);
+
+            if (membership == null)
+            {
+                membership = new ClubMembership
+                {
+                    FkBgdClub = clubId,
+                    InvitedEmail = normalizedEmail,
+                    JoinedAt = now,
+                    CreatedBy = actor,
+                    TimeCreated = now
+                };
+                _db.ClubMemberships.Add(membership);
+            }
+
+            membership.UserId = null;
+            membership.GuestName = null;
+            membership.Role = role == ClubMembershipDefaults.GuestRole ? ClubMembershipDefaults.MemberRole : role;
+            membership.Status = ClubMembershipDefaults.InvitedStatus;
+            membership.InvitedByUserId = invitedByUserId;
+            membership.Inactive = false;
+            membership.ModifiedBy = actor;
+            membership.TimeModified = now;
+
+            await _db.SaveChangesAsync();
+        }
+
+        private async Task UpsertGuestAsync(long clubId, string guestName, string actor, DateTime now)
+        {
+            var displayName = guestName.Trim();
+            var membership = await _db.ClubMemberships
+                .FirstOrDefaultAsync(m => m.FkBgdClub == clubId &&
+                    m.GuestName == displayName &&
+                    m.Role == ClubMembershipDefaults.GuestRole);
+
+            if (membership == null)
+            {
+                membership = new ClubMembership
+                {
+                    FkBgdClub = clubId,
+                    GuestName = displayName,
+                    JoinedAt = now,
+                    CreatedBy = actor,
+                    TimeCreated = now
+                };
+                _db.ClubMemberships.Add(membership);
+            }
+
+            membership.UserId = null;
+            membership.InvitedEmail = null;
+            membership.InvitedByUserId = null;
+            membership.Role = ClubMembershipDefaults.GuestRole;
+            membership.Status = ClubMembershipDefaults.ActiveStatus;
+            membership.Inactive = false;
+            membership.ModifiedBy = actor;
+            membership.TimeModified = now;
+
+            await _db.SaveChangesAsync();
+        }
+
+        private static string GetMembershipDisplayName(ClubMembership membership, IReadOnlyDictionary<string, string> userLookup)
+        {
+            if (!string.IsNullOrWhiteSpace(membership.UserId))
+            {
+                return userLookup.GetValueOrDefault(membership.UserId, membership.UserId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(membership.InvitedEmail))
+            {
+                return membership.InvitedEmail;
+            }
+
+            if (!string.IsNullOrWhiteSpace(membership.GuestName))
+            {
+                return membership.GuestName;
+            }
+
+            return "Unknown member";
         }
     }
 }

@@ -395,9 +395,48 @@ body {
         max-height: 300px;
     }
 /* Club admin */
+.club-admin-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.club-summary-tile {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  background: var(--bs-body-tertiary);
+  padding: .85rem 1rem;
+  min-width: 0;
+}
+
+.club-summary-tile span,
+.club-detail-grid .small {
+  letter-spacing: 0;
+}
+
+.club-summary-tile span {
+  display: block;
+  color: var(--bs-secondary-color);
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.club-summary-tile strong {
+  display: block;
+  margin-top: .25rem;
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.club-summary-tile.needs-attention {
+  border-color: rgba(var(--bs-warning-rgb), .45);
+  background: rgba(var(--bs-warning-rgb), .08);
+}
+
 .club-admin-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
@@ -408,6 +447,64 @@ body {
   border-radius: 8px;
   background: var(--bs-body-tertiary);
   padding: 1rem;
+}
+
+.club-form-panel {
+  position: sticky;
+  top: calc(var(--app-header-height) + 1rem);
+}
+
+.club-create-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.club-create-panel form {
+  padding: 0 1rem 1rem;
+}
+
+.club-create-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.club-create-summary::-webkit-details-marker {
+  display: none;
+}
+
+.club-create-summary-icon {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(var(--bs-primary-rgb), .35);
+  border-radius: 999px;
+  color: var(--bs-primary);
+  background: rgba(var(--bs-primary-rgb), .08);
+}
+
+.club-create-panel[open] .club-create-summary {
+  border-bottom: 1px solid var(--bs-border-color);
+  margin-bottom: 1rem;
+}
+
+.club-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  background: var(--bs-body-tertiary);
+  padding: 1rem;
+  margin-bottom: 1rem;
 }
 
 .club-card {
@@ -533,14 +630,48 @@ body {
 
 .club-edit-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: .75rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
 }
 
-.club-edit-form textarea,
-.club-edit-form .row,
-.club-edit-form button {
+.club-settings-section {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  background: var(--bs-body-bg);
+  padding: .85rem;
+}
+
+.club-settings-heading,
+.club-settings-wide,
+.club-settings-checks {
   grid-column: 1 / -1;
+}
+
+.club-settings-heading {
+  color: var(--bs-secondary-color);
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.club-settings-checks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .5rem;
+}
+
+.club-edit-form .form-label {
+  margin-bottom: .3rem;
+  font-size: .86rem;
+  font-weight: 700;
+}
+
+.club-edit-form .form-text {
+  color: var(--bs-secondary-color);
+  font-size: .78rem;
 }
 
 .member-list {
@@ -556,9 +687,18 @@ body {
   padding: .6rem .75rem;
 }
 
+.add-member-form {
+  flex-wrap: wrap;
+}
+
 .add-member-form .form-select:first-of-type {
   min-width: 0;
   flex: 1 1 12rem;
+}
+
+.add-member-form .form-control {
+  min-width: 0;
+  flex: 1 1 10rem;
 }
 
 .add-member-form .form-select:last-of-type {
@@ -566,16 +706,30 @@ body {
 }
 
 @media (max-width: 991.98px) {
+  .club-admin-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .club-admin-layout,
   .club-detail-grid,
   .club-account-metrics,
-  .club-edit-form {
+  .club-settings-section,
+  .club-settings-checks {
     grid-template-columns: 1fr;
+  }
+
+  .club-form-panel {
+    position: static;
   }
 }
 
 @media (max-width: 575.98px) {
+  .club-admin-summary {
+    grid-template-columns: 1fr;
+  }
+
   .club-card-header,
+  .club-list-toolbar,
   .add-member-form {
     align-items: stretch;
     flex-direction: column;
@@ -586,6 +740,7 @@ body {
   }
 
   .add-member-form .form-select,
+  .add-member-form .form-control,
   .add-member-form .btn {
     width: 100%;
   }

@@ -204,6 +204,79 @@
         </div>
     }
 
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-info rounded-4 shadow-sm mb-4">
+            <i class="bi bi-info-circle me-2"></i>@Model.StatusMessage
+        </div>
+    }
+
+    @if (Model.GuestParticipants.Any())
+    {
+        <div class="rating-impact-card mb-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
+                <div>
+                    <h2 class="h5 fw-bold mb-1"><i class="bi bi-person-plus text-primary me-2"></i>Guest Players</h2>
+                    <div class="text-secondary small">Link a guest to an existing player profile before completing the match.</div>
+                </div>
+                <span class="badge bg-primary-subtle text-primary border align-self-start">@Model.GuestParticipants.Count guest@(Model.GuestParticipants.Count == 1 ? "" : "s")</span>
+            </div>
+
+            @if (!Model.LinkablePlayers.Any())
+            {
+                <div class="text-secondary small">No linkable players are available in this match scope.</div>
+            }
+            else
+            {
+                <div class="d-grid gap-2">
+                    @foreach (var guest in Model.GuestParticipants)
+                    {
+                        <form method="post" asp-page-handler="LinkGuest" class="d-flex flex-column flex-md-row align-items-md-center gap-2 border border-secondary-subtle rounded-3 p-2">
+                            <input type="hidden" name="LinkGuest.MatchPlayerId" value="@guest.MatchPlayerId" />
+                            <div class="fw-bold flex-grow-1">@guest.GuestName</div>
+                            <select name="LinkGuest.PlayerId" class="form-select form-select-sm" asp-items="Model.LinkablePlayers" disabled="@(isLocked ? "disabled" : null)">
+                                <option value="">Choose player...</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-primary" disabled="@(isLocked ? "disabled" : null)">
+                                <i class="bi bi-link-45deg me-1"></i> Link
+                            </button>
+                        </form>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @if (!isLocked)
+    {
+        <div class="rating-impact-card mb-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
+                <div>
+                    <h2 class="h5 fw-bold mb-1"><i class="bi bi-person-plus-fill text-primary me-2"></i>Add Participant</h2>
+                    <div class="text-secondary small">Add a roster player or a guest to this open match.</div>
+                </div>
+            </div>
+
+            <form method="post" asp-page-handler="AddParticipant" class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small fw-bold text-uppercase opacity-50">Roster player</label>
+                    <select asp-for="AddParticipant.PlayerId" asp-items="Model.AddablePlayers" class="form-select">
+                        <option value="">Choose player...</option>
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label small fw-bold text-uppercase opacity-50">Guest name</label>
+                    <input asp-for="AddParticipant.GuestName" class="form-control" placeholder="Guest name" />
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-plus-lg me-1"></i>Add
+                    </button>
+                </div>
+            </form>
+        </div>
+    }
+
     <form method="post">
         <input type="hidden" asp-for="Input.MatchId" />
         <input type="hidden" asp-for="Input.NightId" />
@@ -225,6 +298,7 @@
                 </a>
 
                 <p class="text-white-50 mb-0">@Model.MatchDate?.ToString("dddd, MMMM dd, yyyy")</p>
+                <span class="badge bg-dark border border-light-subtle align-self-start mt-3 rounded-pill px-3">@Model.MatchTypeLabel</span>
                 <div class="mt-3 bg-dark bg-opacity-50 p-2 rounded-4 d-inline-flex align-items-center" style="max-width: fit-content;">
                     <label class="text-white small fw-bold text-uppercase mx-3 opacity-75">Finish Time</label>
                     <input asp-for="Input.FinishedDate" type="datetime-local" class="form-control form-control-sm border-0 bg-transparent text-white fw-bold" disabled="@(isLocked ? "disabled" : null)" />
